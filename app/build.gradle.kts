@@ -141,6 +141,9 @@ dependencies {
     implementation(libs.kotlinx.datetime)
     implementation(libs.kotlinx.serialization.json)
 
+    // Database driver (Database/SqlDriver 的装配在 AppBindings 中完成)
+    implementation(libs.androidx.sqlite.bundled)
+
     implementation(libs.androidx.work)
     implementation(libs.androidx.preference)
 
@@ -151,6 +154,7 @@ dependencies {
 
     // Navigation
     implementation(libs.bundles.voyager)
+    implementation(libs.androidx.compose.material3NavSuite)
 
     // Image loading
     implementation(libs.bundles.coil)

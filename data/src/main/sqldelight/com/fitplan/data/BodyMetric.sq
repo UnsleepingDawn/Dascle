@@ -1,0 +1,43 @@
+CREATE TABLE body_metric (
+    id       INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    date     INTEGER NOT NULL,
+    weight   REAL,
+    body_fat REAL
+);
+
+CREATE INDEX body_metric_date ON body_metric(date);
+
+selectAll:
+SELECT *
+FROM body_metric
+ORDER BY date DESC;
+
+selectLatest:
+SELECT *
+FROM body_metric
+ORDER BY date DESC
+LIMIT 1;
+
+selectByDate:
+SELECT *
+FROM body_metric
+WHERE date = ?;
+
+selectBetween:
+SELECT *
+FROM body_metric
+WHERE date >= ? AND date <= ?
+ORDER BY date;
+
+insert:
+INSERT INTO body_metric(date, weight, body_fat)
+VALUES (?, ?, ?);
+
+update:
+UPDATE body_metric
+SET weight = ?, body_fat = ?
+WHERE id = ?;
+
+deleteById:
+DELETE FROM body_metric
+WHERE id = ?;

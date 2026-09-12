@@ -1,0 +1,42 @@
+package com.fitplan.domain.repository
+
+import com.fitplan.domain.model.Routine
+import com.fitplan.domain.model.RoutineExercise
+import kotlin.time.Instant
+
+interface RoutineRepository {
+
+    suspend fun getAll(): List<Routine>
+
+    suspend fun getById(id: Long): Routine?
+
+    suspend fun count(): Long
+
+    suspend fun insert(name: String, note: String, createdAt: Instant): Long
+
+    suspend fun update(id: Long, name: String, note: String)
+
+    suspend fun deleteById(id: Long)
+
+    suspend fun getExercises(routineId: Long): List<RoutineExercise>
+
+    suspend fun addExercise(
+        routineId: Long,
+        exerciseId: Long,
+        targetSets: Int,
+        targetReps: Int,
+        restSeconds: Int,
+    ): Long
+
+    suspend fun updateExerciseTargets(
+        id: Long,
+        targetSets: Int,
+        targetReps: Int,
+        restSeconds: Int,
+    )
+
+    /** 按传入的 id 顺序重写 `position`，供拖拽排序使用。 */
+    suspend fun reorderExercises(routineId: Long, orderedRoutineExerciseIds: List<Long>)
+
+    suspend fun removeExercise(id: Long)
+}

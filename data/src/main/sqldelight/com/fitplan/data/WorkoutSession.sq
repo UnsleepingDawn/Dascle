@@ -1,0 +1,72 @@
+CREATE TABLE workout_session (
+    id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    routine_id  INTEGER REFERENCES routine(id) ON DELETE SET NULL,
+    name        TEXT NOT NULL DEFAULT '',
+    started_at  INTEGER NOT NULL,
+    finished_at INTEGER,
+    note        TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX workout_session_started_at ON workout_session(started_at);
+
+selectAll:
+SELECT *
+FROM workout_session
+ORDER BY started_at DESC;
+
+selectById:
+SELECT *
+FROM workout_session
+WHERE id = ?;
+
+selectLatest:
+SELECT *
+FROM workout_session
+ORDER BY started_at DESC
+LIMIT 1;
+
+selectFinished:
+SELECT *
+FROM workout_session
+WHERE finished_at IS NOT NULL
+ORDER BY started_at DESC;
+
+selectFinishedBetween:
+SELECT *
+FROM workout_session
+WHERE finished_at IS NOT NULL AND started_at >= ? AND started_at < ?
+ORDER BY started_at;
+
+selectUnfinished:
+SELECT *
+FROM workout_session
+WHERE finished_at IS NULL
+ORDER BY started_at DESC;
+
+countFinished:
+SELECT count(*)
+FROM workout_session
+WHERE finished_at IS NOT NULL;
+
+insert:
+INSERT INTO workout_session(routine_id, name, started_at, finished_at, note)
+VALUES (?, ?, ?, ?, ?);
+
+finish:
+UPDATE workout_session
+SET finished_at = ?
+WHERE id = ?;
+
+updateName:
+UPDATE workout_session
+SET name = ?
+WHERE id = ?;
+
+updateNote:
+UPDATE workout_session
+SET note = ?
+WHERE id = ?;
+
+deleteById:
+DELETE FROM workout_session
+WHERE id = ?;

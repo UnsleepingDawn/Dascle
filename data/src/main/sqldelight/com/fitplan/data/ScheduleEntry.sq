@@ -1,0 +1,78 @@
+CREATE TABLE schedule_entry (
+    id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    routine_id    INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
+    day_of_week   INTEGER,
+    specific_date INTEGER,
+    enabled       INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX schedule_entry_routine_id ON schedule_entry(routine_id);
+CREATE INDEX schedule_entry_day_of_week ON schedule_entry(day_of_week);
+
+selectAll:
+SELECT
+    schedule_entry.id,
+    schedule_entry.routine_id,
+    routine.name AS routine_name,
+    schedule_entry.day_of_week,
+    schedule_entry.specific_date,
+    schedule_entry.enabled
+FROM schedule_entry
+JOIN routine ON routine.id = schedule_entry.routine_id
+ORDER BY schedule_entry.day_of_week, schedule_entry.specific_date;
+
+selectEnabledByDayOfWeek:
+SELECT
+    schedule_entry.id,
+    schedule_entry.routine_id,
+    routine.name AS routine_name,
+    schedule_entry.day_of_week,
+    schedule_entry.specific_date,
+    schedule_entry.enabled
+FROM schedule_entry
+JOIN routine ON routine.id = schedule_entry.routine_id
+WHERE schedule_entry.day_of_week = ? AND schedule_entry.enabled = 1;
+
+selectEnabledBySpecificDate:
+SELECT
+    schedule_entry.id,
+    schedule_entry.routine_id,
+    routine.name AS routine_name,
+    schedule_entry.day_of_week,
+    schedule_entry.specific_date,
+    schedule_entry.enabled
+FROM schedule_entry
+JOIN routine ON routine.id = schedule_entry.routine_id
+WHERE schedule_entry.specific_date = ? AND schedule_entry.enabled = 1;
+
+selectByRoutineId:
+SELECT *
+FROM schedule_entry
+WHERE routine_id = ?;
+
+insert:
+INSERT INTO schedule_entry(routine_id, day_of_week, specific_date, enabled)
+VALUES (?, ?, ?, ?);
+
+updateEnabled:
+UPDATE schedule_entry
+SET enabled = ?
+WHERE id = ?;
+
+updateDayOfWeek:
+UPDATE schedule_entry
+SET day_of_week = ?, specific_date = NULL
+WHERE id = ?;
+
+updateSpecificDate:
+UPDATE schedule_entry
+SET specific_date = ?, day_of_week = NULL
+WHERE id = ?;
+
+deleteById:
+DELETE FROM schedule_entry
+WHERE id = ?;
+
+deleteByRoutineId:
+DELETE FROM schedule_entry
+WHERE routine_id = ?;

@@ -1,0 +1,58 @@
+CREATE TABLE workout_set (
+    id               INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    session_id       INTEGER NOT NULL REFERENCES workout_session(id) ON DELETE CASCADE,
+    exercise_id      INTEGER NOT NULL REFERENCES exercise(id),
+    set_index        INTEGER NOT NULL,
+    weight           REAL,
+    reps             INTEGER,
+    duration_seconds INTEGER,
+    completed        INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX workout_set_session_id ON workout_set(session_id);
+CREATE INDEX workout_set_exercise_id ON workout_set(exercise_id);
+
+selectBySessionId:
+SELECT *
+FROM workout_set
+WHERE session_id = ?
+ORDER BY exercise_id, set_index;
+
+selectBySessionAndExercise:
+SELECT *
+FROM workout_set
+WHERE session_id = ? AND exercise_id = ?
+ORDER BY set_index;
+
+selectById:
+SELECT *
+FROM workout_set
+WHERE id = ?;
+
+selectCompletedBySessionId:
+SELECT *
+FROM workout_set
+WHERE session_id = ? AND completed = 1
+ORDER BY exercise_id, set_index;
+
+countBySessionId:
+SELECT count(*)
+FROM workout_set
+WHERE session_id = ?;
+
+insert:
+INSERT INTO workout_set(session_id, exercise_id, set_index, weight, reps, duration_seconds, completed)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE workout_set
+SET weight = ?, reps = ?, duration_seconds = ?, completed = ?
+WHERE id = ?;
+
+deleteById:
+DELETE FROM workout_set
+WHERE id = ?;
+
+deleteBySessionId:
+DELETE FROM workout_set
+WHERE session_id = ?;

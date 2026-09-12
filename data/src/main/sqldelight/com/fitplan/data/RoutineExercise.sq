@@ -1,0 +1,69 @@
+CREATE TABLE routine_exercise (
+    id           INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    routine_id   INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
+    exercise_id  INTEGER NOT NULL REFERENCES exercise(id),
+    position     INTEGER NOT NULL,
+    target_sets  INTEGER NOT NULL DEFAULT 3,
+    target_reps  INTEGER NOT NULL DEFAULT 10,
+    rest_seconds INTEGER NOT NULL DEFAULT 90
+);
+
+CREATE INDEX routine_exercise_routine_id ON routine_exercise(routine_id);
+
+selectByRoutineId:
+SELECT
+    routine_exercise.id,
+    routine_exercise.routine_id,
+    routine_exercise.exercise_id,
+    routine_exercise.position,
+    routine_exercise.target_sets,
+    routine_exercise.target_reps,
+    routine_exercise.rest_seconds,
+    exercise.name AS exercise_name,
+    exercise.muscle_group AS muscle_group,
+    exercise.equipment AS equipment
+FROM routine_exercise
+JOIN exercise ON exercise.id = routine_exercise.exercise_id
+WHERE routine_exercise.routine_id = ?
+ORDER BY routine_exercise.position;
+
+selectByRoutineIdWithSets:
+SELECT
+    routine_exercise.id AS routine_exercise_id,
+    exercise.id AS exercise_id,
+    exercise.name AS exercise_name,
+    exercise.muscle_group AS muscle_group,
+    routine_exercise.target_sets AS target_sets,
+    routine_exercise.target_reps AS target_reps,
+    routine_exercise.rest_seconds AS rest_seconds
+FROM routine_exercise
+JOIN exercise ON exercise.id = routine_exercise.exercise_id
+WHERE routine_exercise.routine_id = ?
+ORDER BY routine_exercise.position;
+
+selectMaxPosition:
+SELECT coalesce(max(position), -1)
+FROM routine_exercise
+WHERE routine_id = ?;
+
+insert:
+INSERT INTO routine_exercise(routine_id, exercise_id, position, target_sets, target_reps, rest_seconds)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updateTargets:
+UPDATE routine_exercise
+SET target_sets = ?, target_reps = ?, rest_seconds = ?
+WHERE id = ?;
+
+updatePosition:
+UPDATE routine_exercise
+SET position = ?
+WHERE id = ?;
+
+deleteById:
+DELETE FROM routine_exercise
+WHERE id = ?;
+
+deleteByRoutineId:
+DELETE FROM routine_exercise
+WHERE routine_id = ?;

@@ -1,0 +1,65 @@
+CREATE TABLE exercise (
+    id           INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    muscle_group TEXT NOT NULL,
+    equipment    TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    is_custom    INTEGER NOT NULL DEFAULT 0,
+    created_at   INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX exercise_muscle_group ON exercise(muscle_group);
+CREATE INDEX exercise_name ON exercise(name);
+
+selectAll:
+SELECT *
+FROM exercise
+ORDER BY muscle_group, name;
+
+selectById:
+SELECT *
+FROM exercise
+WHERE id = ?;
+
+selectByIds:
+SELECT *
+FROM exercise
+WHERE id IN ?;
+
+selectByMuscleGroup:
+SELECT *
+FROM exercise
+WHERE muscle_group = ?
+ORDER BY name;
+
+selectCustom:
+SELECT *
+FROM exercise
+WHERE is_custom = 1
+ORDER BY created_at DESC;
+
+selectNonCustomNames:
+SELECT name
+FROM exercise
+WHERE is_custom = 0;
+
+countAll:
+SELECT count(*)
+FROM exercise;
+
+insert:
+INSERT INTO exercise(name, muscle_group, equipment, description, is_custom, created_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+insertIgnore:
+INSERT OR IGNORE INTO exercise(name, muscle_group, equipment, description, is_custom, created_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE exercise
+SET name = ?, muscle_group = ?, equipment = ?, description = ?
+WHERE id = ?;
+
+deleteById:
+DELETE FROM exercise
+WHERE id = ?;
