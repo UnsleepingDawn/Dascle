@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.FitPlan" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">?android:attr/colorBackground</item>
+    </style>
+
+    <style name="Theme.FitPlan.SplashScreen" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.FitPlan</item>
+    </style>
+</resources>
