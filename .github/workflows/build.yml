@@ -1,0 +1,60 @@
+name: Build & Test
+on:
+  pull_request:
+    paths:
+      - '**'
+      - '!**.md'
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test App
+    runs-on: 'ubuntu-24.04'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check code format
+        run: ./gradlew spotlessCheck
+
+      - name: Run unit tests
+        id: unit_tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Verify SQLDelight migrations
+        run: ./gradlew verifySqlDelightMigration
+
+      - name: Upload test report
+        if: steps.unit_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ github.sha }}
+          path: app/build/reports/tests/testDebugUnitTest
+
+      - name: Build app
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk

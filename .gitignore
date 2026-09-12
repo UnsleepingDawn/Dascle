@@ -13,5 +13,8 @@ build
 keystore.properties
 local.properties
 
+# Agent artifacts
+.cursor-artifacts
+
 # macOS specific files
 .DS_Store
