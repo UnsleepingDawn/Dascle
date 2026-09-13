@@ -73,6 +73,37 @@
     <string name="schedule_no_routine_left">所有计划都已排入这一天</string>
     <string name="schedule_remove">移除排期</string>
 
+    <!-- 训练日历 -->
+    <string name="plan_calendar">日历</string>
+    <string name="calendar_title">训练日历</string>
+    <string name="calendar_month">%1$d 年 %2$d 月</string>
+    <string name="calendar_prev_month">上个月</string>
+    <string name="calendar_next_month">下个月</string>
+    <string name="calendar_back_to_month">本月</string>
+    <string name="calendar_day_actual">实际训练</string>
+    <string name="calendar_day_plan">当天计划</string>
+    <string name="calendar_day_empty">这一天还没有安排训练计划</string>
+    <string name="calendar_add_plan">添加计划</string>
+    <string name="calendar_pick_routine">选择要排入的计划</string>
+    <string name="calendar_no_routine_left">所有计划都已排入这一天</string>
+    <string name="calendar_insert_mode_title">把「%1$s」排入</string>
+    <string name="calendar_insert_mode_hint">仅此日只影响这一天；每周则会排到之后每一周的这一天。</string>
+    <string name="calendar_weekly">每周%1$s</string>
+    <string name="calendar_once">仅此日</string>
+    <string name="calendar_remove_plan">移除排期</string>
+    <string name="calendar_exercise_count">%1$d 个动作</string>
+    <string name="calendar_sets_count">完成 %1$d 组</string>
+
+    <string-array name="weekday_short_names">
+        <item>一</item>
+        <item>二</item>
+        <item>三</item>
+        <item>四</item>
+        <item>五</item>
+        <item>六</item>
+        <item>日</item>
+    </string-array>
+
     <!-- 训练记录 -->
     <string name="workout_title">训练记录</string>
     <string name="workout_free">自由训练</string>

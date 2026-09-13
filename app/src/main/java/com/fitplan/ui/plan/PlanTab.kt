@@ -43,8 +43,8 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.util.Tab
+import com.fitplan.ui.plan.calendar.PlanCalendarScreen
 import com.fitplan.ui.plan.routine.RoutineEditScreen
-import com.fitplan.ui.plan.schedule.ScheduleScreen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 object PlanTab : Tab {
@@ -75,10 +75,10 @@ object PlanTab : Tab {
                 TopAppBar(
                     title = { Text(text = stringResource(R.string.plan_title)) },
                     actions = {
-                        IconButton(onClick = { navigator.push(ScheduleScreen) }) {
+                        IconButton(onClick = { navigator.push(PlanCalendarScreen) }) {
                             Icon(
                                 imageVector = Icons.Filled.CalendarMonth,
-                                contentDescription = stringResource(R.string.plan_schedule),
+                                contentDescription = stringResource(R.string.plan_calendar),
                             )
                         }
                     },
