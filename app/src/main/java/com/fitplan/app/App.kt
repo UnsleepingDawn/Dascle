@@ -31,6 +31,9 @@ class App : Application(), GraphProvider<AppGraph> {
 
         graph.inject(this)
 
+        // 每次启动按已保存的设置把训练提醒闹钟排上（闹钟在重启/更新后会被系统清掉）。
+        graph.reminderScheduler.sync()
+
         Log.d(TAG, "AppGraph initialized: $graph, appContext injected: ${::appContext.isInitialized}")
 
         applicationScope.launch {

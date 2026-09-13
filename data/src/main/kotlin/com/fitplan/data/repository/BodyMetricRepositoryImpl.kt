@@ -1,6 +1,7 @@
 package com.fitplan.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
@@ -21,6 +22,7 @@ class BodyMetricRepositoryImpl(
 ) : BodyMetricRepository {
 
     private val queries get() = database.bodyMetricQueries
+    private val utilQueries get() = database.utilQueries
 
     override suspend fun getAll(): List<BodyMetric> = queries.selectAll().awaitAsList().map { it.toDomain() }
 
@@ -29,11 +31,15 @@ class BodyMetricRepositoryImpl(
     override suspend fun getByDate(date: LocalDate): BodyMetric? =
         queries.selectByDate(date.toDbValue()).awaitAsOneOrNull()?.toDomain()
 
-    override suspend fun insert(date: LocalDate, weight: Double?, bodyFat: Double?): Long = queries.insert(
-        date = date.toDbValue(),
-        weight = weight,
-        body_fat = bodyFat,
-    )
+    override suspend fun insert(date: LocalDate, weight: Double?, bodyFat: Double?): Long =
+        database.transactionWithResult {
+            queries.insert(
+                date = date.toDbValue(),
+                weight = weight,
+                body_fat = bodyFat,
+            )
+            utilQueries.lastInsertRowId().awaitAsOne()
+        }
 
     override suspend fun update(id: Long, weight: Double?, bodyFat: Double?) {
         queries.update(weight = weight, body_fat = bodyFat, id = id)

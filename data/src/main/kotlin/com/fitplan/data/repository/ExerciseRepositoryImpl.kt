@@ -1,6 +1,7 @@
 package com.fitplan.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
@@ -23,6 +24,7 @@ class ExerciseRepositoryImpl(
 ) : ExerciseRepository {
 
     private val queries get() = database.exerciseQueries
+    private val utilQueries get() = database.utilQueries
 
     override suspend fun getAll(): List<Exercise> = queries.selectAll().awaitAsList().map { it.toDomain() }
 
@@ -49,14 +51,17 @@ class ExerciseRepositoryImpl(
         description: String,
         isCustom: Boolean,
         createdAt: Instant,
-    ): Long = queries.insert(
-        name = name,
-        muscle_group = muscleGroup.toDbValue(),
-        equipment = equipment.toDbValue(),
-        description = description,
-        is_custom = if (isCustom) 1L else 0L,
-        created_at = createdAt.toDbValue(),
-    )
+    ): Long = database.transactionWithResult {
+        queries.insert(
+            name = name,
+            muscle_group = muscleGroup.toDbValue(),
+            equipment = equipment.toDbValue(),
+            description = description,
+            is_custom = if (isCustom) 1L else 0L,
+            created_at = createdAt.toDbValue(),
+        )
+        utilQueries.lastInsertRowId().awaitAsOne()
+    }
 
     override suspend fun update(exercise: Exercise) {
         queries.update(

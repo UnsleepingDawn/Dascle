@@ -163,6 +163,9 @@ dependencies {
     implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)
 
+    // 桌面组件
+    implementation(libs.androidx.glance.appWidget)
+
     // UI libraries
     implementation(libs.androidx.compose.material.iconsExtended)
     implementation(libs.materialKolor)

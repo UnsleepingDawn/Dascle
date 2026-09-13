@@ -1,6 +1,7 @@
 package com.fitplan.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOne
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
@@ -21,6 +22,7 @@ class ScheduleRepositoryImpl(
 ) : ScheduleRepository {
 
     private val queries get() = database.scheduleEntryQueries
+    private val utilQueries get() = database.utilQueries
 
     override suspend fun getAll(): List<ScheduleEntry> = queries.selectAll().awaitAsList().map { it.toDomain() }
 
@@ -30,19 +32,27 @@ class ScheduleRepositoryImpl(
     override suspend fun getEnabledForDate(date: LocalDate): List<ScheduleEntry> =
         queries.selectEnabledBySpecificDate(date.toDbValue()).awaitAsList().map { it.toDomain() }
 
-    override suspend fun insertWeekly(routineId: Long, dayOfWeek: DayOfWeek): Long = queries.insert(
-        routine_id = routineId,
-        day_of_week = dayOfWeek.toDbValue(),
-        specific_date = null,
-        enabled = 1L,
-    )
+    override suspend fun insertWeekly(routineId: Long, dayOfWeek: DayOfWeek): Long =
+        database.transactionWithResult {
+            queries.insert(
+                routine_id = routineId,
+                day_of_week = dayOfWeek.toDbValue(),
+                specific_date = null,
+                enabled = 1L,
+            )
+            utilQueries.lastInsertRowId().awaitAsOne()
+        }
 
-    override suspend fun insertOnce(routineId: Long, date: LocalDate): Long = queries.insert(
-        routine_id = routineId,
-        day_of_week = null,
-        specific_date = date.toDbValue(),
-        enabled = 1L,
-    )
+    override suspend fun insertOnce(routineId: Long, date: LocalDate): Long =
+        database.transactionWithResult {
+            queries.insert(
+                routine_id = routineId,
+                day_of_week = null,
+                specific_date = date.toDbValue(),
+                enabled = 1L,
+            )
+            utilQueries.lastInsertRowId().awaitAsOne()
+        }
 
     override suspend fun setEnabled(id: Long, enabled: Boolean) {
         queries.updateEnabled(enabled = if (enabled) 1L else 0L, id = id)

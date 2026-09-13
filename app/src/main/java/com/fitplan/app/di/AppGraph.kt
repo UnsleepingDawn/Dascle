@@ -11,6 +11,8 @@ import com.fitplan.app.App
 import com.fitplan.app.ui.main.MainActivity
 import com.fitplan.core.metro.IsDebugBuild
 import com.fitplan.data.Database
+import com.fitplan.reminder.ReminderScheduler
+import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.DependencyGraph
@@ -34,6 +36,12 @@ interface AppGraph : ViewModelGraph {
     val isDebugBuild: Boolean
 
     val viewModelFactory: MetroViewModelFactory
+
+    /** 「今日训练」桌面组件的刷新入口。 */
+    val widgetManager: WidgetManager
+
+    /** 训练提醒的闹钟与通知入口，供 Receiver 与设置页使用。 */
+    val reminderScheduler: ReminderScheduler
 
     @DependencyGraph.Factory
     fun interface Factory {

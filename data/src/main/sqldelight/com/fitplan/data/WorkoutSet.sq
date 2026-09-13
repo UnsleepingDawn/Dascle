@@ -35,6 +35,17 @@ FROM workout_set
 WHERE session_id = ? AND completed = 1
 ORDER BY exercise_id, set_index;
 
+-- 统计用：[start, end) 区间内已结束训练的全部已完成组。
+selectCompletedBetween:
+SELECT workout_set.*
+FROM workout_set
+JOIN workout_session ON workout_session.id = workout_set.session_id
+WHERE workout_set.completed = 1
+AND workout_session.finished_at IS NOT NULL
+AND workout_session.started_at >= ?
+AND workout_session.started_at < ?
+ORDER BY workout_session.started_at;
+
 countBySessionId:
 SELECT count(*)
 FROM workout_set

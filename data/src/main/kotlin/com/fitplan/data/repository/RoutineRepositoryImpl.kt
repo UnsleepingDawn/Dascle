@@ -24,6 +24,7 @@ class RoutineRepositoryImpl(
 
     private val routineQueries get() = database.routineQueries
     private val routineExerciseQueries get() = database.routineExerciseQueries
+    private val utilQueries get() = database.utilQueries
 
     override suspend fun getAll(): List<Routine> = routineQueries.selectAll().awaitAsList().map { it.toDomain() }
 
@@ -32,11 +33,15 @@ class RoutineRepositoryImpl(
 
     override suspend fun count(): Long = routineQueries.countAll().awaitAsOneOrNull() ?: 0L
 
-    override suspend fun insert(name: String, note: String, createdAt: Instant): Long = routineQueries.insert(
-        name = name,
-        note = note,
-        created_at = createdAt.toDbValue(),
-    )
+    override suspend fun insert(name: String, note: String, createdAt: Instant): Long =
+        database.transactionWithResult {
+            routineQueries.insert(
+                name = name,
+                note = note,
+                created_at = createdAt.toDbValue(),
+            )
+            utilQueries.lastInsertRowId().awaitAsOne()
+        }
 
     override suspend fun update(id: Long, name: String, note: String) {
         routineQueries.update(name = name, note = note, id = id)
@@ -57,9 +62,9 @@ class RoutineRepositoryImpl(
         targetSets: Int,
         targetReps: Int,
         restSeconds: Int,
-    ): Long {
+    ): Long = database.transactionWithResult {
         val position = routineExerciseQueries.selectMaxPosition(routineId).awaitAsOne() + 1
-        return routineExerciseQueries.insert(
+        routineExerciseQueries.insert(
             routine_id = routineId,
             exercise_id = exerciseId,
             position = position,
@@ -67,6 +72,7 @@ class RoutineRepositoryImpl(
             target_reps = targetReps.toLong(),
             rest_seconds = restSeconds.toLong(),
         )
+        utilQueries.lastInsertRowId().awaitAsOne()
     }
 
     override suspend fun updateExerciseTargets(

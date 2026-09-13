@@ -1,0 +1,4 @@
+-- SQLDelight 的 insert 只返回「受影响行数」，要拿自增主键必须自己查一次；
+-- 查询必须和 insert 放在同一个事务里，否则可能读到别处刚插入的 id。
+lastInsertRowId:
+SELECT last_insert_rowid();

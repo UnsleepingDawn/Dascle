@@ -1,5 +1,6 @@
 package com.fitplan.data.mapper
 
+import com.fitplan.data.SelectFinishedWithSummary
 import com.fitplan.domain.model.BodyMetric
 import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
@@ -7,6 +8,7 @@ import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.ScheduleEntry
+import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
 import kotlinx.datetime.DayOfWeek
@@ -138,6 +140,15 @@ internal fun FinishedSessionRow.toDomain(): WorkoutSession =
 
 internal fun FinishedSessionBetweenRow.toDomain(): WorkoutSession =
     workoutSession(id, routine_id, name, started_at, finished_at, note)
+
+internal fun SelectFinishedWithSummary.toDomain(): WorkoutHistoryItem = WorkoutHistoryItem(
+    sessionId = id,
+    name = name,
+    startedAt = started_at.toInstant(),
+    finishedAt = finished_at.toInstant(),
+    completedSets = completed_sets.toInt(),
+    volume = volume,
+)
 
 internal fun WorkoutSetRow.toDomain(): WorkoutSet = WorkoutSet(
     id = id,

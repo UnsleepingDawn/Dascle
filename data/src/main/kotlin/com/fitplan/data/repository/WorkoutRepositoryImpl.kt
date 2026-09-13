@@ -1,10 +1,12 @@
 package com.fitplan.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
+import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
 import com.fitplan.domain.repository.WorkoutRepository
@@ -23,6 +25,7 @@ class WorkoutRepositoryImpl(
 
     private val sessionQueries get() = database.workoutSessionQueries
     private val setQueries get() = database.workoutSetQueries
+    private val utilQueries get() = database.utilQueries
 
     override suspend fun getSessions(): List<WorkoutSession> =
         sessionQueries.selectAll().awaitAsList().map { it.toDomain() }
@@ -45,17 +48,29 @@ class WorkoutRepositoryImpl(
             started_at_ = end.toDbValue(),
         ).awaitAsList().map { it.toDomain() }
 
+    override suspend fun getCompletedSetsBetween(start: Instant, end: Instant): List<WorkoutSet> =
+        setQueries.selectCompletedBetween(
+            started_at = start.toDbValue(),
+            started_at_ = end.toDbValue(),
+        ).awaitAsList().map { it.toDomain() }
+
+    override suspend fun getFinishedSessionsWithSummary(): List<WorkoutHistoryItem> =
+        sessionQueries.selectFinishedWithSummary().awaitAsList().map { it.toDomain() }
+
     override suspend fun countFinishedSessions(): Long =
         sessionQueries.countFinished().awaitAsOneOrNull() ?: 0L
 
     override suspend fun startSession(routineId: Long?, name: String, startedAt: Instant): Long =
-        sessionQueries.insert(
-            routine_id = routineId,
-            name = name,
-            started_at = startedAt.toDbValue(),
-            finished_at = null,
-            note = "",
-        )
+        database.transactionWithResult {
+            sessionQueries.insert(
+                routine_id = routineId,
+                name = name,
+                started_at = startedAt.toDbValue(),
+                finished_at = null,
+                note = "",
+            )
+            utilQueries.lastInsertRowId().awaitAsOne()
+        }
 
     override suspend fun finishSession(id: Long, finishedAt: Instant) {
         sessionQueries.finish(finished_at = finishedAt.toDbValue(), id = id)
@@ -87,15 +102,18 @@ class WorkoutRepositoryImpl(
         weight: Double?,
         reps: Int?,
         durationSeconds: Int?,
-    ): Long = setQueries.insert(
-        session_id = sessionId,
-        exercise_id = exerciseId,
-        set_index = setIndex.toLong(),
-        weight = weight,
-        reps = reps?.toLong(),
-        duration_seconds = durationSeconds?.toLong(),
-        completed = 0L,
-    )
+    ): Long = database.transactionWithResult {
+        setQueries.insert(
+            session_id = sessionId,
+            exercise_id = exerciseId,
+            set_index = setIndex.toLong(),
+            weight = weight,
+            reps = reps?.toLong(),
+            duration_seconds = durationSeconds?.toLong(),
+            completed = 0L,
+        )
+        utilQueries.lastInsertRowId().awaitAsOne()
+    }
 
     override suspend fun updateSet(set: WorkoutSet) {
         setQueries.update(

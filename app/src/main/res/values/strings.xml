@@ -1,4 +1,175 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">健身日程</string>
+
+    <!-- 底部导航 -->
+    <string name="tab_today">今日</string>
+    <string name="tab_plan">计划</string>
+    <string name="tab_stats">统计</string>
+    <string name="tab_more">我的</string>
+
+    <!-- 通用 -->
+    <string name="action_back">返回</string>
+    <string name="action_ok">确定</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_save">保存</string>
+    <string name="action_delete">删除</string>
+    <string name="action_add">添加</string>
+    <string name="action_rename">重命名</string>
+
+    <!-- 今日 -->
+    <string name="today_title">今日训练</string>
+    <string name="today_date">%1$d 月 %2$d 日 · %3$s</string>
+    <string name="today_empty">今天没有训练安排\n去「计划」页给训练计划排个日程吧</string>
+    <string name="today_exercise_count">%1$d 个动作</string>
+    <string name="today_start_workout">开始训练</string>
+
+    <string-array name="weekday_names">
+        <item>星期一</item>
+        <item>星期二</item>
+        <item>星期三</item>
+        <item>星期四</item>
+        <item>星期五</item>
+        <item>星期六</item>
+        <item>星期日</item>
+    </string-array>
+
+    <!-- 计划 -->
+    <string name="plan_title">训练计划</string>
+    <string name="plan_empty">还没有训练计划\n点右下角按钮新建一个计划</string>
+    <string name="plan_new">新建计划</string>
+    <string name="plan_rename">重命名计划</string>
+    <string name="plan_delete">删除计划</string>
+    <string name="plan_delete_confirm">「%1$s」及其动作编排、日程安排都会一并删除。</string>
+    <string name="plan_schedule">日程</string>
+    <string name="plan_exercise_count">%1$d 个动作</string>
+    <string name="plan_note_empty">暂无备注</string>
+    <string name="field_routine_name">计划名称</string>
+    <string name="field_routine_note">备注（可选）</string>
+
+    <!-- 计划内的动作编排 -->
+    <string name="routine_edit_empty">这个计划还没有动作\n点右下角按钮从动作库里挑几个</string>
+    <string name="routine_edit_add_exercise">添加动作</string>
+    <string name="routine_edit_targets">%1$d 组 × %2$d 次</string>
+    <string name="routine_edit_rest">休息 %1$d 秒</string>
+    <string name="routine_edit_edit_target">编辑目标</string>
+    <string name="routine_edit_remove_exercise">移除动作</string>
+    <string name="routine_edit_drag_handle">拖动排序</string>
+    <string name="field_target_sets">组数</string>
+    <string name="field_target_reps">次数</string>
+    <string name="field_rest_seconds">组间休息（秒）</string>
+
+    <!-- 动作选择器 -->
+    <string name="exercise_picker_title">选择动作</string>
+    <string name="exercise_picker_empty">没有符合条件的动作</string>
+    <string name="exercise_filter_all">全部</string>
+    <string name="equipment_filter_all">全部器械</string>
+
+    <!-- 日程 -->
+    <string name="schedule_title">训练日程</string>
+    <string name="schedule_add_for_day">添加计划</string>
+    <string name="schedule_day_empty">未安排</string>
+    <string name="schedule_pick_routine">选择要排入的计划</string>
+    <string name="schedule_no_routine_left">所有计划都已排入这一天</string>
+    <string name="schedule_remove">移除排期</string>
+
+    <!-- 训练记录 -->
+    <string name="workout_title">训练记录</string>
+    <string name="workout_free">自由训练</string>
+    <string name="workout_unfinished">未完成的训练</string>
+    <string name="workout_started_at">开始于 %1$s</string>
+    <string name="workout_start">开始训练</string>
+    <string name="workout_continue">继续训练</string>
+    <string name="workout_finish">结束训练</string>
+    <string name="workout_note_label">备注（可选）</string>
+    <string name="workout_plan_hint">练完一组勾一组，勾选后自动开始组间休息。</string>
+    <string name="workout_plan_empty">这个计划还没有动作\n开始后可以临时添加</string>
+    <string name="workout_add_extra">添加计划外动作</string>
+    <string name="workout_extra">计划外</string>
+    <string name="workout_timed">计时</string>
+    <string name="workout_counted">计数</string>
+    <string name="workout_target_hint">目标 %1$d 组 × %2$d 次 · 休息 %3$d 秒</string>
+    <string name="workout_completed_sets">已完成 %1$d 组</string>
+    <string name="workout_set_index">第 %1$d 组</string>
+    <string name="workout_set_done">完成</string>
+    <string name="workout_set_undo">撤销完成</string>
+    <string name="workout_add_set">加一组</string>
+    <string name="workout_remove_set">减一组</string>
+    <string name="workout_skip">跳过动作</string>
+    <string name="workout_unskip">恢复动作</string>
+    <string name="workout_skipped">已跳过</string>
+    <string name="workout_rest">组间休息</string>
+    <string name="workout_rest_done">休息结束</string>
+    <string name="workout_rest_remaining">剩余 %1$d 秒</string>
+    <string name="workout_rest_skip">跳过休息</string>
+    <string name="workout_exit_title">退出记录页？</string>
+    <string name="workout_exit_message">已经完成的组会保留，下次可以从今日页继续。放弃训练则会删除本次记录。</string>
+    <string name="workout_exit_keep">暂时退出</string>
+    <string name="workout_exit_continue">继续练</string>
+    <string name="workout_abandon">放弃训练</string>
+    <string name="workout_summary_title">训练完成</string>
+    <string name="workout_summary_sets">完成 %1$d 组</string>
+    <string name="workout_summary_volume">总容量 %1$s kg</string>
+    <string name="workout_summary_duration">用时 %1$s</string>
+    <string name="workout_summary_done">完成</string>
+    <string name="workout_duration_minutes">%1$d 分钟</string>
+    <string name="workout_duration_hours">%1$d 小时 %2$d 分</string>
+    <string name="field_weight">重量（kg）</string>
+    <string name="field_seconds">秒</string>
+
+    <!-- 统计页 -->
+    <string name="stats_range_week">近 7 天</string>
+    <string name="stats_range_month">近 30 天</string>
+    <string name="stats_overview_volume">总容量</string>
+    <string name="stats_overview_sessions">训练次数</string>
+    <string name="stats_overview_sets">完成组数</string>
+    <string name="stats_chart_volume">容量趋势</string>
+    <string name="stats_chart_frequency">训练频率（组）</string>
+    <string name="stats_chart_muscle">肌群容量分布</string>
+    <string name="stats_chart_progress">重量进步</string>
+    <string name="stats_chart_progress_empty">这段时间还没有带重量的记录</string>
+    <string name="stats_history_title">训练历史</string>
+    <string name="stats_history_count">共 %1$d 次</string>
+    <string name="stats_empty">还没有训练记录，先去「今日」练一场吧</string>
+
+    <!-- 今日训练桌面组件 -->
+    <string name="widget_today_description">今天要练什么、练到哪了</string>
+    <string name="widget_status_in_progress">训练中 · 已完成 %1$d 组</string>
+    <string name="widget_status_finished">今日已完成 %1$d 组 · %2$s kg</string>
+    <string name="widget_status_ready">还没开始</string>
+    <string name="widget_status_rest">今天休息</string>
+    <string name="widget_routine_line">%1$s · %2$d 个动作</string>
+    <string name="widget_more_routines">…共 %1$d 个计划</string>
+
+    <!-- 我的 / 设置 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_reminder_heading">训练提醒</string>
+    <string name="settings_reminder_switch">开启训练提醒</string>
+    <string name="settings_reminder_switch_desc">到点提醒你当天的训练安排；当天已经练过或没有排期时不会打扰</string>
+    <string name="settings_reminder_time">提醒时间 · %1$s</string>
+    <string name="settings_reminder_time_pick">选择提醒时间</string>
+    <string name="settings_reminder_notifications_off">通知权限未开启，到点将收不到提醒</string>
+    <string name="settings_reminder_grant_notifications">开启通知</string>
+    <string name="settings_reminder_exact_off">未授予「闹钟与提醒」权限，提醒可能会有几分钟延迟</string>
+    <string name="settings_reminder_grant_exact">去开启</string>
+    <string name="reminder_channel_name">训练提醒</string>
+    <string name="reminder_channel_description">到点提醒当天的训练安排</string>
+    <string name="reminder_notification_title">该训练了</string>
+    <string name="reminder_notification_text">今天安排：%1$s</string>
+
+    <!-- 肌群 -->
+    <string name="muscle_chest">胸</string>
+    <string name="muscle_arm">手臂</string>
+    <string name="muscle_abs">腹部</string>
+    <string name="muscle_shoulder">肩膀</string>
+    <string name="muscle_back">背</string>
+    <string name="muscle_leg">腿</string>
+    <string name="muscle_glute">臀</string>
+
+    <!-- 器械 -->
+    <string name="equipment_barbell">杠铃</string>
+    <string name="equipment_dumbbell">哑铃</string>
+    <string name="equipment_machine">器械</string>
+    <string name="equipment_cable">绳索</string>
+    <string name="equipment_bodyweight">自重</string>
 </resources>
