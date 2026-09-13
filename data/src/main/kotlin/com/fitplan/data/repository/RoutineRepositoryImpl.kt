@@ -6,6 +6,7 @@ import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
+import com.fitplan.data.mapper.toMuscleGroup
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.repository.RoutineRepository
@@ -53,8 +54,15 @@ class RoutineRepositoryImpl(
         routineQueries.deleteById(id)
     }
 
-    override suspend fun getExercises(routineId: Long): List<RoutineExercise> =
-        routineExerciseQueries.selectByRoutineId(routineId).awaitAsList().map { it.toDomain() }
+    override suspend fun getExercises(routineId: Long): List<RoutineExercise> {
+        val exercises = routineExerciseQueries.selectByRoutineId(routineId).awaitAsList().map { it.toDomain() }
+        if (exercises.isEmpty()) return emptyList()
+        val secondaryByExerciseId = database.exerciseSecondaryMuscleQueries
+            .selectByExerciseIds(exercises.map { it.exerciseId }.distinct())
+            .awaitAsList()
+            .groupBy({ it.exercise_id }, { it.toMuscleGroup() })
+        return exercises.map { it.copy(secondaryMuscleGroups = secondaryByExerciseId[it.exerciseId].orEmpty()) }
+    }
 
     override suspend fun addExercise(
         routineId: Long,

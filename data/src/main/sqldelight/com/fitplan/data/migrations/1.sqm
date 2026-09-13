@@ -1,0 +1,7 @@
+CREATE TABLE exercise_secondary_muscle (
+    exercise_id  INTEGER NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
+    muscle_group TEXT NOT NULL,
+    PRIMARY KEY (exercise_id, muscle_group)
+);
+
+CREATE INDEX exercise_secondary_muscle_exercise_id ON exercise_secondary_muscle(exercise_id);

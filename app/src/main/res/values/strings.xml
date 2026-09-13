@@ -93,6 +93,7 @@
     <string name="calendar_remove_plan">移除排期</string>
     <string name="calendar_exercise_count">%1$d 个动作</string>
     <string name="calendar_sets_count">完成 %1$d 组</string>
+    <string name="calendar_more_muscles">+%1$d</string>
 
     <string-array name="weekday_short_names">
         <item>一</item>

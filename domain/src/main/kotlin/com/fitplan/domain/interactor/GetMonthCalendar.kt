@@ -90,7 +90,7 @@ class GetMonthCalendar(
         val sessions = workoutRepository.getFinishedSessionsBetween(start = start, end = end)
         val sessionDate = sessions.associate { it.id to it.startedAt.toLocalDateTime(zone).date }
         val sets = workoutRepository.getCompletedSetsBetween(start = start, end = end)
-        val muscleByExercise = exerciseRepository.getAll().associate { it.id to it.muscleGroup }
+        val muscleByExercise = exerciseRepository.getAll().associate { it.id to it.muscleGroups }
         val sessionsByDate = sessions.groupBy { sessionDate.getValue(it.id) }
         val setsBySession = sets.groupBy { it.sessionId }
 
@@ -109,7 +109,7 @@ class GetMonthCalendar(
                         routineName = routine.name,
                         note = routine.note,
                         exerciseCount = exercises.size,
-                        muscleGroups = exercises.map { it.muscleGroup }.distinct(),
+                        muscleGroups = exercises.flatMap { it.muscleGroups }.distinct(),
                         isWeekly = entry.dayOfWeek != null,
                     )
                 }
@@ -124,7 +124,7 @@ class GetMonthCalendar(
             }
             val actualMuscleGroups = daySessions
                 .flatMap { setsBySession[it.id].orEmpty() }
-                .mapNotNull { muscleByExercise[it.exerciseId] }
+                .flatMap { muscleByExercise[it.exerciseId].orEmpty() }
                 .distinct()
 
             val isPast = date < today

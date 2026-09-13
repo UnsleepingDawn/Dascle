@@ -275,7 +275,7 @@ private fun DayCell(
             )
         }
 
-        day.muscleGroups.forEach { muscle ->
+        day.muscleGroups.take(MAX_CELL_MUSCLES).forEach { muscle ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -292,6 +292,16 @@ private fun DayCell(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+
+        val hiddenMuscles = day.muscleGroups.size - MAX_CELL_MUSCLES
+        if (hiddenMuscles > 0) {
+            Text(
+                text = stringResource(R.string.calendar_more_muscles, hiddenMuscles),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
     }
 }
@@ -538,6 +548,9 @@ private fun weekdayShort(date: LocalDate): String =
 
 /** 弹窗内容最高占这么高，再高就滚动，避免小屏顶到状态栏。 */
 private val SHEET_MAX_HEIGHT = 480.dp
+
+/** 日历格子最多显示几个肌群标签，多出来的用「+N」表示。 */
+private const val MAX_CELL_MUSCLES = 3
 
 @Suppress("ConstPropertyName")
 private const val TABLET_UI_MIN_SCREEN_WIDTH_DP = 600

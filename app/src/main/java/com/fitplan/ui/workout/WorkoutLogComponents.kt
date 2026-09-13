@@ -50,6 +50,7 @@ import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.ui.exercise.label
+import com.fitplan.ui.exercise.muscleLabels
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
@@ -427,7 +428,7 @@ internal fun ExtraExerciseDialog(
     val selectable = remember(exercises, existingIds, muscleFilter, equipmentFilter) {
         exercises
             .filterNot { it.id in existingIds }
-            .filter { muscleFilter == null || it.muscleGroup == muscleFilter }
+            .filter { muscleFilter == null || muscleFilter in it.muscleGroups }
             .filter { equipmentFilter == null || it.equipment == equipmentFilter }
     }
 
@@ -484,7 +485,7 @@ internal fun ExtraExerciseDialog(
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
                                 Text(
-                                    text = "${exercise.muscleGroup.label()} ? ${exercise.equipment.label()}",
+                                    text = "${muscleLabels(exercise.muscleGroups)} ? ${exercise.equipment.label()}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )

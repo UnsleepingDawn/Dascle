@@ -155,7 +155,7 @@ private fun ExerciseListItem(
             style = MaterialTheme.typography.bodyLarge,
         )
         Text(
-            text = "${exercise.muscleGroup.label()} · ${exercise.equipment.label()}",
+            text = "${muscleLabels(exercise.muscleGroups)} · ${exercise.equipment.label()}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -183,6 +183,11 @@ internal fun MuscleGroup.label(): String = stringResource(
         MuscleGroup.GLUTE -> R.string.muscle_glute
     },
 )
+
+/** 多部位动作的标签，如「胸 / 手臂」；[MuscleGroup.label] 只能在组合里调用。 */
+@Composable
+internal fun muscleLabels(groups: List<MuscleGroup>): String =
+    groups.map { it.label() }.joinToString(" / ")
 
 @Composable
 internal fun Equipment.label(): String = stringResource(

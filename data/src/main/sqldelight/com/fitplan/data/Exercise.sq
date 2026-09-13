@@ -43,6 +43,11 @@ SELECT name
 FROM exercise
 WHERE is_custom = 0;
 
+selectNonCustom:
+SELECT id, name
+FROM exercise
+WHERE is_custom = 0;
+
 countAll:
 SELECT count(*)
 FROM exercise;

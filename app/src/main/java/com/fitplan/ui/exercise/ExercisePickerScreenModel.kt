@@ -68,7 +68,7 @@ class ExercisePickerScreenModel(
 
     private fun applyFilter() {
         _exercises.value = allExercises
-            .filter { _muscleFilter.value == null || it.muscleGroup == _muscleFilter.value }
+            .filter { _muscleFilter.value == null || _muscleFilter.value in it.muscleGroups }
             .filter { _equipmentFilter.value == null || it.equipment == _equipmentFilter.value }
             .sortedWith(compareBy({ it.muscleGroup.ordinal }, { it.name }))
     }

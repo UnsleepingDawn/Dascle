@@ -17,6 +17,7 @@ import kotlinx.datetime.isoDayNumber
 import kotlin.time.Instant
 import com.fitplan.data.Body_metric as BodyMetricRow
 import com.fitplan.data.Exercise as ExerciseRow
+import com.fitplan.data.Exercise_secondary_muscle as ExerciseSecondaryMuscleRow
 import com.fitplan.data.Routine as RoutineRow
 import com.fitplan.data.Schedule_entry as ScheduleEntryRow
 import com.fitplan.data.SelectAll as ScheduleEntryWithRoutineRow
@@ -50,7 +51,7 @@ internal fun MuscleGroup.toDbValue(): String = name
 
 internal fun Equipment.toDbValue(): String = name
 
-private fun String.toMuscleGroup(): MuscleGroup =
+internal fun String.toMuscleGroup(): MuscleGroup =
     requireNotNull(MuscleGroup.fromValue(this)) { "未知的肌群取值: $this" }
 
 private fun String.toEquipment(): Equipment =
@@ -67,6 +68,9 @@ internal fun ExerciseRow.toDomain(): Exercise = Exercise(
     isCustom = is_custom.toBoolean(),
     createdAt = created_at.toInstant(),
 )
+
+/** `exercise_secondary_muscle` 的一行转成次部位；取值非法时抛异常，与主部位一致。 */
+internal fun ExerciseSecondaryMuscleRow.toMuscleGroup(): MuscleGroup = muscle_group.toMuscleGroup()
 
 internal fun RoutineRow.toDomain(): Routine = Routine(
     id = id,

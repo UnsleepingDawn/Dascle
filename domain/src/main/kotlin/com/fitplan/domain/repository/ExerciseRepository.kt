@@ -13,6 +13,7 @@ interface ExerciseRepository {
 
     suspend fun getByIds(ids: List<Long>): List<Exercise>
 
+    /** 主部位或次部位命中 [muscleGroup] 的动作。 */
     suspend fun getByMuscleGroup(muscleGroup: MuscleGroup): List<Exercise>
 
     suspend fun getCustom(): List<Exercise>
@@ -25,6 +26,7 @@ interface ExerciseRepository {
     suspend fun insert(
         name: String,
         muscleGroup: MuscleGroup,
+        secondaryMuscleGroups: List<MuscleGroup> = emptyList(),
         equipment: Equipment,
         description: String,
         isCustom: Boolean,

@@ -1,0 +1,24 @@
+CREATE TABLE exercise_secondary_muscle (
+    exercise_id  INTEGER NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
+    muscle_group TEXT NOT NULL,
+    PRIMARY KEY (exercise_id, muscle_group)
+);
+
+CREATE INDEX exercise_secondary_muscle_exercise_id ON exercise_secondary_muscle(exercise_id);
+
+selectAll:
+SELECT *
+FROM exercise_secondary_muscle;
+
+selectByExerciseIds:
+SELECT *
+FROM exercise_secondary_muscle
+WHERE exercise_id IN ?;
+
+insertIgnore:
+INSERT OR IGNORE INTO exercise_secondary_muscle(exercise_id, muscle_group)
+VALUES (?, ?);
+
+deleteByExerciseId:
+DELETE FROM exercise_secondary_muscle
+WHERE exercise_id = ?;

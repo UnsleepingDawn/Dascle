@@ -84,12 +84,21 @@ class GetWorkoutStats(
         }
     }
 
+    /**
+     * 一个动作的容量按部位分摊：主部位记全额，每个次部位记一半，
+     * 因此各部位容量之和会略高于总容量，属于预期。
+     */
     private fun muscleGroupVolumes(
         datedSets: List<DatedSet>,
         exercises: Map<Long, Exercise>,
     ): List<MuscleGroupVolume> = datedSets
-        .mapNotNull { dated ->
-            exercises[dated.set.exerciseId]?.let { it.muscleGroup to dated.set.volume }
+        .flatMap { dated ->
+            val exercise = exercises[dated.set.exerciseId] ?: return@flatMap emptyList()
+            val volume = dated.set.volume
+            buildList {
+                add(exercise.muscleGroup to volume)
+                exercise.secondaryMuscleGroups.forEach { add(it to volume * SECONDARY_MUSCLE_WEIGHT) }
+            }
         }
         .groupBy({ it.first }, { it.second })
         .map { (muscleGroup, volumes) -> MuscleGroupVolume(muscleGroup, volumes.sum()) }
@@ -122,5 +131,8 @@ class GetWorkoutStats(
     private companion object {
         /** 重量进步曲线最多给几个动作，太多了选择器放不下。 */
         const val MAX_PROGRESS_EXERCISES = 6
+
+        /** 次部位分摊到的容量比例。 */
+        const val SECONDARY_MUSCLE_WEIGHT = 0.5
     }
 }
