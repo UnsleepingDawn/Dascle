@@ -295,24 +295,20 @@ private fun DayCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        // 已经过去的日子压淡一档：训练的 primary 换成 primaryContainer，休息的 tertiary 换成
-        // tertiaryContainer；今天及以后仍用饱和色，这样一眼就能分出「历史」和「待办」。
+        // 训练日与休息日共用同一套蓝色，是不是休息由格子里那行「休息」说明，不再靠颜色区分。
+        // 已经过去的日子压淡一档（primaryContainer），今天及以后用饱和的 primary，
+        // 这样仍然能一眼分出「历史」和「待办」。
         val (dayNumberBackground, dayNumberColor) = when {
-            day.isTrainingDay && day.isPast ->
-                MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-
-            day.isTrainingDay ->
-                MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-
-            day.isRestDay && day.isPast ->
-                MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-
-            day.isRestDay ->
-                MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
+            day.isTrainingDay || day.isRestDay ->
+                if (day.isPast) {
+                    MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+                }
 
             else -> Color.Transparent to MaterialTheme.colorScheme.onSurfaceVariant
         }
-        // 肌群标签同理：过去的用浅底，今天及以后用反色深底。
+        // 肌群标签：过去的用浅底，今天及以后用反色深底。过去的休息日沿用这一套灰。
         val muscleBackground =
             if (day.isPast) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.inverseSurface
         val muscleColor =
@@ -344,15 +340,15 @@ private fun DayCell(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.extraSmall)
-                    // 这一天既然不是训练日，格子里的颜色就是上面算好的休息色，直接复用。
-                    .background(dayNumberBackground)
+                    // 过去的休息日跟肌群标签同为灰色；今天及以后的休息日保持原来的深绿。
+                    .background(if (day.isPast) muscleBackground else MaterialTheme.colorScheme.tertiary)
                     .padding(vertical = 1.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = stringResource(R.string.calendar_rest_day),
                     style = MaterialTheme.typography.labelMedium,
-                    color = dayNumberColor,
+                    color = if (day.isPast) muscleColor else MaterialTheme.colorScheme.onTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -507,7 +503,7 @@ private fun RestDayRow(onRemove: () -> Unit) {
         Box(
             modifier = Modifier
                 .weight(1f)
-                // 与计划条目同形状的整行底框，配色沿用日历格子里休息日的绿色。
+                // 与计划条目同形状的整行底框，用主题里的休息色（绿），和右下角「该天休息」按钮呼应。
                 .clip(MaterialTheme.shapes.extraSmall)
                 .background(MaterialTheme.colorScheme.tertiaryContainer)
                 .padding(
