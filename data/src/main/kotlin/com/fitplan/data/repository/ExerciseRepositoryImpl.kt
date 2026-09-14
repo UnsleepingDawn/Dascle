@@ -65,6 +65,9 @@ class ExerciseRepositoryImpl(
             description = description,
             is_custom = if (isCustom) 1L else 0L,
             created_at = createdAt.toDbValue(),
+            // 默认重量/时长只由内置动作种子提供，自建动作留空。
+            default_weight = null,
+            default_duration_seconds = null,
         )
         val id = utilQueries.lastInsertRowId().awaitAsOne()
         writeSecondary(id, muscleGroup, secondaryMuscleGroups)

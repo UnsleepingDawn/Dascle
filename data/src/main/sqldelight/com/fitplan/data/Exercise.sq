@@ -1,11 +1,13 @@
 CREATE TABLE exercise (
-    id           INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    name         TEXT NOT NULL,
-    muscle_group TEXT NOT NULL,
-    equipment    TEXT NOT NULL,
-    description  TEXT NOT NULL DEFAULT '',
-    is_custom    INTEGER NOT NULL DEFAULT 0,
-    created_at   INTEGER NOT NULL DEFAULT 0
+    id                       INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name                     TEXT NOT NULL,
+    muscle_group             TEXT NOT NULL,
+    equipment                TEXT NOT NULL,
+    description              TEXT NOT NULL DEFAULT '',
+    is_custom                INTEGER NOT NULL DEFAULT 0,
+    created_at               INTEGER NOT NULL DEFAULT 0,
+    default_weight           REAL,
+    default_duration_seconds INTEGER
 );
 
 CREATE INDEX exercise_muscle_group ON exercise(muscle_group);
@@ -53,12 +55,27 @@ SELECT count(*)
 FROM exercise;
 
 insert:
-INSERT INTO exercise(name, muscle_group, equipment, description, is_custom, created_at)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO exercise(
+    name, muscle_group, equipment, description, is_custom, created_at, default_weight, default_duration_seconds
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 insertIgnore:
-INSERT OR IGNORE INTO exercise(name, muscle_group, equipment, description, is_custom, created_at)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT OR IGNORE INTO exercise(
+    name, muscle_group, equipment, description, is_custom, created_at, default_weight, default_duration_seconds
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- 种子升级时为已存在的内置动作补默认值：只在原来为空时写入，不动用户已有数据。
+updateSeedWeight:
+UPDATE exercise
+SET default_weight = ?
+WHERE id = ? AND default_weight IS NULL;
+
+updateSeedDuration:
+UPDATE exercise
+SET default_duration_seconds = ?
+WHERE id = ? AND default_duration_seconds IS NULL;
 
 update:
 UPDATE exercise

@@ -61,6 +61,20 @@ UPDATE routine_exercise
 SET target_sets = ?, target_reps = ?, rest_seconds = ?, target_weight = ?, target_seconds = ?
 WHERE id = ?;
 
+-- 种子升级时把动作库里的默认重量/时长补到计划编排上；
+-- coalesce 保证只填还没设过的字段，不覆盖用户手动改过的值。
+-- 计时类动作只补 target_seconds，自重动作两列都为空，等于不预填。
+backfillSeedDefaults:
+UPDATE routine_exercise
+SET target_weight = coalesce(
+        target_weight,
+        (SELECT default_weight FROM exercise WHERE exercise.id = routine_exercise.exercise_id)
+    ),
+    target_seconds = coalesce(
+        target_seconds,
+        (SELECT default_duration_seconds FROM exercise WHERE exercise.id = routine_exercise.exercise_id)
+    );
+
 updatePosition:
 UPDATE routine_exercise
 SET position = ?

@@ -35,6 +35,10 @@ internal data class SeedExercise(
     val secondaryMuscleGroups: List<String> = emptyList(),
     val equipment: String,
     val description: String = "",
+    /** 默认重量（kg）；缺省表示自重动作，不预填重量。 */
+    val defaultWeightKg: Double? = null,
+    /** 默认时长（秒）；标注后该动作在计划里按计时类处理。 */
+    val defaultDurationSeconds: Int? = null,
 )
 
 /**
@@ -81,9 +85,23 @@ class ExerciseSeeder(
                         description = seed.description,
                         is_custom = 0L,
                         created_at = createdAt,
+                        default_weight = seed.defaultWeightKg,
+                        default_duration_seconds = seed.defaultDurationSeconds?.toLong(),
                     )
                     inserted++
                     database.utilQueries.lastInsertRowId().awaitAsOne()
+                }
+
+                // 老库里这两个字段还是空的时候补上种子值，已经在用的值不动。
+                if (existingId != null) {
+                    database.exerciseQueries.updateSeedWeight(
+                        default_weight = seed.defaultWeightKg,
+                        id = existingId,
+                    )
+                    database.exerciseQueries.updateSeedDuration(
+                        default_duration_seconds = seed.defaultDurationSeconds?.toLong(),
+                        id = existingId,
+                    )
                 }
 
                 // 内置换动作的次部位按种子幂等重建，升级种子时可补齐新加的次部位。
@@ -101,6 +119,10 @@ class ExerciseSeeder(
             }
 
             database.seedMetaQueries.upsertVersion(payload.version)
+
+            // 动作库的默认值到位后，把计划编排里还没设过的重量/时长补齐：
+            // 存量计划不用手动改，也能在记录页预填输入框。
+            database.routineExerciseQueries.backfillSeedDefaults()
         }
 
         logcat { "种子动作导入完成：新增 $inserted 条，种子版本 ${payload.version}" }

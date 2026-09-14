@@ -1,0 +1,2 @@
+ALTER TABLE exercise ADD COLUMN default_weight REAL;
+ALTER TABLE exercise ADD COLUMN default_duration_seconds INTEGER;

@@ -67,6 +67,8 @@ internal fun ExerciseRow.toDomain(): Exercise = Exercise(
     description = description,
     isCustom = is_custom.toBoolean(),
     createdAt = created_at.toInstant(),
+    defaultWeight = default_weight,
+    defaultDurationSeconds = default_duration_seconds?.toInt(),
 )
 
 /** `exercise_secondary_muscle` 的一行转成次部位；取值非法时抛异常，与主部位一致。 */

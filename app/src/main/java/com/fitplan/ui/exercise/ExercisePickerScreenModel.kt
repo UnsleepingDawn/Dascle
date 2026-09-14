@@ -55,14 +55,19 @@ class ExercisePickerScreenModel(
         applyFilter()
     }
 
-    /** 把动作加进计划的末尾，目标值取默认的 3 组 × 10 次、休息 90 秒。 */
+    /** 把动作加进计划的末尾：目标值取默认的 3 组 × 10 次、休息 90 秒，并带上动作的默认重量/时长。 */
     suspend fun addToRoutine(routineId: Long, exerciseId: Long) {
+        val exercise = allExercises.firstOrNull { it.id == exerciseId }
+            ?: exerciseRepository.getById(exerciseId)
+            ?: return
         routineRepository.addExercise(
             routineId = routineId,
             exerciseId = exerciseId,
             targetSets = DEFAULT_TARGET_SETS,
             targetReps = DEFAULT_TARGET_REPS,
             restSeconds = DEFAULT_REST_SECONDS,
+            targetWeight = exercise.defaultWeight,
+            targetSeconds = exercise.defaultDurationSeconds,
         )
     }
 
