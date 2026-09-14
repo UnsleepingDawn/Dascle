@@ -256,12 +256,11 @@ class WorkoutLogScreenModel(
             )
 
             mutate(exerciseId) { current ->
-                val updated = current.sets.mapIndexed { i, item ->
-                    if (i == index) item.copy(id = setId, completed = true) else item
-                }
-                // 勾完最后一组顺手补一个空行，方便接着加组。
-                val sets = if (index == current.sets.lastIndex) updated + emptyEntry(current) else updated
-                current.copy(sets = sets)
+                current.copy(
+                    sets = current.sets.mapIndexed { i, item ->
+                        if (i == index) item.copy(id = setId, completed = true) else item
+                    },
+                )
             }
 
             startRest(exercise.name, exercise.restSeconds)
@@ -388,7 +387,7 @@ class WorkoutLogScreenModel(
                             completed = set.completed,
                         )
                     }
-                    .withTailRow(exercise = exercise, editable = !session.isFinished),
+                    .paddedToTargetSets(exercise = exercise, editable = !session.isFinished),
             )
         }
     }
@@ -436,14 +435,14 @@ private fun emptyEntry(exercise: LogExercise): SetEntry = if (exercise.isTimed) 
 }
 
 /**
- * 把已落库的组补齐成可继续录入的样子：不足目标组数时补空行，
- * 最后一组已经完成时再补一个空行，[editable] 为 false（已经结束的训练）时原样返回。
+ * 把已落库的组补齐成可继续录入的样子：不足目标组数时补空行，让计划目标一眼可见；
+ * 已经完成的行不会被追加新行——想多练一组得自己点「加一组」。
+ * [editable] 为 false（已经结束的训练）时原样返回。
  */
-private fun List<SetEntry>.withTailRow(exercise: LogExercise, editable: Boolean): List<SetEntry> {
+private fun List<SetEntry>.paddedToTargetSets(exercise: LogExercise, editable: Boolean): List<SetEntry> {
     if (!editable) return this
-    val empty = emptyEntry(exercise)
-    val padded = if (size < exercise.targetSets) this + List(exercise.targetSets - size) { empty } else this
-    return if (padded.isEmpty() || padded.last().completed) padded + empty else padded
+    val missing = exercise.targetSets - size
+    return if (missing <= 0) this else this + List(missing) { emptyEntry(exercise) }
 }
 
 private fun SetEntry.toWorkoutSet(
