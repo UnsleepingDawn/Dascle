@@ -16,6 +16,7 @@
     <string name="action_delete">删除</string>
     <string name="action_add">添加</string>
     <string name="action_rename">重命名</string>
+    <string name="action_close">关闭</string>
 
     <!-- 今日 -->
     <string name="today_title">今日训练</string>

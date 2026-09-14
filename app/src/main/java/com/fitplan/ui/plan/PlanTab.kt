@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -137,7 +138,7 @@ object PlanTab : Tab {
                 WeekdayHeader()
                 MonthGrid(
                     days = days,
-                    onDayClick = { selectedDate = it.date },
+                    onDayClick = { day -> selectedDate = if (selectedDate == day.date) null else day.date },
                 )
             }
         }
@@ -392,64 +393,80 @@ private fun DayDetailSheet(
         isTabletUi = isTabletUi,
         enableImplicitDismiss = true,
         onDismissRequest = onDismiss,
+        // 遮罩不拦点击：这样在面板打开时点日历上的另一天，能直接切换到那一天的详情。
+        dismissOnOutsideClick = false,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = SHEET_MAX_HEIGHT)
-                .verticalScroll(rememberScrollState())
-                .padding(MaterialTheme.padding.medium),
-            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.today_date,
-                    day.date.month.ordinal + 1,
-                    day.date.day,
-                    weekdayNames[day.date.dayOfWeek.isoDayNumber - 1],
-                ),
-                style = MaterialTheme.typography.titleMedium,
-            )
-
-            if (day.actualSessions.isNotEmpty()) {
-                SectionTitle(text = stringResource(R.string.calendar_day_actual))
-                day.actualSessions.forEach { session ->
-                    ActualSessionRow(
-                        session = session,
-                        onEdit = { onEditSession(session.sessionId) },
-                        onDelete = { onDeleteSession(session) },
-                    )
-                }
-            }
-
-            SectionTitle(text = stringResource(R.string.calendar_day_plan))
-            if (day.isRestDay) {
-                RestDayRow(onRemove = { onRemoveRest(day.date) })
-            }
-            if (day.planned.isEmpty()) {
-                if (!day.isRestDay) {
+        key(day.date) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = SHEET_MAX_HEIGHT)
+                    .verticalScroll(rememberScrollState())
+                    .padding(MaterialTheme.padding.medium),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = stringResource(R.string.calendar_day_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = stringResource(
+                            R.string.today_date,
+                            day.date.month.ordinal + 1,
+                            day.date.day,
+                            weekdayNames[day.date.dayOfWeek.isoDayNumber - 1],
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
                     )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.action_close),
+                        )
+                    }
                 }
-            } else {
-                day.planned.forEach { plan ->
-                    PlannedRoutineRow(
-                        plan = plan,
-                        weekdayShort = weekdayShort(day.date),
-                        onClick = { onOpenRoutine(plan.routineId) },
-                        onRemove = { onRemovePlan(plan.entryId) },
-                    )
-                }
-            }
 
-            AddPlanRow(
-                day = day,
-                routines = routines,
-                onAddPlan = onAddPlan,
-            )
+                if (day.actualSessions.isNotEmpty()) {
+                    SectionTitle(text = stringResource(R.string.calendar_day_actual))
+                    day.actualSessions.forEach { session ->
+                        ActualSessionRow(
+                            session = session,
+                            onEdit = { onEditSession(session.sessionId) },
+                            onDelete = { onDeleteSession(session) },
+                        )
+                    }
+                }
+
+                SectionTitle(text = stringResource(R.string.calendar_day_plan))
+                if (day.isRestDay) {
+                    RestDayRow(onRemove = { onRemoveRest(day.date) })
+                }
+                if (day.planned.isEmpty()) {
+                    if (!day.isRestDay) {
+                        Text(
+                            text = stringResource(R.string.calendar_day_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    day.planned.forEach { plan ->
+                        PlannedRoutineRow(
+                            plan = plan,
+                            weekdayShort = weekdayShort(day.date),
+                            onClick = { onOpenRoutine(plan.routineId) },
+                            onRemove = { onRemovePlan(plan.entryId) },
+                        )
+                    }
+                }
+
+                AddPlanRow(
+                    day = day,
+                    routines = routines,
+                    onAddPlan = onAddPlan,
+                )
+            }
         }
     }
 }
@@ -470,16 +487,23 @@ private fun RestDayRow(onRemove: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = stringResource(R.string.calendar_rest_day),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onTertiaryContainer,
+        Box(
             modifier = Modifier
+                .weight(1f)
+                // 与计划条目同形状的整行底框，配色沿用日历格子里休息日的绿色。
                 .clip(MaterialTheme.shapes.extraSmall)
                 .background(MaterialTheme.colorScheme.tertiaryContainer)
-                .padding(horizontal = MaterialTheme.padding.small, vertical = 2.dp),
-        )
-        Spacer(modifier = Modifier.weight(1f))
+                .padding(
+                    horizontal = MaterialTheme.padding.small,
+                    vertical = MaterialTheme.padding.extraSmall,
+                ),
+        ) {
+            Text(
+                text = stringResource(R.string.calendar_rest_day),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
         IconButton(onClick = onRemove) {
             Icon(
                 imageVector = Icons.Filled.Close,
@@ -562,12 +586,19 @@ private fun PlannedRoutineRow(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .clip(MaterialTheme.shapes.small)
-                .clickable(onClick = onClick),
+                // 与「休息」条目同形状的底框，配色对齐编排页「训练」按钮（primaryContainer）。
+                .clip(MaterialTheme.shapes.extraSmall)
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .clickable(onClick = onClick)
+                .padding(
+                    horizontal = MaterialTheme.padding.small,
+                    vertical = MaterialTheme.padding.extraSmall,
+                ),
         ) {
             Text(
                 text = plan.routineName,
                 style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -579,7 +610,7 @@ private fun PlannedRoutineRow(
             Text(
                 text = "${stringResource(R.string.calendar_exercise_count, plan.exerciseCount)} · $scheduleLabel",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
         IconButton(onClick = onRemove) {

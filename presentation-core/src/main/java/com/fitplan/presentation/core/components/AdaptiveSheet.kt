@@ -55,6 +55,11 @@ fun AdaptiveSheet(
     enableImplicitDismiss: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * 点击面板以外的区域是否关闭面板。为 false 时遮罩不拦截点击，
+     * 事件会透给下层内容（例如日历格子），方便直接切换面板展示的内容。
+     */
+    dismissOnOutsideClick: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -74,11 +79,17 @@ fun AdaptiveSheet(
         }
         Box(
             modifier = Modifier
-                .clickable(
-                    interactionSource = null,
-                    indication = null,
-                    enabled = enableImplicitDismiss,
-                    onClick = internalOnDismissRequest,
+                .then(
+                    if (dismissOnOutsideClick) {
+                        Modifier.clickable(
+                            interactionSource = null,
+                            indication = null,
+                            enabled = enableImplicitDismiss,
+                            onClick = internalOnDismissRequest,
+                        )
+                    } else {
+                        Modifier
+                    },
                 )
                 .fillMaxSize()
                 .alpha(alpha),
@@ -126,10 +137,16 @@ fun AdaptiveSheet(
         }
         Box(
             modifier = Modifier
-                .clickable(
-                    interactionSource = null,
-                    indication = null,
-                    onClick = internalOnDismissRequest,
+                .then(
+                    if (dismissOnOutsideClick) {
+                        Modifier.clickable(
+                            interactionSource = null,
+                            indication = null,
+                            onClick = internalOnDismissRequest,
+                        )
+                    } else {
+                        Modifier
+                    },
                 )
                 .fillMaxSize()
                 .onSizeChanged {
