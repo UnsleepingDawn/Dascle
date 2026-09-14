@@ -47,6 +47,27 @@
     <string name="field_routine_name">计划名称</string>
     <string name="field_routine_note">备注（可选）</string>
 
+    <!-- 编排健身计划 -->
+    <string name="plan_compose_entry">编排健身计划</string>
+    <string name="plan_compose_title">编排健身计划</string>
+    <string name="plan_compose_apply">应用</string>
+    <string name="plan_compose_day_label">Day</string>
+    <string name="plan_compose_training">训练</string>
+    <string name="plan_compose_rest">休息</string>
+    <string name="plan_compose_empty">先给 Day 1 安排训练或休息</string>
+    <string name="plan_compose_pick_title">Day %1$d 安排</string>
+    <string name="plan_compose_pick_hint">选一个训练计划，或把这一天设为休息日。</string>
+    <string name="plan_compose_pick_empty">还没有训练计划\n先到「训练计划」里新建一个</string>
+    <string name="plan_compose_remove_day">移除这一天</string>
+    <string name="plan_compose_apply_title">应用编排</string>
+    <string name="plan_compose_start_date">起始日期</string>
+    <string name="plan_compose_mode_cycles">循环次数</string>
+    <string name="plan_compose_mode_until">截止到</string>
+    <string name="plan_compose_cycles_label">循环几次</string>
+    <string name="plan_compose_cycle_days">本次编排共 %1$d 天</string>
+    <string name="plan_compose_total_days">从起始日期起排入 %1$d 天</string>
+    <string name="plan_compose_until_invalid">截止日期不能早于起始日期</string>
+
     <!-- 计划内的动作编排 -->
     <string name="routine_edit_empty">这个计划还没有动作\n点右下角按钮从动作库里挑几个</string>
     <string name="routine_edit_add_exercise">添加动作</string>
@@ -96,6 +117,8 @@
     <string name="calendar_weekly">每周%1$s</string>
     <string name="calendar_once">仅此日</string>
     <string name="calendar_remove_plan">移除排期</string>
+    <string name="calendar_rest_day">休息</string>
+    <string name="calendar_remove_rest">取消休息日</string>
     <string name="calendar_exercise_count">%1$d 个动作</string>
     <string name="calendar_edit_session">编辑这次训练</string>
     <string name="calendar_delete_session">删除这次训练</string>

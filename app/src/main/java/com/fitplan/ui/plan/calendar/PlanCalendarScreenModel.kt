@@ -76,6 +76,8 @@ class PlanCalendarScreenModel(
                 scheduleRepository.insertWeekly(routineId, date.dayOfWeek)
             } else {
                 scheduleRepository.insertOnce(routineId, date)
+                // 这一天原本标着休息，现在改成训练日，把休息标记撤掉。
+                scheduleRepository.deleteRestDay(date)
             }
             refresh()
             widgetManager.updateTodayWidget()
@@ -85,6 +87,15 @@ class PlanCalendarScreenModel(
     fun removePlan(entryId: Long) {
         viewModelScope.launch {
             scheduleRepository.deleteById(entryId)
+            refresh()
+            widgetManager.updateTodayWidget()
+        }
+    }
+
+    /** 取消某天的休息日标记。 */
+    fun removeRestDay(date: LocalDate) {
+        viewModelScope.launch {
+            scheduleRepository.deleteRestDay(date)
             refresh()
             widgetManager.updateTodayWidget()
         }

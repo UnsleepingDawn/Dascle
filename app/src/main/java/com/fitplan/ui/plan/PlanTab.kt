@@ -66,6 +66,7 @@ import com.fitplan.presentation.util.Tab
 import com.fitplan.ui.exercise.label
 import com.fitplan.ui.plan.calendar.PlanCalendarScreenModel
 import com.fitplan.ui.plan.calendar.RoutineListScreen
+import com.fitplan.ui.plan.compose.PlanComposeScreen
 import com.fitplan.ui.plan.routine.RoutineEditScreen
 import com.fitplan.ui.workout.WorkoutLogScreen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -104,12 +105,21 @@ object PlanTab : Tab {
                 )
             },
             floatingActionButton = {
-                ExtendedFloatingActionButton(
-                    onClick = { navigator.push(RoutineListScreen) },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) {
-                    Text(text = stringResource(R.string.plan_title))
+                Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                    ExtendedFloatingActionButton(
+                        onClick = { navigator.push(RoutineListScreen) },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ) {
+                        Text(text = stringResource(R.string.plan_title))
+                    }
+                    ExtendedFloatingActionButton(
+                        onClick = { navigator.push(PlanComposeScreen) },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) {
+                        Text(text = stringResource(R.string.plan_compose_entry))
+                    }
                 }
             },
         ) { contentPadding ->
@@ -143,6 +153,7 @@ object PlanTab : Tab {
                 },
                 onAddPlan = { routineId, weekly -> screenModel.addPlan(routineId, day.date, weekly) },
                 onRemovePlan = screenModel::removePlan,
+                onRemoveRest = screenModel::removeRestDay,
                 onEditSession = { sessionId ->
                     selectedDate = null
                     navigator.push(WorkoutLogScreen(sessionId = sessionId, editing = true))
@@ -280,13 +291,21 @@ private fun DayCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        val dayNumberBackground = when {
+            day.isTrainingDay -> MaterialTheme.colorScheme.primary
+            day.isRestDay -> MaterialTheme.colorScheme.tertiary
+            else -> Color.Transparent
+        }
+        val dayNumberColor = when {
+            day.isTrainingDay -> MaterialTheme.colorScheme.onPrimary
+            day.isRestDay -> MaterialTheme.colorScheme.onTertiary
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(MaterialTheme.shapes.extraSmall)
-                .background(
-                    if (day.isTrainingDay) MaterialTheme.colorScheme.primary else Color.Transparent,
-                )
+                .background(dayNumberBackground)
                 .then(
                     if (day.isToday) {
                         Modifier.border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.extraSmall)
@@ -300,12 +319,27 @@ private fun DayCell(
             Text(
                 text = day.date.day.toString(),
                 style = MaterialTheme.typography.titleSmall,
-                color = if (day.isTrainingDay) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = dayNumberColor,
             )
+        }
+
+        if (day.isRestDay && !day.isTrainingDay) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .padding(vertical = 1.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.calendar_rest_day),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
 
         day.muscleGroups.take(MAX_CELL_MUSCLES).forEach { muscle ->
@@ -347,6 +381,7 @@ private fun DayDetailSheet(
     onOpenRoutine: (Long) -> Unit,
     onAddPlan: (Long, Boolean) -> Unit,
     onRemovePlan: (Long) -> Unit,
+    onRemoveRest: (LocalDate) -> Unit,
     onEditSession: (Long) -> Unit,
     onDeleteSession: (CalendarSession) -> Unit,
 ) {
@@ -388,12 +423,17 @@ private fun DayDetailSheet(
             }
 
             SectionTitle(text = stringResource(R.string.calendar_day_plan))
+            if (day.isRestDay) {
+                RestDayRow(onRemove = { onRemoveRest(day.date) })
+            }
             if (day.planned.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.calendar_day_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!day.isRestDay) {
+                    Text(
+                        text = stringResource(R.string.calendar_day_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             } else {
                 day.planned.forEach { plan ->
                     PlannedRoutineRow(
@@ -421,6 +461,32 @@ private fun SectionTitle(text: String) {
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
     )
+}
+
+/** 编排出来的休息日：读出来一眼能认，也留一个撤销入口。 */
+@Composable
+private fun RestDayRow(onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.calendar_rest_day),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.extraSmall)
+                .background(MaterialTheme.colorScheme.tertiaryContainer)
+                .padding(horizontal = MaterialTheme.padding.small, vertical = 2.dp),
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = stringResource(R.string.calendar_remove_rest),
+            )
+        }
+    }
 }
 
 @Composable

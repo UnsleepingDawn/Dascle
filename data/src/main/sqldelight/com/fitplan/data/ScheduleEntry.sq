@@ -54,6 +54,14 @@ insert:
 INSERT INTO schedule_entry(routine_id, day_of_week, specific_date, enabled)
 VALUES (?, ?, ?, ?);
 
+insertOnceIgnore:
+INSERT OR IGNORE INTO schedule_entry(routine_id, day_of_week, specific_date, enabled)
+VALUES (?, NULL, ?, 1);
+
+deleteOnceBetween:
+DELETE FROM schedule_entry
+WHERE specific_date >= ? AND specific_date < ?;
+
 updateEnabled:
 UPDATE schedule_entry
 SET enabled = ?

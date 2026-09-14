@@ -39,6 +39,7 @@ data class CalendarSession(
  *
  * [muscleGroups] 是格子里显示的肌群：过去的日子取当天实际练到的肌群，今天及以后取排期计划里的肌群；
  * [isTrainingDay] 同理，过去看是否真的练了，今天及以后看有没有排期。
+ * [isRestDay] 表示这一天被编排成了休息日。
  */
 data class CalendarDay(
     val date: LocalDate,
@@ -47,6 +48,7 @@ data class CalendarDay(
     val planned: List<CalendarPlan>,
     val actualSessions: List<CalendarSession>,
     val muscleGroups: List<MuscleGroup>,
+    val isRestDay: Boolean = false,
 ) {
     val isTrainingDay: Boolean
         get() = if (isPast) actualSessions.isNotEmpty() else planned.isNotEmpty()
@@ -80,6 +82,7 @@ class GetMonthCalendar(
         val entries = scheduleRepository.getAll().filter { it.enabled }
         val weeklyByDay = entries.filter { it.dayOfWeek != null }.groupBy { it.dayOfWeek }
         val onceByDate = entries.filter { it.specificDate != null }.groupBy { it.specificDate }
+        val restDays = scheduleRepository.getRestDaysBetween(firstDay, nextMonth).toSet()
 
         val routines = routineRepository.getAll().associateBy { it.id }
         val exercisesByRoutine = mutableMapOf<Long, List<RoutineExercise>>()
@@ -133,6 +136,7 @@ class GetMonthCalendar(
                 planned = planned,
                 actualSessions = actualSessions,
                 muscleGroups = if (isPast) actualMuscleGroups else planned.flatMap { it.muscleGroups }.distinct(),
+                isRestDay = date in restDays,
             )
         }
     }

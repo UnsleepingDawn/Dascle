@@ -1,0 +1,26 @@
+CREATE TABLE rest_day (
+    date INTEGER NOT NULL PRIMARY KEY
+);
+
+selectAll:
+SELECT *
+FROM rest_day
+ORDER BY date;
+
+selectBetween:
+SELECT *
+FROM rest_day
+WHERE date >= ? AND date < ?
+ORDER BY date;
+
+insert:
+INSERT OR IGNORE INTO rest_day(date)
+VALUES (?);
+
+deleteByDate:
+DELETE FROM rest_day
+WHERE date = ?;
+
+deleteBetween:
+DELETE FROM rest_day
+WHERE date >= ? AND date < ?;

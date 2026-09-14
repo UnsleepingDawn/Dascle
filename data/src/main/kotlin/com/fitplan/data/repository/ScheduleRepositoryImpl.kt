@@ -5,6 +5,7 @@ import app.cash.sqldelight.async.coroutines.awaitAsOne
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
+import com.fitplan.data.mapper.toLocalDate
 import com.fitplan.domain.model.ScheduleEntry
 import com.fitplan.domain.repository.ScheduleRepository
 import dev.zacsweers.metro.AppScope
@@ -22,6 +23,7 @@ class ScheduleRepositoryImpl(
 ) : ScheduleRepository {
 
     private val queries get() = database.scheduleEntryQueries
+    private val restQueries get() = database.restDayQueries
     private val utilQueries get() = database.utilQueries
 
     override suspend fun getAll(): List<ScheduleEntry> = queries.selectAll().awaitAsList().map { it.toDomain() }
@@ -53,6 +55,38 @@ class ScheduleRepositoryImpl(
             )
             utilQueries.lastInsertRowId().awaitAsOne()
         }
+
+    override suspend fun getRestDaysBetween(start: LocalDate, endExclusive: LocalDate): List<LocalDate> =
+        restQueries.selectBetween(
+            date = start.toDbValue(),
+            date_ = endExclusive.toDbValue(),
+        ).awaitAsList().map { it.toLocalDate() }
+
+    override suspend fun deleteRestDay(date: LocalDate) {
+        restQueries.deleteByDate(date = date.toDbValue())
+    }
+
+    override suspend fun applyComposePlan(
+        start: LocalDate,
+        endExclusive: LocalDate,
+        routineDates: Map<LocalDate, Long>,
+        restDates: Set<LocalDate>,
+    ) {
+        database.transactionWithResult {
+            queries.deleteOnceBetween(
+                specific_date = start.toDbValue(),
+                specific_date_ = endExclusive.toDbValue(),
+            )
+            restQueries.deleteBetween(
+                date = start.toDbValue(),
+                date_ = endExclusive.toDbValue(),
+            )
+            routineDates.forEach { (date, routineId) ->
+                queries.insertOnceIgnore(routine_id = routineId, specific_date = date.toDbValue())
+            }
+            restDates.forEach { restQueries.insert(date = it.toDbValue()) }
+        }
+    }
 
     override suspend fun setEnabled(id: Long, enabled: Boolean) {
         queries.updateEnabled(enabled = if (enabled) 1L else 0L, id = id)

@@ -64,7 +64,9 @@ object FitPlanColorScheme : BaseColorScheme() {
         onSecondaryContainer = Color(0xFF001945),
         tertiary = Color(0xFF006E1B),
         onTertiary = Color(0xFFFFFFFF),
-        tertiaryContainer = Color(0xFF95F990),
+        // 手改：M3 生成的 #95F990 太艳，大面积铺在编排卡片上很刺眼；
+        // 压到中饱和的 #C7EACA，比训练的 primaryContainer #D9E2FF 更深更柔，两者分量相近、都不抢眼。
+        tertiaryContainer = Color(0xFFC7EACA),
         onTertiaryContainer = Color(0xFF002203),
         background = Color(0xFFFEFBFF),
         onBackground = Color(0xFF1B1B1F),
