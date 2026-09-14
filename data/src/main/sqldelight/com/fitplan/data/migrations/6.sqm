@@ -1,0 +1,51 @@
+-- 手臂肌群拆成二头 / 三头：内置动作按名称改判，用户自建动作归入「其他手臂」。
+-- 业务代码不再认识旧的 'ARM'，这一步必须在 DB 打开时执行完，否则 toMuscleGroup() 会抛异常。
+
+UPDATE exercise
+SET muscle_group = 'BICEPS'
+WHERE muscle_group = 'ARM'
+  AND is_custom = 0
+  AND name IN ('杠铃弯举', '哑铃交替弯举', '锤式弯举', '牧师凳弯举');
+
+UPDATE exercise
+SET muscle_group = 'TRICEPS'
+WHERE muscle_group = 'ARM'
+  AND is_custom = 0
+  AND name IN ('绳索下压', '仰卧臂屈伸', '过顶臂屈伸', '窄距卧推', '双杠臂屈伸');
+
+UPDATE exercise
+SET muscle_group = 'ARM_OTHER'
+WHERE muscle_group = 'ARM';
+
+-- 次部位：推类动作（胸 / 肩）的手臂改成三头。
+UPDATE exercise_secondary_muscle
+SET muscle_group = 'TRICEPS'
+WHERE muscle_group = 'ARM'
+  AND exercise_id IN (
+    SELECT id
+    FROM exercise
+    WHERE is_custom = 0
+      AND name IN (
+        '平板杠铃卧推', '上斜杠铃卧推', '平板哑铃卧推', '上斜哑铃卧推', '坐姿推胸', '俯卧撑',
+        '坐姿杠铃推举', '站姿哑铃推举', '阿诺德推举'
+      )
+  );
+
+-- 次部位：拉类动作（背）的手臂改成二头。
+UPDATE exercise_secondary_muscle
+SET muscle_group = 'BICEPS'
+WHERE muscle_group = 'ARM'
+  AND exercise_id IN (
+    SELECT id
+    FROM exercise
+    WHERE is_custom = 0
+      AND name IN (
+        '引体向上', '反握引体向上', '高位下拉', '杠铃划船', '单臂哑铃划船',
+        '坐姿绳索划船', 'T 杠划船', '器械划船'
+      )
+  );
+
+-- 兜底：自建动作的手臂次部位。
+UPDATE exercise_secondary_muscle
+SET muscle_group = 'ARM_OTHER'
+WHERE muscle_group = 'ARM';

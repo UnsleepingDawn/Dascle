@@ -238,12 +238,14 @@
 
     <!-- 肌群 -->
     <string name="muscle_chest">胸</string>
-    <string name="muscle_arm">手臂</string>
+    <string name="muscle_biceps">二头</string>
+    <string name="muscle_triceps">三头</string>
     <string name="muscle_abs">腹部</string>
     <string name="muscle_shoulder">肩膀</string>
     <string name="muscle_back">背</string>
     <string name="muscle_leg">腿</string>
     <string name="muscle_glute">臀</string>
+    <string name="muscle_arm_other">其他手臂</string>
 
     <!-- 器械 -->
     <string name="equipment_barbell">杠铃</string>

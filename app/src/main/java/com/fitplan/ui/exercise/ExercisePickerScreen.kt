@@ -175,12 +175,14 @@ private fun ExerciseListItem(
 internal fun MuscleGroup.label(): String = stringResource(
     when (this) {
         MuscleGroup.CHEST -> R.string.muscle_chest
-        MuscleGroup.ARM -> R.string.muscle_arm
+        MuscleGroup.BICEPS -> R.string.muscle_biceps
+        MuscleGroup.TRICEPS -> R.string.muscle_triceps
         MuscleGroup.ABS -> R.string.muscle_abs
         MuscleGroup.SHOULDER -> R.string.muscle_shoulder
         MuscleGroup.BACK -> R.string.muscle_back
         MuscleGroup.LEG -> R.string.muscle_leg
         MuscleGroup.GLUTE -> R.string.muscle_glute
+        MuscleGroup.ARM_OTHER -> R.string.muscle_arm_other
     },
 )
 
