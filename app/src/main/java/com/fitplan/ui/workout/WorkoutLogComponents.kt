@@ -393,12 +393,6 @@ internal fun WorkoutSummaryCard(
                 text = stringResource(R.string.workout_summary_sets, summary.completedSets),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            if (summary.volume > 0.0) {
-                Text(
-                    text = stringResource(R.string.workout_summary_volume, formatVolume(summary.volume)),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
             Text(
                 text = stringResource(R.string.workout_summary_duration, durationText(summary.durationSeconds)),
                 style = MaterialTheme.typography.bodyMedium,
@@ -582,9 +576,6 @@ private fun durationText(seconds: Long): String {
         stringResource(R.string.workout_duration_hours, minutes / 60, minutes % 60)
     }
 }
-
-private fun formatVolume(volume: Double): String =
-    if (volume == volume.toLong().toDouble()) volume.toLong().toString() else "%.1f".format(volume)
 
 /** 目标提示：计数是「目标 3 组 × 10 次」，计时是「目标 3 组 × 60 秒」，带默认重量时插入「20 kg」。 */
 @Composable

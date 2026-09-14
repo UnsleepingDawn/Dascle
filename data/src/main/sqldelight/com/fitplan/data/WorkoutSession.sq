@@ -50,15 +50,14 @@ FROM workout_session
 WHERE started_at >= ? AND started_at < ?
 ORDER BY started_at;
 
--- 统计页的历史列表：每条已结束训练带上完成组数与总容量。
+-- 统计页的历史列表：每条已结束训练带上完成组数。
 selectFinishedWithSummary:
 SELECT workout_session.id,
        workout_session.routine_id,
        workout_session.name,
        workout_session.started_at,
        workout_session.finished_at,
-       count(workout_set.id) AS completed_sets,
-       coalesce(sum(workout_set.weight * workout_set.reps), 0.0) AS volume
+       count(workout_set.id) AS completed_sets
 FROM workout_session
 LEFT JOIN workout_set
     ON workout_set.session_id = workout_session.id AND workout_set.completed = 1

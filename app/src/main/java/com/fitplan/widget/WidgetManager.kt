@@ -84,7 +84,6 @@ class WidgetManager(
         finishedSets.isNotEmpty() -> context.getString(
             R.string.widget_status_finished,
             finishedSets.size,
-            formatVolume(finishedSets.sumOf { it.volume }),
         )
 
         hasRoutine -> context.getString(R.string.widget_status_ready)
@@ -102,9 +101,6 @@ class WidgetManager(
             lines
         }
     }
-
-    private fun formatVolume(volume: Double): String =
-        if (volume == volume.toLong().toDouble()) volume.toLong().toString() else "%.1f".format(volume)
 
     private companion object {
         /** 组件高度有限，排期再多也只摆前几个，剩下的折成一行「共 N 个计划」。 */

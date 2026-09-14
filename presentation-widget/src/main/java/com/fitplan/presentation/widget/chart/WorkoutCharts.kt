@@ -50,7 +50,7 @@ private fun contentZoomState(): VicoZoomState =
     rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content)
 
 /**
- * 柱状图，统计页的容量趋势 / 训练频率 / 肌群分布共用。
+ * 柱状图，统计页的肌群组数分布用它。
  * 只认「标签 + 数值」，文案与配色由调用方决定。
  */
 @Composable

@@ -56,28 +56,40 @@ internal fun StatsRangeSelector(
     }
 }
 
-/** 概览：区间内的总容量、训练次数、完成组数。 */
+/** 概览：区间内的训练天数、训练次数、完成组数与近 4 周的平均每周训练天数。 */
 @Composable
 internal fun StatsOverviewRow(
     stats: WorkoutStats,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.large),
     ) {
-        OverviewTile(
-            value = formatVolume(stats.totalVolume),
-            label = stringResource(R.string.stats_overview_volume),
-        )
-        OverviewTile(
-            value = stats.totalSessions.toString(),
-            label = stringResource(R.string.stats_overview_sessions),
-        )
-        OverviewTile(
-            value = stats.totalSets.toString(),
-            label = stringResource(R.string.stats_overview_sets),
-        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            OverviewTile(
+                value = stats.trainingDays.toString(),
+                label = stringResource(R.string.stats_overview_days),
+                modifier = Modifier.weight(1f),
+            )
+            OverviewTile(
+                value = stats.totalSessions.toString(),
+                label = stringResource(R.string.stats_overview_sessions),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            OverviewTile(
+                value = stats.totalSets.toString(),
+                label = stringResource(R.string.stats_overview_sets),
+                modifier = Modifier.weight(1f),
+            )
+            OverviewTile(
+                value = formatWeeklyDays(stats.weeklyTrainingDays),
+                label = stringResource(R.string.stats_overview_weekly_days),
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
@@ -133,7 +145,6 @@ internal fun WorkoutHistoryRow(
                     text = listOf(
                         fullDate(dateOf(item.startedAt)),
                         stringResource(R.string.workout_summary_sets, item.completedSets),
-                        stringResource(R.string.workout_summary_volume, formatVolume(item.volume)),
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -151,26 +162,22 @@ internal fun WorkoutHistoryRow(
     }
 }
 
-/** 把区间内的容量趋势转成柱状图数据。 */
-internal fun WorkoutStats.volumeEntries(): List<ChartEntry> =
-    volumeTrend.map { ChartEntry(shortDate(it.date), it.volume) }
-
-/** 训练频率按「当天完成的组数」画，光看场次太空。 */
-internal fun WorkoutStats.frequencyEntries(): List<ChartEntry> =
-    frequency.map { ChartEntry(shortDate(it.date), it.sets.toDouble()) }
-
 /** 肌群分布的横轴标签要查字符串资源，只能在组合里拼。 */
 @Composable
 internal fun WorkoutStats.muscleEntries(): List<ChartEntry> =
-    muscleGroupVolumes.map { ChartEntry(it.muscleGroup.label(), it.volume) }
+    muscleGroupSets.map { ChartEntry(it.muscleGroup.label(), it.sets) }
 
 /** 单个动作的最好重量按天连成折线。 */
 internal fun ExerciseProgress.entries(): List<ChartEntry> =
     points.map { ChartEntry(shortDate(it.date), it.weight) }
 
 @Composable
-private fun OverviewTile(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun OverviewTile(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
             style = MaterialTheme.typography.headlineSmall,
@@ -205,7 +212,8 @@ private fun fullDate(date: LocalDate): String = "${date.year}/${date.month.ordin
 internal fun dateOf(instant: Instant): LocalDate =
     instant.toLocalDateTime(TimeZone.currentSystemDefault()).date
 
-private fun formatVolume(volume: Double): String =
-    if (volume == volume.toLong().toDouble()) volume.toLong().toString() else "%.1f".format(volume)
+/** 平均每周训练天数保留一位小数，整数就不带小数点。 */
+private fun formatWeeklyDays(days: Double): String =
+    if (days == days.toLong().toDouble()) days.toLong().toString() else "%.1f".format(days)
 
 private const val WEEK_DAYS = 7

@@ -168,7 +168,6 @@
     <string name="workout_abandon_confirm_message">本次训练已经记录的组会被删除，无法恢复。</string>
     <string name="workout_summary_title">训练完成</string>
     <string name="workout_summary_sets">完成 %1$d 组</string>
-    <string name="workout_summary_volume">总容量 %1$s kg</string>
     <string name="workout_summary_duration">用时 %1$s</string>
     <string name="workout_summary_done">完成</string>
     <string name="workout_editing_title">编辑 %1$s</string>
@@ -182,12 +181,11 @@
     <!-- 统计页 -->
     <string name="stats_range_week">近 7 天</string>
     <string name="stats_range_month">近 30 天</string>
-    <string name="stats_overview_volume">总容量</string>
+    <string name="stats_overview_days">训练天数</string>
     <string name="stats_overview_sessions">训练次数</string>
     <string name="stats_overview_sets">完成组数</string>
-    <string name="stats_chart_volume">容量趋势</string>
-    <string name="stats_chart_frequency">训练频率（组）</string>
-    <string name="stats_chart_muscle">肌群容量分布</string>
+    <string name="stats_overview_weekly_days">平均每周训练天数</string>
+    <string name="stats_chart_muscle">肌群组数分布</string>
     <string name="stats_chart_progress">重量进步</string>
     <string name="stats_chart_progress_empty">这段时间还没有带重量的记录</string>
     <string name="stats_history_title">训练历史</string>
@@ -197,7 +195,7 @@
     <!-- 今日训练桌面组件 -->
     <string name="widget_today_description">今天要练什么、练到哪了</string>
     <string name="widget_status_in_progress">训练中 · 已完成 %1$d 组</string>
-    <string name="widget_status_finished">今日已完成 %1$d 组 · %2$s kg</string>
+    <string name="widget_status_finished">今日已完成 %1$d 组</string>
     <string name="widget_status_ready">还没开始</string>
     <string name="widget_status_rest">今天休息</string>
     <string name="widget_routine_line">%1$s · %2$d 个动作</string>

@@ -98,8 +98,6 @@ private fun StatsContent(
     onSelectExercise: (Long) -> Unit,
     onOpenHistory: (Long) -> Unit,
 ) {
-    val volumeEntries = stats.volumeEntries()
-    val frequencyEntries = stats.frequencyEntries()
     val muscleEntries = stats.muscleEntries()
     val selectedProgress = stats.exerciseProgress.firstOrNull { it.exerciseId == selectedExerciseId }
 
@@ -115,18 +113,6 @@ private fun StatsContent(
         item {
             SectionCard {
                 StatsOverviewRow(stats = stats)
-            }
-        }
-
-        item {
-            SectionCard(title = stringResource(R.string.stats_chart_volume)) {
-                ColumnChart(entries = volumeEntries)
-            }
-        }
-
-        item {
-            SectionCard(title = stringResource(R.string.stats_chart_frequency)) {
-                ColumnChart(entries = frequencyEntries)
             }
         }
 

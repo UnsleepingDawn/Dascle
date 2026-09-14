@@ -143,7 +143,6 @@ internal fun SelectFinishedWithSummary.toDomain(): WorkoutHistoryItem = WorkoutH
     startedAt = started_at.toInstant(),
     finishedAt = finished_at.toInstant(),
     completedSets = completed_sets.toInt(),
-    volume = volume,
 )
 
 internal fun WorkoutSetRow.toDomain(): WorkoutSet = WorkoutSet(

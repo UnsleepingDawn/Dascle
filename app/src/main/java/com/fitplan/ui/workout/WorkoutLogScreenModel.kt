@@ -66,7 +66,6 @@ data class RestState(
 /** 一次已结束训练的汇总。 */
 data class WorkoutSummary(
     val completedSets: Int,
-    val volume: Double,
     val durationSeconds: Long,
 )
 
@@ -376,7 +375,6 @@ class WorkoutLogScreenModel(
         _summary.value = session.finishedAt?.let { finishedAt ->
             WorkoutSummary(
                 completedSets = sets.count { it.completed },
-                volume = sets.filter { it.completed }.sumOf { it.volume },
                 durationSeconds = (finishedAt - session.startedAt).inWholeSeconds,
             )
         }

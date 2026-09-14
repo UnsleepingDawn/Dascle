@@ -27,7 +27,7 @@ interface WorkoutRepository {
     /** [start, end) 区间内已结束训练的全部已完成组，供统计页聚合。 */
     suspend fun getCompletedSetsBetween(start: Instant, end: Instant): List<WorkoutSet>
 
-    /** 最近的已结束训练，每项带上完成组数与总容量，供统计页历史列表使用。 */
+    /** 最近的已结束训练，每项带上完成组数，供统计页历史列表使用。 */
     suspend fun getFinishedSessionsWithSummary(): List<WorkoutHistoryItem>
 
     /** 已结束的训练次数，供统计页使用。 */

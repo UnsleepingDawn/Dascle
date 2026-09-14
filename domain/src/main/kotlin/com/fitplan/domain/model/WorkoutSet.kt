@@ -13,7 +13,4 @@ data class WorkoutSet(
     val reps: Int?,
     val durationSeconds: Int?,
     val completed: Boolean,
-) {
-    /** 训练容量：重量 × 次数。计时类动作为 0。 */
-    val volume: Double get() = (weight ?: 0.0) * (reps ?: 0)
-}
+)
