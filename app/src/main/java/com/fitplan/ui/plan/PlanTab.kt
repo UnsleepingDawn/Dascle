@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -95,16 +96,17 @@ object PlanTab : Tab {
             topBar = { scrollBehavior ->
                 TopAppBar(
                     title = { Text(text = stringResource(R.string.calendar_title)) },
-                    actions = {
-                        IconButton(onClick = { navigator.push(RoutineListScreen) }) {
-                            Icon(
-                                imageVector = Icons.Filled.FitnessCenter,
-                                contentDescription = stringResource(R.string.plan_title),
-                            )
-                        }
-                    },
                     scrollBehavior = scrollBehavior,
                 )
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = { navigator.push(RoutineListScreen) },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Text(text = stringResource(R.string.plan_title))
+                }
             },
         ) { contentPadding ->
             Column(
