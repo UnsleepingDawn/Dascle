@@ -292,16 +292,28 @@ private fun DayCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        val dayNumberBackground = when {
-            day.isTrainingDay -> MaterialTheme.colorScheme.primary
-            day.isRestDay -> MaterialTheme.colorScheme.tertiary
-            else -> Color.Transparent
+        // 已经过去的日子压淡一档：训练的 primary 换成 primaryContainer，休息的 tertiary 换成
+        // tertiaryContainer；今天及以后仍用饱和色，这样一眼就能分出「历史」和「待办」。
+        val (dayNumberBackground, dayNumberColor) = when {
+            day.isTrainingDay && day.isPast ->
+                MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+
+            day.isTrainingDay ->
+                MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+
+            day.isRestDay && day.isPast ->
+                MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+
+            day.isRestDay ->
+                MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
+
+            else -> Color.Transparent to MaterialTheme.colorScheme.onSurfaceVariant
         }
-        val dayNumberColor = when {
-            day.isTrainingDay -> MaterialTheme.colorScheme.onPrimary
-            day.isRestDay -> MaterialTheme.colorScheme.onTertiary
-            else -> MaterialTheme.colorScheme.onSurfaceVariant
-        }
+        // 肌群标签同理：过去的用浅底，今天及以后用反色深底。
+        val muscleBackground =
+            if (day.isPast) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.inverseSurface
+        val muscleColor =
+            if (day.isPast) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.inverseOnSurface
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -329,14 +341,15 @@ private fun DayCell(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.extraSmall)
-                    .background(MaterialTheme.colorScheme.tertiary)
+                    // 这一天既然不是训练日，格子里的颜色就是上面算好的休息色，直接复用。
+                    .background(dayNumberBackground)
                     .padding(vertical = 1.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = stringResource(R.string.calendar_rest_day),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onTertiary,
+                    color = dayNumberColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -348,14 +361,14 @@ private fun DayCell(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.extraSmall)
-                    .background(MaterialTheme.colorScheme.inverseSurface)
+                    .background(muscleBackground)
                     .padding(vertical = 1.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = muscle.label(),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    color = muscleColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
