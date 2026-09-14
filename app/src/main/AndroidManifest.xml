@@ -48,6 +48,11 @@
             android:name="com.fitplan.reminder.ReminderReceiver"
             android:exported="false" />
 
+        <!-- 组间休息结束的到点闹钟 -->
+        <receiver
+            android:name="com.fitplan.reminder.RestAlarmReceiver"
+            android:exported="false" />
+
         <!-- 开机 / 应用更新后重排训练提醒闹钟 -->
         <receiver
             android:name="com.fitplan.reminder.ReminderBootReceiver"

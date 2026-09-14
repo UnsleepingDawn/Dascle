@@ -5,9 +5,10 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,7 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,14 +76,12 @@ class WorkoutLogScreen(
             if (exitTick > 0) navigator.pop()
         }
 
-        var showExitDialog by remember { mutableStateOf(false) }
         var showFinishDialog by remember { mutableStateOf(false) }
+        var showAbandonDialog by remember { mutableStateOf(false) }
         var showExtraDialog by remember { mutableStateOf(false) }
 
         val freeName = stringResource(R.string.workout_free)
         val readOnly = phase == WorkoutPhase.FINISHED
-
-        BackHandler(enabled = phase == WorkoutPhase.IN_PROGRESS) { showExitDialog = true }
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -97,11 +96,7 @@ class WorkoutLogScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                if (phase == WorkoutPhase.IN_PROGRESS) showExitDialog = true else navigator.pop()
-                            },
-                        ) {
+                        IconButton(onClick = navigator::pop) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.action_back),
@@ -110,8 +105,12 @@ class WorkoutLogScreen(
                     },
                     actions = {
                         if (phase == WorkoutPhase.IN_PROGRESS) {
-                            TextButton(onClick = { showFinishDialog = true }) {
-                                Text(text = stringResource(R.string.workout_finish))
+                            // 放弃训练是破坏性操作，放回原「结束训练」的位置并保留确认。
+                            TextButton(onClick = { showAbandonDialog = true }) {
+                                Text(
+                                    text = stringResource(R.string.workout_abandon),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
                             }
                         }
                     },
@@ -121,8 +120,6 @@ class WorkoutLogScreen(
             bottomBar = {
                 val currentRest = rest
                 when {
-                    currentRest != null -> RestBar(rest = currentRest, onSkip = screenModel::skipRest)
-
                     phase == WorkoutPhase.NOT_STARTED -> ActionBar {
                         Button(
                             onClick = { screenModel.startWorkout(freeName) },
@@ -142,20 +139,41 @@ class WorkoutLogScreen(
                             Text(text = stringResource(R.string.workout_summary_done))
                         }
                     }
-                }
-            },
-            floatingActionButton = {
-                if (phase == WorkoutPhase.IN_PROGRESS) {
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            screenModel.loadExercises()
-                            showExtraDialog = true
-                        },
-                        icon = {
-                            Icon(imageVector = Icons.Filled.Add, contentDescription = null)
-                        },
-                        text = { Text(text = stringResource(R.string.workout_add_extra)) },
-                    )
+
+                    else -> Column(modifier = Modifier.fillMaxWidth()) {
+                        currentRest?.let { RestBar(rest = it, onSkip = screenModel::skipRest) }
+                        ActionBar {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                            ) {
+                                Button(
+                                    onClick = {
+                                        screenModel.loadExercises()
+                                        showExtraDialog = true
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+                                    )
+                                    Text(text = stringResource(R.string.workout_add_extra))
+                                }
+                                Button(
+                                    onClick = { showFinishDialog = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError,
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Text(text = stringResource(R.string.workout_finish))
+                                }
+                            }
+                        }
+                    }
                 }
             },
         ) { contentPadding ->
@@ -204,17 +222,13 @@ class WorkoutLogScreen(
             }
         }
 
-        if (showExitDialog) {
-            ExitWorkoutDialog(
-                onKeep = {
-                    showExitDialog = false
-                    navigator.pop()
-                },
-                onAbandon = {
-                    showExitDialog = false
+        if (showAbandonDialog) {
+            AbandonWorkoutDialog(
+                onConfirm = {
+                    showAbandonDialog = false
                     screenModel.abandonWorkout()
                 },
-                onDismiss = { showExitDialog = false },
+                onDismiss = { showAbandonDialog = false },
             )
         }
 

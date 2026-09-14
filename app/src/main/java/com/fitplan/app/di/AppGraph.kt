@@ -12,6 +12,7 @@ import com.fitplan.app.ui.main.MainActivity
 import com.fitplan.core.metro.IsDebugBuild
 import com.fitplan.data.Database
 import com.fitplan.reminder.ReminderScheduler
+import com.fitplan.reminder.RestNotifier
 import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
@@ -42,6 +43,9 @@ interface AppGraph : ViewModelGraph {
 
     /** 训练提醒的闹钟与通知入口，供 Receiver 与设置页使用。 */
     val reminderScheduler: ReminderScheduler
+
+    /** 组间休息的后台倒计时通知，供记录页与到点闹钟使用。 */
+    val restNotifier: RestNotifier
 
     @DependencyGraph.Factory
     fun interface Factory {

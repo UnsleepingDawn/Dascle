@@ -142,11 +142,13 @@
     <string name="workout_rest_done">休息结束</string>
     <string name="workout_rest_remaining">剩余 %1$d 秒</string>
     <string name="workout_rest_skip">跳过休息</string>
-    <string name="workout_exit_title">退出记录页？</string>
-    <string name="workout_exit_message">已经完成的组会保留，下次可以从今日页继续。放弃训练则会删除本次记录。</string>
-    <string name="workout_exit_keep">暂时退出</string>
-    <string name="workout_exit_continue">继续练</string>
+    <string name="workout_rest_channel_name">组间休息</string>
+    <string name="workout_rest_channel_description">退到后台时显示组间休息倒计时，时间到了提醒你</string>
+    <string name="workout_rest_notification_text">%1$s · 休息中</string>
+    <string name="workout_rest_notification_done">%1$s · 可以开始下一组了</string>
     <string name="workout_abandon">放弃训练</string>
+    <string name="workout_abandon_confirm_title">放弃训练？</string>
+    <string name="workout_abandon_confirm_message">本次训练已经记录的组会被删除，无法恢复。</string>
     <string name="workout_summary_title">训练完成</string>
     <string name="workout_summary_sets">完成 %1$d 组</string>
     <string name="workout_summary_volume">总容量 %1$s kg</string>

@@ -538,35 +538,27 @@ internal fun FinishWorkoutDialog(
     )
 }
 
-/** ?????????????????????????? */
+/** 放弃训练前的确认：本次记录会被删除，避免误触。 */
 @Composable
-internal fun ExitWorkoutDialog(
-    onKeep: () -> Unit,
-    onAbandon: () -> Unit,
+internal fun AbandonWorkoutDialog(
+    onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.workout_exit_title)) },
-        text = {
-            Column {
-                Text(text = stringResource(R.string.workout_exit_message))
-                TextButton(onClick = onAbandon) {
-                    Text(
-                        text = stringResource(R.string.workout_abandon),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
-        },
+        title = { Text(text = stringResource(R.string.workout_abandon_confirm_title)) },
+        text = { Text(text = stringResource(R.string.workout_abandon_confirm_message)) },
         confirmButton = {
-            TextButton(onClick = onKeep) {
-                Text(text = stringResource(R.string.workout_exit_keep))
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = stringResource(R.string.workout_abandon),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.workout_exit_continue))
+                Text(text = stringResource(R.string.action_cancel))
             }
         },
     )
