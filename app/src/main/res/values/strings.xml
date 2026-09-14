@@ -101,6 +101,7 @@
     <string name="calendar_next_month">下个月</string>
     <string name="calendar_back_to_month">本月</string>
     <string name="calendar_day_actual">实际训练</string>
+    <string name="calendar_completed_sets">完成 %1$d 组</string>
     <string name="calendar_day_plan">当天计划</string>
     <string name="calendar_day_empty">这一天还没有安排训练计划</string>
     <string name="calendar_add_plan">添加计划</string>

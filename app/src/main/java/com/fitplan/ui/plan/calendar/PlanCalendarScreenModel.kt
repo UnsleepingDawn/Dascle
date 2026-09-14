@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.CalendarDay
 import com.fitplan.domain.interactor.GetMonthCalendar
+import com.fitplan.domain.interactor.RecordPastWorkout
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.ScheduleRepository
@@ -33,6 +34,7 @@ import kotlin.time.Clock
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class PlanCalendarScreenModel(
     private val getMonthCalendar: GetMonthCalendar,
+    private val recordPastWorkout: RecordPastWorkout,
     private val scheduleRepository: ScheduleRepository,
     private val routineRepository: RoutineRepository,
     private val workoutRepository: WorkoutRepository,
@@ -79,10 +81,17 @@ class PlanCalendarScreenModel(
         refresh()
     }
 
-    /** 把计划排到 [date] 这一天；这一天原本若标着休息，把休息标记撤掉。 */
+    /**
+     * 把计划加到 [date] 这一天：今天及以后写排期；已经过去的日子没法再「排」，直接补记成实际训练。
+     * 无论哪种，这一天原本若标着休息，都把休息标记撤掉。
+     */
     fun addPlan(routineId: Long, date: LocalDate) {
         viewModelScope.launch {
-            scheduleRepository.insertOnce(routineId, date)
+            if (date < today()) {
+                recordPastWorkout(routineId, date)
+            } else {
+                scheduleRepository.insertOnce(routineId, date)
+            }
             scheduleRepository.deleteRestDay(date)
             refresh()
             widgetManager.updateTodayWidget()
@@ -125,7 +134,10 @@ class PlanCalendarScreenModel(
     }
 
     private fun firstDayOfCurrentMonth(): LocalDate {
-        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val today = today()
         return today.minus(today.day - 1, DateTimeUnit.DAY)
     }
+
+    private fun today(): LocalDate =
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
 }

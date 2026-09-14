@@ -14,3 +14,16 @@ data class WorkoutSet(
     val durationSeconds: Int?,
     val completed: Boolean,
 )
+
+/**
+ * 还没落库的一组记录：补记训练时按计划目标铺出来，随整次训练一起写入，
+ * 所以没有 [WorkoutSet.id] 与 [WorkoutSet.sessionId]。
+ */
+data class WorkoutSetDraft(
+    val exerciseId: Long,
+    val setIndex: Int,
+    val weight: Double?,
+    val reps: Int?,
+    val durationSeconds: Int?,
+    val completed: Boolean = true,
+)

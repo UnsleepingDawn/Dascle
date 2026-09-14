@@ -190,8 +190,9 @@ private fun OverviewTile(
     }
 }
 
+/** 时长为 0（日历里补记的训练不知道具体时间）就不显示，免得历史列表出现「0 分钟」。 */
 private fun durationOf(item: WorkoutHistoryItem): Long? =
-    item.finishedAt?.let { (it - item.startedAt).inWholeSeconds }
+    item.finishedAt?.let { (it - item.startedAt).inWholeSeconds }?.takeIf { it > 0 }
 
 @Composable
 private fun durationText(seconds: Long): String {

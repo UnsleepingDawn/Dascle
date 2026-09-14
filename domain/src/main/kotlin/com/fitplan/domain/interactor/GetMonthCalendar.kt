@@ -26,10 +26,12 @@ data class CalendarPlan(
     val muscleGroups: List<MuscleGroup>,
 )
 
-/** 日历某天实际完成的一次训练。 */
+/** 日历某天实际完成的一次训练；[completedSets] 是这次训练记录的已完成组数。 */
 data class CalendarSession(
     val sessionId: Long,
+    val routineId: Long?,
     val name: String,
+    val completedSets: Int,
 )
 
 /**
@@ -62,7 +64,8 @@ data class CalendarDay(
  * - 今天及以后：按当天的排期推算要练的计划与肌群；
  * - 今天以前：用已结束训练的实际组数，算出当天练到的肌群。
  *
- * 无论哪天，[CalendarDay.planned] 都来自排期，供点开某天时查看「当天计划」。
+ * 无论哪天，[CalendarDay.planned] 都来自排期，供点开某天时查看「当天计划」；给过去的日子加计划
+ * 走 [RecordPastWorkout] 补记成实际训练，所以过去某天一般只有 [CalendarDay.actualSessions]。
  */
 @Inject
 class GetMonthCalendar(
@@ -120,7 +123,9 @@ class GetMonthCalendar(
             val actualSessions = daySessions.map { session ->
                 CalendarSession(
                     sessionId = session.id,
+                    routineId = session.routineId,
                     name = session.name.ifBlank { session.routineId?.let { routines[it]?.name }.orEmpty() },
+                    completedSets = setsBySession[session.id].orEmpty().size,
                 )
             }
             val actualMuscleGroups = daySessions

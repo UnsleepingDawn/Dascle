@@ -3,6 +3,7 @@ package com.fitplan.domain.repository
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
+import com.fitplan.domain.model.WorkoutSetDraft
 import kotlin.time.Instant
 
 interface WorkoutRepository {
@@ -34,6 +35,18 @@ interface WorkoutRepository {
     suspend fun countFinishedSessions(): Long
 
     suspend fun startSession(routineId: Long?, name: String, startedAt: Instant): Long
+
+    /**
+     * 一次性写入一次已经结束的训练：session 与它的全部组在同一个事务里落库，
+     * 中途出错不会留下只有一半记录的补记训练。
+     */
+    suspend fun insertFinishedSession(
+        routineId: Long?,
+        name: String,
+        startedAt: Instant,
+        finishedAt: Instant,
+        sets: List<WorkoutSetDraft>,
+    ): Long
 
     suspend fun finishSession(id: Long, finishedAt: Instant)
 

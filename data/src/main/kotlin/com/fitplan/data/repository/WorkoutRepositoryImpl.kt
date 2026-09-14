@@ -9,6 +9,7 @@ import com.fitplan.data.mapper.toDomain
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
+import com.fitplan.domain.model.WorkoutSetDraft
 import com.fitplan.domain.repository.WorkoutRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -77,6 +78,35 @@ class WorkoutRepositoryImpl(
             )
             utilQueries.lastInsertRowId().awaitAsOne()
         }
+
+    override suspend fun insertFinishedSession(
+        routineId: Long?,
+        name: String,
+        startedAt: Instant,
+        finishedAt: Instant,
+        sets: List<WorkoutSetDraft>,
+    ): Long = database.transactionWithResult {
+        sessionQueries.insert(
+            routine_id = routineId,
+            name = name,
+            started_at = startedAt.toDbValue(),
+            finished_at = finishedAt.toDbValue(),
+            note = "",
+        )
+        val sessionId = utilQueries.lastInsertRowId().awaitAsOne()
+        sets.forEach { set ->
+            setQueries.insert(
+                session_id = sessionId,
+                exercise_id = set.exerciseId,
+                set_index = set.setIndex.toLong(),
+                weight = set.weight,
+                reps = set.reps?.toLong(),
+                duration_seconds = set.durationSeconds?.toLong(),
+                completed = set.completed.toDbValue(),
+            )
+        }
+        sessionId
+    }
 
     override suspend fun finishSession(id: Long, finishedAt: Instant) {
         sessionQueries.finish(finished_at = finishedAt.toDbValue(), id = id)

@@ -536,13 +536,30 @@ private fun ActualSessionRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = session.name.ifBlank { stringResource(R.string.workout_free) },
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                // 与「当天计划」条目同形状、同尺寸的底框，用肌群标签那套灰表示已经练完的记录。
+                .clip(MaterialTheme.shapes.extraSmall)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(
+                    horizontal = MaterialTheme.padding.small,
+                    vertical = MaterialTheme.padding.extraSmall,
+                ),
+        ) {
+            Text(
+                text = session.name.ifBlank { stringResource(R.string.workout_free) },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.calendar_completed_sets, session.completedSets),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         IconButton(onClick = onEdit) {
             Icon(
                 imageVector = Icons.Filled.Edit,
@@ -641,7 +658,9 @@ private fun DayActionsRow(
     onMarkRest: () -> Unit,
 ) {
     val plannedIds = day.planned.map { it.routineId }.toSet()
-    val selectable = routines.filterNot { it.id in plannedIds }
+    // 过去的日子加计划等于补记训练，已经补记过的计划不再重复列出，免得同一天记出两次同样的训练。
+    val recordedIds = if (day.isPast) day.actualSessions.mapNotNull { it.routineId }.toSet() else emptySet()
+    val selectable = routines.filterNot { it.id in plannedIds || it.id in recordedIds }
     var showPicker by remember { mutableStateOf(false) }
 
     Row(
