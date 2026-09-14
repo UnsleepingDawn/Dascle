@@ -2,6 +2,7 @@ package com.fitplan.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.GetScheduledRoutinesForDate
 import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.model.WorkoutSession
@@ -14,6 +15,7 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -26,7 +28,15 @@ import kotlin.time.Clock
 class TodayScreenModel(
     private val getScheduledRoutinesForDate: GetScheduledRoutinesForDate,
     private val workoutRepository: WorkoutRepository,
+    dataRevision: DataRevision,
 ) : ViewModel() {
+
+    init {
+        // 启动时的漏练弹窗可能在今日页取过数之后才改排期（顺延 / 跳过），收到信号就重新加载。
+        viewModelScope.launch {
+            dataRevision.revision.drop(1).collect { refresh() }
+        }
+    }
 
     private val _date = MutableStateFlow(today())
     val date: StateFlow<LocalDate> = _date.asStateFlow()

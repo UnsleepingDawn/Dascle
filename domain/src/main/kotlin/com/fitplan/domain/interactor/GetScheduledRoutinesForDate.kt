@@ -14,8 +14,8 @@ data class ScheduledRoutine(
 )
 
 /**
- * 汇总某一天的训练安排：把「每周循环」（`day_of_week`）与「指定日期」（`specific_date`）两条
- * 排期合并，按计划 id 去重，并带上每个计划的动作编排，供今日页直接渲染。
+ * 汇总某一天的训练安排：取「指定日期」（`specific_date`）排期，按计划 id 去重，
+ * 并带上每个计划的动作编排，供今日页直接渲染。
  */
 @Inject
 class GetScheduledRoutinesForDate(
@@ -24,8 +24,7 @@ class GetScheduledRoutinesForDate(
 ) {
 
     suspend operator fun invoke(date: LocalDate): List<ScheduledRoutine> {
-        val entries = scheduleRepository.getEnabledForDayOfWeek(date.dayOfWeek) +
-            scheduleRepository.getEnabledForDate(date)
+        val entries = scheduleRepository.getEnabledForDate(date)
 
         return entries
             .map { it.routineId }

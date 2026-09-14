@@ -48,6 +48,12 @@ class WorkoutRepositoryImpl(
             started_at_ = end.toDbValue(),
         ).awaitAsList().map { it.toDomain() }
 
+    override suspend fun getSessionsBetween(start: Instant, end: Instant): List<WorkoutSession> =
+        sessionQueries.selectStartedBetween(
+            started_at = start.toDbValue(),
+            started_at_ = end.toDbValue(),
+        ).awaitAsList().map { it.toDomain() }
+
     override suspend fun getCompletedSetsBetween(start: Instant, end: Instant): List<WorkoutSet> =
         setQueries.selectCompletedBetween(
             started_at = start.toDbValue(),

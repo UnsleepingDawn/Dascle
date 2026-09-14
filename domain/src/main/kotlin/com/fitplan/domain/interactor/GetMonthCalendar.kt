@@ -24,8 +24,6 @@ data class CalendarPlan(
     val note: String,
     val exerciseCount: Int,
     val muscleGroups: List<MuscleGroup>,
-    /** true 表示「每周循环」排期，false 表示「仅此日」。 */
-    val isWeekly: Boolean,
 )
 
 /** 日历某天实际完成的一次训练。 */
@@ -57,7 +55,7 @@ data class CalendarDay(
 /**
  * 取 [anyDayInMonth] 所在月的训练日历：
  *
- * - 今天及以后：按「每周循环 + 指定日期」两条排期推算每天要练的计划与肌群；
+ * - 今天及以后：按当天的排期推算要练的计划与肌群；
  * - 今天以前：用已结束训练的实际组数，算出当天练到的肌群。
  *
  * 无论哪天，[CalendarDay.planned] 都来自排期，供点开某天时查看「当天计划」。
@@ -80,7 +78,6 @@ class GetMonthCalendar(
             .toList()
 
         val entries = scheduleRepository.getAll().filter { it.enabled }
-        val weeklyByDay = entries.filter { it.dayOfWeek != null }.groupBy { it.dayOfWeek }
         val onceByDate = entries.filter { it.specificDate != null }.groupBy { it.specificDate }
         val restDays = scheduleRepository.getRestDaysBetween(firstDay, nextMonth).toSet()
 
@@ -97,7 +94,7 @@ class GetMonthCalendar(
         val setsBySession = sets.groupBy { it.sessionId }
 
         return days.map { date ->
-            val dayEntries = weeklyByDay[date.dayOfWeek].orEmpty() + onceByDate[date].orEmpty()
+            val dayEntries = onceByDate[date].orEmpty()
             val planned = dayEntries
                 .distinctBy { it.routineId }
                 .mapNotNull { entry ->
@@ -112,7 +109,6 @@ class GetMonthCalendar(
                         note = routine.note,
                         exerciseCount = exercises.size,
                         muscleGroups = exercises.flatMap { it.muscleGroups }.distinct(),
-                        isWeekly = entry.dayOfWeek != null,
                     )
                 }
 

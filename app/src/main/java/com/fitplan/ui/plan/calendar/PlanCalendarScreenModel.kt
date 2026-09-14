@@ -2,6 +2,7 @@ package com.fitplan.ui.plan.calendar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.CalendarDay
 import com.fitplan.domain.interactor.GetMonthCalendar
 import com.fitplan.domain.model.Routine
@@ -17,6 +18,7 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
@@ -35,7 +37,15 @@ class PlanCalendarScreenModel(
     private val routineRepository: RoutineRepository,
     private val workoutRepository: WorkoutRepository,
     private val widgetManager: WidgetManager,
+    dataRevision: DataRevision,
 ) : ViewModel() {
+
+    init {
+        // 启动时的漏练弹窗可能在日历取过数之后才改排期（顺延 / 跳过），收到信号就重新加载。
+        viewModelScope.launch {
+            dataRevision.revision.drop(1).collect { refresh() }
+        }
+    }
 
     /** 当前显示月份的第一天。 */
     private val _month = MutableStateFlow(firstDayOfCurrentMonth())
@@ -69,16 +79,11 @@ class PlanCalendarScreenModel(
         refresh()
     }
 
-    /** [weekly] 为 true 时排成「每周 [date] 这一天」，否则只在 [date] 当天生效。 */
-    fun addPlan(routineId: Long, date: LocalDate, weekly: Boolean) {
+    /** 把计划排到 [date] 这一天；这一天原本若标着休息，把休息标记撤掉。 */
+    fun addPlan(routineId: Long, date: LocalDate) {
         viewModelScope.launch {
-            if (weekly) {
-                scheduleRepository.insertWeekly(routineId, date.dayOfWeek)
-            } else {
-                scheduleRepository.insertOnce(routineId, date)
-                // 这一天原本标着休息，现在改成训练日，把休息标记撤掉。
-                scheduleRepository.deleteRestDay(date)
-            }
+            scheduleRepository.insertOnce(routineId, date)
+            scheduleRepository.deleteRestDay(date)
             refresh()
             widgetManager.updateTodayWidget()
         }

@@ -24,3 +24,14 @@ WHERE date = ?;
 deleteBetween:
 DELETE FROM rest_day
 WHERE date >= ? AND date < ?;
+
+-- 顺延：读 / 删「今天及以后」的休息日，好把它们跟着排期一起后移。
+selectFrom:
+SELECT *
+FROM rest_day
+WHERE date >= ?
+ORDER BY date;
+
+deleteFrom:
+DELETE FROM rest_day
+WHERE date >= ?;

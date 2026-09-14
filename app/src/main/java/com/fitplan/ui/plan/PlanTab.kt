@@ -152,7 +152,7 @@ object PlanTab : Tab {
                     selectedDate = null
                     navigator.push(RoutineEditScreen(routineId))
                 },
-                onAddPlan = { routineId, weekly -> screenModel.addPlan(routineId, day.date, weekly) },
+                onAddPlan = { routineId -> screenModel.addPlan(routineId, day.date) },
                 onRemovePlan = screenModel::removePlan,
                 onRemoveRest = screenModel::removeRestDay,
                 onEditSession = { sessionId ->
@@ -380,7 +380,7 @@ private fun DayDetailSheet(
     routines: List<Routine>,
     onDismiss: () -> Unit,
     onOpenRoutine: (Long) -> Unit,
-    onAddPlan: (Long, Boolean) -> Unit,
+    onAddPlan: (Long) -> Unit,
     onRemovePlan: (Long) -> Unit,
     onRemoveRest: (LocalDate) -> Unit,
     onEditSession: (Long) -> Unit,
@@ -454,7 +454,6 @@ private fun DayDetailSheet(
                     day.planned.forEach { plan ->
                         PlannedRoutineRow(
                             plan = plan,
-                            weekdayShort = weekdayShort(day.date),
                             onClick = { onOpenRoutine(plan.routineId) },
                             onRemove = { onRemovePlan(plan.entryId) },
                         )
@@ -575,7 +574,6 @@ private fun DeleteSessionDialog(
 @Composable
 private fun PlannedRoutineRow(
     plan: CalendarPlan,
-    weekdayShort: String,
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -602,13 +600,8 @@ private fun PlannedRoutineRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val scheduleLabel = if (plan.isWeekly) {
-                stringResource(R.string.calendar_weekly, weekdayShort)
-            } else {
-                stringResource(R.string.calendar_once)
-            }
             Text(
-                text = "${stringResource(R.string.calendar_exercise_count, plan.exerciseCount)} · $scheduleLabel",
+                text = stringResource(R.string.calendar_exercise_count, plan.exerciseCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
@@ -626,13 +619,11 @@ private fun PlannedRoutineRow(
 private fun AddPlanRow(
     day: CalendarDay,
     routines: List<Routine>,
-    onAddPlan: (Long, Boolean) -> Unit,
+    onAddPlan: (Long) -> Unit,
 ) {
     val plannedIds = day.planned.map { it.routineId }.toSet()
     val selectable = routines.filterNot { it.id in plannedIds }
-    val weekdayShort = weekdayShort(day.date)
     var showPicker by remember { mutableStateOf(false) }
-    var pendingRoutine by remember { mutableStateOf<Routine?>(null) }
 
     Box(
         modifier = Modifier.fillMaxWidth(),
@@ -667,7 +658,7 @@ private fun AddPlanRow(
                                     .fillMaxWidth()
                                     .clickable {
                                         showPicker = false
-                                        pendingRoutine = routine
+                                        onAddPlan(routine.id)
                                     }
                                     .padding(vertical = MaterialTheme.padding.small),
                             )
@@ -683,44 +674,7 @@ private fun AddPlanRow(
             },
         )
     }
-
-    pendingRoutine?.let { routine ->
-        AlertDialog(
-            onDismissRequest = { pendingRoutine = null },
-            title = { Text(text = stringResource(R.string.calendar_insert_mode_title, routine.name)) },
-            text = { Text(text = stringResource(R.string.calendar_insert_mode_hint)) },
-            confirmButton = {
-                Row {
-                    TextButton(
-                        onClick = {
-                            onAddPlan(routine.id, false)
-                            pendingRoutine = null
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.calendar_once))
-                    }
-                    TextButton(
-                        onClick = {
-                            onAddPlan(routine.id, true)
-                            pendingRoutine = null
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.calendar_weekly, weekdayShort))
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingRoutine = null }) {
-                    Text(text = stringResource(R.string.action_cancel))
-                }
-            },
-        )
-    }
 }
-
-@Composable
-private fun weekdayShort(date: LocalDate): String =
-    stringArrayResource(R.array.weekday_short_names)[date.dayOfWeek.isoDayNumber - 1]
 
 /** 弹窗内容最高占这么高，再高就滚动，避免小屏顶到状态栏。 */
 private val SHEET_MAX_HEIGHT = 480.dp

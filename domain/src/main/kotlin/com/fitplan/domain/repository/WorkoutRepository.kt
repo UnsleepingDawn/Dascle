@@ -21,6 +21,9 @@ interface WorkoutRepository {
     /** [start, end) 区间内已结束的训练，供统计页按周/月取数。 */
     suspend fun getFinishedSessionsBetween(start: Instant, end: Instant): List<WorkoutSession>
 
+    /** [start, end) 区间内已开始（无论是否结束）的训练，供漏练检查判断某天用过 App 没有。 */
+    suspend fun getSessionsBetween(start: Instant, end: Instant): List<WorkoutSession>
+
     /** [start, end) 区间内已结束训练的全部已完成组，供统计页聚合。 */
     suspend fun getCompletedSetsBetween(start: Instant, end: Instant): List<WorkoutSet>
 

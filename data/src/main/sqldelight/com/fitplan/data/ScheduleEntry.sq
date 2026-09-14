@@ -1,44 +1,28 @@
 CREATE TABLE schedule_entry (
     id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     routine_id    INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
-    day_of_week   INTEGER,
     specific_date INTEGER,
     enabled       INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX schedule_entry_routine_id ON schedule_entry(routine_id);
-CREATE INDEX schedule_entry_day_of_week ON schedule_entry(day_of_week);
 
 selectAll:
 SELECT
     schedule_entry.id,
     schedule_entry.routine_id,
     routine.name AS routine_name,
-    schedule_entry.day_of_week,
     schedule_entry.specific_date,
     schedule_entry.enabled
 FROM schedule_entry
 JOIN routine ON routine.id = schedule_entry.routine_id
-ORDER BY schedule_entry.day_of_week, schedule_entry.specific_date;
-
-selectEnabledByDayOfWeek:
-SELECT
-    schedule_entry.id,
-    schedule_entry.routine_id,
-    routine.name AS routine_name,
-    schedule_entry.day_of_week,
-    schedule_entry.specific_date,
-    schedule_entry.enabled
-FROM schedule_entry
-JOIN routine ON routine.id = schedule_entry.routine_id
-WHERE schedule_entry.day_of_week = ? AND schedule_entry.enabled = 1;
+ORDER BY schedule_entry.specific_date;
 
 selectEnabledBySpecificDate:
 SELECT
     schedule_entry.id,
     schedule_entry.routine_id,
     routine.name AS routine_name,
-    schedule_entry.day_of_week,
     schedule_entry.specific_date,
     schedule_entry.enabled
 FROM schedule_entry
@@ -51,30 +35,41 @@ FROM schedule_entry
 WHERE routine_id = ?;
 
 insert:
-INSERT INTO schedule_entry(routine_id, day_of_week, specific_date, enabled)
-VALUES (?, ?, ?, ?);
+INSERT INTO schedule_entry(routine_id, specific_date, enabled)
+VALUES (?, ?, ?);
 
 insertOnceIgnore:
-INSERT OR IGNORE INTO schedule_entry(routine_id, day_of_week, specific_date, enabled)
-VALUES (?, NULL, ?, 1);
+INSERT OR IGNORE INTO schedule_entry(routine_id, specific_date, enabled)
+VALUES (?, ?, 1);
 
 deleteOnceBetween:
 DELETE FROM schedule_entry
 WHERE specific_date >= ? AND specific_date < ?;
 
+-- 顺延：读 / 删「今天及以后」的排期，好把它们整体后移。
+selectOnceFrom:
+SELECT *
+FROM schedule_entry
+WHERE specific_date >= ?
+ORDER BY specific_date;
+
+deleteOnceFrom:
+DELETE FROM schedule_entry
+WHERE specific_date >= ?;
+
+-- 顺延时原样搬走（保留 enabled），这是它与 insertOnceIgnore 的唯一区别。
+insertOnceWithEnabled:
+INSERT OR IGNORE INTO schedule_entry(routine_id, specific_date, enabled)
+VALUES (?, ?, ?);
+
+-- 跳过 / 顺延：清掉某一天的排期。
+deleteOnceOnDate:
+DELETE FROM schedule_entry
+WHERE specific_date = ?;
+
 updateEnabled:
 UPDATE schedule_entry
 SET enabled = ?
-WHERE id = ?;
-
-updateDayOfWeek:
-UPDATE schedule_entry
-SET day_of_week = ?, specific_date = NULL
-WHERE id = ?;
-
-updateSpecificDate:
-UPDATE schedule_entry
-SET specific_date = ?, day_of_week = NULL
 WHERE id = ?;
 
 deleteById:

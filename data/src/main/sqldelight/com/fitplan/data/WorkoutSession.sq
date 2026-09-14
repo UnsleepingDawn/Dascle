@@ -43,6 +43,13 @@ FROM workout_session
 WHERE finished_at IS NULL
 ORDER BY started_at DESC;
 
+-- 漏练检查：区间内已开始的训练（不看有没有结束），用来判断某天到底练没练。
+selectStartedBetween:
+SELECT *
+FROM workout_session
+WHERE started_at >= ? AND started_at < ?
+ORDER BY started_at;
+
 -- 统计页的历史列表：每条已结束训练带上完成组数与总容量。
 selectFinishedWithSummary:
 SELECT workout_session.id,

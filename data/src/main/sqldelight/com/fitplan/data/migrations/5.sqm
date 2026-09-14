@@ -1,0 +1,9 @@
+-- 每周循环排期整体下线：先删掉只靠 day_of_week 生效的排期行，再摘掉列与索引。
+-- 仅此日（specific_date）排期与休息日全部保留。
+DROP INDEX IF EXISTS schedule_entry_day_of_week;
+
+DELETE FROM schedule_entry
+WHERE specific_date IS NULL;
+
+ALTER TABLE schedule_entry
+DROP COLUMN day_of_week;

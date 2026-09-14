@@ -109,8 +109,8 @@ class PlanComposeScreenModel(
     }
 
     /**
-     * 把编排按天铺到日历上：`[startDate, startDate + days)` 内先清掉已有的「仅此日」排期与休息日，
-     * 再按 [ComposeSlot] 循环逐天写入。整批由数据层放在一个事务里，每周循环排期不受影响。
+     * 把编排按天铺到日历上：`[startDate, startDate + days)` 内先清掉已有的排期与休息日，
+     * 再按 [ComposeSlot] 循环逐天写入。整批由数据层放在一个事务里。
      *
      * 是挂起函数：调用方要等它写完再离开编排页，否则 ViewModel 被清理会打断写库。
      */

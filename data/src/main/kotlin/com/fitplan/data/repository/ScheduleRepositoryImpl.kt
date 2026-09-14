@@ -12,7 +12,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
-import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 
 @Inject
@@ -28,28 +27,13 @@ class ScheduleRepositoryImpl(
 
     override suspend fun getAll(): List<ScheduleEntry> = queries.selectAll().awaitAsList().map { it.toDomain() }
 
-    override suspend fun getEnabledForDayOfWeek(dayOfWeek: DayOfWeek): List<ScheduleEntry> =
-        queries.selectEnabledByDayOfWeek(dayOfWeek.toDbValue()).awaitAsList().map { it.toDomain() }
-
     override suspend fun getEnabledForDate(date: LocalDate): List<ScheduleEntry> =
         queries.selectEnabledBySpecificDate(date.toDbValue()).awaitAsList().map { it.toDomain() }
-
-    override suspend fun insertWeekly(routineId: Long, dayOfWeek: DayOfWeek): Long =
-        database.transactionWithResult {
-            queries.insert(
-                routine_id = routineId,
-                day_of_week = dayOfWeek.toDbValue(),
-                specific_date = null,
-                enabled = 1L,
-            )
-            utilQueries.lastInsertRowId().awaitAsOne()
-        }
 
     override suspend fun insertOnce(routineId: Long, date: LocalDate): Long =
         database.transactionWithResult {
             queries.insert(
                 routine_id = routineId,
-                day_of_week = null,
                 specific_date = date.toDbValue(),
                 enabled = 1L,
             )
@@ -98,5 +82,67 @@ class ScheduleRepositoryImpl(
 
     override suspend fun deleteByRoutineId(routineId: Long) {
         queries.deleteByRoutineId(routineId)
+    }
+
+    override suspend fun postponeMissedPlans(
+        from: LocalDate,
+        today: LocalDate,
+        missedRoutines: Map<LocalDate, List<Long>>,
+    ) {
+        val offset = today.toEpochDays() - from.toEpochDays()
+        if (offset <= 0) return
+
+        database.transactionWithResult {
+            // 1. 漏掉那几天原本的排期清掉，等会儿按 date + offset 落到新位置上。
+            missedRoutines.keys.forEach { date ->
+                queries.deleteOnceOnDate(specific_date = date.toDbValue())
+            }
+
+            // 2. 「今天及以后」的排期整体后移，enabled 原样保留（停用的排期不会因此被启用）。
+            val upcoming = queries.selectOnceFrom(specific_date = today.toDbValue()).awaitAsList()
+            queries.deleteOnceFrom(specific_date = today.toDbValue())
+            upcoming.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = requireNotNull(entry.specific_date) + offset,
+                    enabled = entry.enabled,
+                )
+            }
+
+            // 3. 休息日跟着排期一起后移，今天的休息日才不会和搬过来的训练撞在同一天。
+            val upcomingRest = restQueries.selectFrom(date = today.toDbValue()).awaitAsList()
+            restQueries.deleteFrom(date = today.toDbValue())
+            upcomingRest.forEach { day ->
+                restQueries.insert(date = day + offset)
+            }
+
+            // 4. 漏掉区间里本来标着休息的日子也在后面补一份，保持原来的练/休节奏；
+            //    原位置留着不动——那几天当初确实休息了。
+            restQueries.selectBetween(
+                date = from.toDbValue(),
+                date_ = today.toDbValue(),
+            ).awaitAsList().forEach { day ->
+                restQueries.insert(date = day + offset)
+            }
+
+            // 5. 漏掉的计划落到 date + offset 上，正好填满 [今天, 今天 + offset)。
+            missedRoutines.forEach { (date, routineIds) ->
+                routineIds.forEach { routineId ->
+                    queries.insertOnceWithEnabled(
+                        routine_id = routineId,
+                        specific_date = date.toDbValue() + offset,
+                        enabled = 1L,
+                    )
+                }
+            }
+        }
+    }
+
+    override suspend fun deletePlansOn(dates: Collection<LocalDate>) {
+        database.transactionWithResult {
+            dates.forEach { date ->
+                queries.deleteOnceOnDate(specific_date = date.toDbValue())
+            }
+        }
     }
 }

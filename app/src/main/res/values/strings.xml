@@ -17,6 +17,7 @@
     <string name="action_add">添加</string>
     <string name="action_rename">重命名</string>
     <string name="action_close">关闭</string>
+    <string name="date_month_day">%1$d 月 %2$d 日</string>
 
     <!-- 今日 -->
     <string name="today_title">今日训练</string>
@@ -92,14 +93,6 @@
     <string name="exercise_filter_all">全部</string>
     <string name="equipment_filter_all">全部器械</string>
 
-    <!-- 日程 -->
-    <string name="schedule_title">训练日程</string>
-    <string name="schedule_add_for_day">添加计划</string>
-    <string name="schedule_day_empty">未安排</string>
-    <string name="schedule_pick_routine">选择要排入的计划</string>
-    <string name="schedule_no_routine_left">所有计划都已排入这一天</string>
-    <string name="schedule_remove">移除排期</string>
-
     <!-- 训练日历 -->
     <string name="plan_calendar">日历</string>
     <string name="calendar_title">训练日历</string>
@@ -113,10 +106,6 @@
     <string name="calendar_add_plan">添加计划</string>
     <string name="calendar_pick_routine">选择要排入的计划</string>
     <string name="calendar_no_routine_left">所有计划都已排入这一天</string>
-    <string name="calendar_insert_mode_title">把「%1$s」排入</string>
-    <string name="calendar_insert_mode_hint">仅此日只影响这一天；每周则会排到之后每一周的这一天。</string>
-    <string name="calendar_weekly">每周%1$s</string>
-    <string name="calendar_once">仅此日</string>
     <string name="calendar_remove_plan">移除排期</string>
     <string name="calendar_rest_day">休息</string>
     <string name="calendar_remove_rest">取消休息日</string>
@@ -228,6 +217,17 @@
     <string name="reminder_channel_description">到点提醒当天的训练安排</string>
     <string name="reminder_notification_title">该训练了</string>
     <string name="reminder_notification_text">今天安排：%1$s</string>
+
+    <!-- 漏练检查 -->
+    <string name="missed_training_title">这段时间有训练没记录</string>
+    <string name="missed_training_message">%1$s 至 %2$s 之间有 %3$d 天安排了训练，但没有训练记录</string>
+    <string name="missed_training_message_one_day">%1$s 安排了训练，但没有训练记录</string>
+    <string name="missed_training_did_train">健身了，没写上去</string>
+    <string name="missed_training_did_not_train">没有健身</string>
+    <string name="missed_training_handle_title">这些没练的计划怎么处理？</string>
+    <string name="missed_training_handle_message">顺延：把这些计划挪到之后，日历上今天及以后的安排一并往后推。\n跳过：清掉这些没练的计划，今天按原来的安排继续。</string>
+    <string name="missed_training_postpone">顺延</string>
+    <string name="missed_training_skip">跳过</string>
 
     <!-- 关于 -->
     <string name="about_title">关于</string>

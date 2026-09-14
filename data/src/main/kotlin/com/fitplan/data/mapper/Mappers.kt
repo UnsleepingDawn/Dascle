@@ -11,9 +11,7 @@ import com.fitplan.domain.model.ScheduleEntry
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
-import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.isoDayNumber
 import kotlin.time.Instant
 import com.fitplan.data.Body_metric as BodyMetricRow
 import com.fitplan.data.Exercise as ExerciseRow
@@ -22,7 +20,6 @@ import com.fitplan.data.Routine as RoutineRow
 import com.fitplan.data.Schedule_entry as ScheduleEntryRow
 import com.fitplan.data.SelectAll as ScheduleEntryWithRoutineRow
 import com.fitplan.data.SelectByRoutineId as RoutineExerciseRow
-import com.fitplan.data.SelectEnabledByDayOfWeek as EnabledByDayOfWeekRow
 import com.fitplan.data.SelectEnabledBySpecificDate as EnabledByDateRow
 import com.fitplan.data.SelectFinished as FinishedSessionRow
 import com.fitplan.data.SelectFinishedBetween as FinishedSessionBetweenRow
@@ -42,10 +39,6 @@ internal fun Long.toInstant(): Instant = Instant.fromEpochMilliseconds(this)
 internal fun LocalDate.toDbValue(): Long = toEpochDays()
 
 internal fun Long.toLocalDate(): LocalDate = LocalDate.fromEpochDays(this)
-
-internal fun DayOfWeek.toDbValue(): Long = isoDayNumber.toLong()
-
-internal fun Long.toDayOfWeek(): DayOfWeek = DayOfWeek(toInt())
 
 internal fun MuscleGroup.toDbValue(): String = name
 
@@ -100,29 +93,24 @@ private fun scheduleEntry(
     id: Long,
     routineId: Long,
     routineName: String,
-    dayOfWeek: Long?,
     specificDate: Long?,
     enabled: Long,
 ): ScheduleEntry = ScheduleEntry(
     id = id,
     routineId = routineId,
     routineName = routineName,
-    dayOfWeek = dayOfWeek?.toDayOfWeek(),
     specificDate = specificDate?.toLocalDate(),
     enabled = enabled.toBoolean(),
 )
 
 internal fun ScheduleEntryWithRoutineRow.toDomain(): ScheduleEntry =
-    scheduleEntry(id, routine_id, routine_name, day_of_week, specific_date, enabled)
-
-internal fun EnabledByDayOfWeekRow.toDomain(): ScheduleEntry =
-    scheduleEntry(id, routine_id, routine_name, day_of_week, specific_date, enabled)
+    scheduleEntry(id, routine_id, routine_name, specific_date, enabled)
 
 internal fun EnabledByDateRow.toDomain(): ScheduleEntry =
-    scheduleEntry(id, routine_id, routine_name, day_of_week, specific_date, enabled)
+    scheduleEntry(id, routine_id, routine_name, specific_date, enabled)
 
 internal fun ScheduleEntryRow.toDomain(): ScheduleEntry =
-    scheduleEntry(id, routine_id, "", day_of_week, specific_date, enabled)
+    scheduleEntry(id, routine_id, "", specific_date, enabled)
 
 private fun workoutSession(
     id: Long,
