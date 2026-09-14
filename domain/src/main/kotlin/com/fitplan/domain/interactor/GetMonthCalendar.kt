@@ -35,8 +35,8 @@ data class CalendarSession(
 /**
  * 训练日历上的一天。
  *
- * [muscleGroups] 是格子里显示的肌群：过去的日子取当天实际练到的肌群，今天及以后取排期计划里的肌群；
- * [isTrainingDay] 同理，过去看是否真的练了，今天及以后看有没有排期。
+ * [muscleGroups] 是格子里显示的肌群：过去练过的日子取当天实际练到的肌群，其余情况取排期计划里的肌群；
+ * [isTrainingDay] 表示这一天算不算训练日：过去看有没有训练记录**或**补排的计划，今天及以后看有没有排期。
  * [isRestDay] 表示这一天被编排成了休息日。
  */
 data class CalendarDay(
@@ -49,7 +49,11 @@ data class CalendarDay(
     val isRestDay: Boolean = false,
 ) {
     val isTrainingDay: Boolean
-        get() = if (isPast) actualSessions.isNotEmpty() else planned.isNotEmpty()
+        get() = if (isPast) {
+            actualSessions.isNotEmpty() || planned.isNotEmpty()
+        } else {
+            planned.isNotEmpty()
+        }
 }
 
 /**
@@ -125,13 +129,20 @@ class GetMonthCalendar(
                 .distinct()
 
             val isPast = date < today
+            // 过去的日子优先显示实际练到的肌群；只有当天没练、却补排了计划时才退回计划肌群，
+            // 这样「给已经过去的一天补一个计划」也能在日历上以淡色显示出来，而不是继续空白。
+            val muscleGroups = if (isPast && actualMuscleGroups.isNotEmpty()) {
+                actualMuscleGroups
+            } else {
+                planned.flatMap { it.muscleGroups }.distinct()
+            }
             CalendarDay(
                 date = date,
                 isToday = date == today,
                 isPast = isPast,
                 planned = planned,
                 actualSessions = actualSessions,
-                muscleGroups = if (isPast) actualMuscleGroups else planned.flatMap { it.muscleGroups }.distinct(),
+                muscleGroups = muscleGroups,
                 isRestDay = date in restDays,
             )
         }
