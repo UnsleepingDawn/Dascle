@@ -478,7 +478,7 @@ internal fun ExtraExerciseDialog(
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
                                 Text(
-                                    text = "${muscleLabels(exercise.muscleGroups)} ? ${exercise.equipment.label()}",
+                                    text = "${muscleLabels(exercise.muscleGroups)} · ${exercise.equipment.label()}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
