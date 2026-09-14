@@ -205,6 +205,12 @@
     <string name="reminder_notification_title">该训练了</string>
     <string name="reminder_notification_text">今天安排：%1$s</string>
 
+    <!-- 关于 -->
+    <string name="about_title">关于</string>
+    <string name="about_version">版本 %1$s</string>
+    <string name="about_github">GitHub 仓库</string>
+    <string name="about_thanks">感谢您的支持！\n如果对本 APP 有任何意见、建议，欢迎到 GitHub 仓库提交 Issue 和 Discussion！</string>
+
     <!-- 肌群 -->
     <string name="muscle_chest">胸</string>
     <string name="muscle_arm">手臂</string>

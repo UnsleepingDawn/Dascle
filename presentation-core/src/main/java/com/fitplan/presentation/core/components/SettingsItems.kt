@@ -49,6 +49,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fitplan.core.common.preference.Preference
 import com.fitplan.core.common.preference.TriState
@@ -80,14 +81,22 @@ fun HeadingItem(text: String) {
 }
 
 @Composable
-fun IconItem(label: String, icon: ImageVector, onClick: () -> Unit) {
+fun IconItem(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    labelStyle: TextStyle = MaterialTheme.typography.bodyMedium,
+    iconSize: Dp = 24.dp,
+) {
     BaseSettingsItem(
         label = label,
+        labelStyle = labelStyle,
         widget = {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(iconSize),
             )
         },
         onClick = onClick,
@@ -430,6 +439,7 @@ private fun BaseSettingsItem(
     label: String,
     widget: @Composable RowScope.() -> Unit,
     onClick: () -> Unit,
+    labelStyle: TextStyle = MaterialTheme.typography.bodyMedium,
 ) {
     Row(
         modifier = Modifier
@@ -445,7 +455,7 @@ private fun BaseSettingsItem(
         widget(this)
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = labelStyle,
         )
     }
 }
