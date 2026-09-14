@@ -103,6 +103,7 @@ internal fun WorkoutPlanList(
 internal fun LogExerciseCard(
     exercise: LogExercise,
     readOnly: Boolean,
+    editableCompletedSets: Boolean,
     onWeightChange: (Int, String) -> Unit,
     onRepsChange: (Int, String) -> Unit,
     onSecondsChange: (Int, String) -> Unit,
@@ -204,6 +205,7 @@ internal fun LogExerciseCard(
                         entry = entry,
                         timed = exercise.isTimed,
                         readOnly = readOnly,
+                        editableCompletedSets = editableCompletedSets,
                         onWeightChange = { onWeightChange(index, it) },
                         onRepsChange = { onRepsChange(index, it) },
                         onSecondsChange = { onSecondsChange(index, it) },
@@ -237,12 +239,13 @@ private fun SetEntryRow(
     entry: SetEntry,
     timed: Boolean,
     readOnly: Boolean,
+    editableCompletedSets: Boolean,
     onWeightChange: (String) -> Unit,
     onRepsChange: (String) -> Unit,
     onSecondsChange: (String) -> Unit,
     onToggleCompleted: () -> Unit,
 ) {
-    val editable = !readOnly && !entry.completed
+    val editable = !readOnly && (editableCompletedSets || !entry.completed)
 
     Row(
         modifier = Modifier.fillMaxWidth(),

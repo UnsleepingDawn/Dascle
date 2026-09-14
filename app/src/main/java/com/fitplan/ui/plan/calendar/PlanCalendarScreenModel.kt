@@ -7,6 +7,7 @@ import com.fitplan.domain.interactor.GetMonthCalendar
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.ScheduleRepository
+import com.fitplan.domain.repository.WorkoutRepository
 import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -32,6 +33,7 @@ class PlanCalendarScreenModel(
     private val getMonthCalendar: GetMonthCalendar,
     private val scheduleRepository: ScheduleRepository,
     private val routineRepository: RoutineRepository,
+    private val workoutRepository: WorkoutRepository,
     private val widgetManager: WidgetManager,
 ) : ViewModel() {
 
@@ -83,6 +85,15 @@ class PlanCalendarScreenModel(
     fun removePlan(entryId: Long) {
         viewModelScope.launch {
             scheduleRepository.deleteById(entryId)
+            refresh()
+            widgetManager.updateTodayWidget()
+        }
+    }
+
+    /** 删除一次已经结束的训练：连着它记录的所有组一起删掉，并刷新日历与桌面组件。 */
+    fun deleteSession(sessionId: Long) {
+        viewModelScope.launch {
+            workoutRepository.deleteSession(sessionId)
             refresh()
             widgetManager.updateTodayWidget()
         }

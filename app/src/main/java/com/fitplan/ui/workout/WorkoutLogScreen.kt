@@ -50,6 +50,8 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 class WorkoutLogScreen(
     private val sessionId: Long? = null,
     private val routineId: Long? = null,
+    /** true 表示编辑一次已经结束的训练：输入框解锁、可增删组，改动即时落库。 */
+    private val editing: Boolean = false,
 ) : Screen() {
 
     @Composable
@@ -66,7 +68,7 @@ class WorkoutLogScreen(
         val allExercises by screenModel.allExercises.collectAsState()
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
-        LaunchedEffect(sessionId, routineId) { screenModel.load(sessionId, routineId) }
+        LaunchedEffect(sessionId, routineId, editing) { screenModel.load(sessionId, routineId, editing) }
 
         val vibrateOnce = rememberVibrateOnce()
         LaunchedEffect(restFinishedTick) {
@@ -81,17 +83,17 @@ class WorkoutLogScreen(
         var showExtraDialog by remember { mutableStateOf(false) }
 
         val freeName = stringResource(R.string.workout_free)
-        val readOnly = phase == WorkoutPhase.FINISHED
+        val readOnly = phase == WorkoutPhase.FINISHED && !editing
 
         Scaffold(
             topBar = { scrollBehavior ->
                 TopAppBar(
                     title = {
                         Text(
-                            text = if (phase == WorkoutPhase.NOT_STARTED) {
-                                stringResource(R.string.workout_title)
-                            } else {
-                                sessionName
+                            text = when {
+                                phase == WorkoutPhase.NOT_STARTED -> stringResource(R.string.workout_title)
+                                editing -> stringResource(R.string.workout_editing_title, sessionName)
+                                else -> sessionName
                             },
                         )
                     },
@@ -131,6 +133,12 @@ class WorkoutLogScreen(
                                 modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
                             )
                             Text(text = stringResource(R.string.workout_start))
+                        }
+                    }
+
+                    editing -> ActionBar {
+                        Button(onClick = navigator::pop, modifier = Modifier.fillMaxWidth()) {
+                            Text(text = stringResource(R.string.workout_edit_done))
                         }
                     }
 
@@ -200,6 +208,7 @@ class WorkoutLogScreen(
                         LogExerciseCard(
                             exercise = exercise,
                             readOnly = readOnly,
+                            editableCompletedSets = editing,
                             onWeightChange = { index, value ->
                                 screenModel.updateWeight(exercise.exerciseId, index, value)
                             },

@@ -32,7 +32,6 @@ data class CalendarPlan(
 data class CalendarSession(
     val sessionId: Long,
     val name: String,
-    val completedSets: Int,
 )
 
 /**
@@ -119,7 +118,6 @@ class GetMonthCalendar(
                 CalendarSession(
                     sessionId = session.id,
                     name = session.name.ifBlank { session.routineId?.let { routines[it]?.name }.orEmpty() },
-                    completedSets = setsBySession[session.id].orEmpty().size,
                 )
             }
             val actualMuscleGroups = daySessions

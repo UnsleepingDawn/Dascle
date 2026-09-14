@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -65,6 +67,7 @@ import com.fitplan.ui.exercise.label
 import com.fitplan.ui.plan.calendar.PlanCalendarScreenModel
 import com.fitplan.ui.plan.calendar.RoutineListScreen
 import com.fitplan.ui.plan.routine.RoutineEditScreen
+import com.fitplan.ui.workout.WorkoutLogScreen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
@@ -91,6 +94,7 @@ object PlanTab : Tab {
 
         var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
         val selectedDay = selectedDate?.let { date -> days.firstOrNull { it.date == date } }
+        var deleteSessionTarget by remember { mutableStateOf<CalendarSession?>(null) }
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -139,6 +143,22 @@ object PlanTab : Tab {
                 },
                 onAddPlan = { routineId, weekly -> screenModel.addPlan(routineId, day.date, weekly) },
                 onRemovePlan = screenModel::removePlan,
+                onEditSession = { sessionId ->
+                    selectedDate = null
+                    navigator.push(WorkoutLogScreen(sessionId = sessionId, editing = true))
+                },
+                onDeleteSession = { session -> deleteSessionTarget = session },
+            )
+        }
+
+        deleteSessionTarget?.let { session ->
+            DeleteSessionDialog(
+                sessionName = session.name.ifBlank { stringResource(R.string.workout_free) },
+                onConfirm = {
+                    screenModel.deleteSession(session.sessionId)
+                    deleteSessionTarget = null
+                },
+                onDismiss = { deleteSessionTarget = null },
             )
         }
     }
@@ -327,6 +347,8 @@ private fun DayDetailSheet(
     onOpenRoutine: (Long) -> Unit,
     onAddPlan: (Long, Boolean) -> Unit,
     onRemovePlan: (Long) -> Unit,
+    onEditSession: (Long) -> Unit,
+    onDeleteSession: (CalendarSession) -> Unit,
 ) {
     val isTabletUi = LocalConfiguration.current.smallestScreenWidthDp >= TABLET_UI_MIN_SCREEN_WIDTH_DP
     val weekdayNames = stringArrayResource(R.array.weekday_names)
@@ -356,7 +378,13 @@ private fun DayDetailSheet(
 
             if (day.actualSessions.isNotEmpty()) {
                 SectionTitle(text = stringResource(R.string.calendar_day_actual))
-                day.actualSessions.forEach { session -> ActualSessionRow(session = session) }
+                day.actualSessions.forEach { session ->
+                    ActualSessionRow(
+                        session = session,
+                        onEdit = { onEditSession(session.sessionId) },
+                        onDelete = { onDeleteSession(session) },
+                    )
+                }
             }
 
             SectionTitle(text = stringResource(R.string.calendar_day_plan))
@@ -396,7 +424,11 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun ActualSessionRow(session: CalendarSession) {
+private fun ActualSessionRow(
+    session: CalendarSession,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -408,12 +440,46 @@ private fun ActualSessionRow(session: CalendarSession) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            text = stringResource(R.string.calendar_sets_count, session.completedSets),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        IconButton(onClick = onEdit) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = stringResource(R.string.calendar_edit_session),
+            )
+        }
+        IconButton(onClick = onDelete) {
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = stringResource(R.string.calendar_delete_session),
+            )
+        }
     }
+}
+
+/** 删除一次训练前的确认：连带所有组一起删掉，避免误触。 */
+@Composable
+private fun DeleteSessionDialog(
+    sessionName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.calendar_delete_session_title)) },
+        text = { Text(text = stringResource(R.string.calendar_delete_session_message, sessionName)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = stringResource(R.string.action_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
 
 @Composable

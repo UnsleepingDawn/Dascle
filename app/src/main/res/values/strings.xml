@@ -97,7 +97,10 @@
     <string name="calendar_once">仅此日</string>
     <string name="calendar_remove_plan">移除排期</string>
     <string name="calendar_exercise_count">%1$d 个动作</string>
-    <string name="calendar_sets_count">完成 %1$d 组</string>
+    <string name="calendar_edit_session">编辑这次训练</string>
+    <string name="calendar_delete_session">删除这次训练</string>
+    <string name="calendar_delete_session_title">删除这次训练？</string>
+    <string name="calendar_delete_session_message">「%1$s」以及这次训练记录的所有组都会被删除，无法恢复。</string>
     <string name="calendar_more_muscles">+%1$d</string>
 
     <string-array name="weekday_short_names">
@@ -154,6 +157,8 @@
     <string name="workout_summary_volume">总容量 %1$s kg</string>
     <string name="workout_summary_duration">用时 %1$s</string>
     <string name="workout_summary_done">完成</string>
+    <string name="workout_editing_title">编辑 %1$s</string>
+    <string name="workout_edit_done">完成编辑</string>
     <string name="workout_duration_minutes">%1$d 分钟</string>
     <string name="workout_duration_hours">%1$d 小时 %2$d 分</string>
     <string name="field_weight">重量（kg）</string>

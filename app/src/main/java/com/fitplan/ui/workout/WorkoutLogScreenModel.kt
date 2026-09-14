@@ -123,11 +123,18 @@ class WorkoutLogScreenModel(
 
     private var sessionId: Long? = null
 
+    /** true 表示正在编辑一次已经结束的训练：输入框解锁，改动即时落库。 */
+    private var editing = false
+
     private var restJob: Job? = null
 
-    /** [sessionId] 用于继续或回看一次训练；否则按 [routineId] 展示计划预览。 */
-    fun load(sessionId: Long? = null, routineId: Long? = null) {
+    /**
+     * [sessionId] 用于继续或回看一次训练；否则按 [routineId] 展示计划预览。
+     * [editing] 为 true 时把已结束的训练当作可编辑状态打开（从训练日历的「编辑」进入）。
+     */
+    fun load(sessionId: Long? = null, routineId: Long? = null, editing: Boolean = false) {
         this.routineId = routineId
+        this.editing = editing
         viewModelScope.launch {
             if (sessionId != null) {
                 loadSession(sessionId)
@@ -170,14 +177,17 @@ class WorkoutLogScreenModel(
 
     fun updateWeight(exerciseId: Long, index: Int, value: String) {
         mutateSet(exerciseId, index) { it.copy(weight = value.filter { char -> char.isDigit() || char == '.' }) }
+        persistEditedSet(exerciseId, index)
     }
 
     fun updateReps(exerciseId: Long, index: Int, value: String) {
         mutateSet(exerciseId, index) { it.copy(reps = value.filter(Char::isDigit)) }
+        persistEditedSet(exerciseId, index)
     }
 
     fun updateSeconds(exerciseId: Long, index: Int, value: String) {
         mutateSet(exerciseId, index) { it.copy(seconds = value.filter(Char::isDigit)) }
+        persistEditedSet(exerciseId, index)
     }
 
     /** 切换计时 / 计数；同一动作已经有完成的组时不允许切换，避免两种记录混在一起。 */
@@ -408,6 +418,22 @@ class WorkoutLogScreenModel(
 
     private fun mutate(exerciseId: Long, transform: (LogExercise) -> LogExercise) {
         _exercises.value = _exercises.value.map { if (it.exerciseId == exerciseId) transform(it) else it }
+    }
+
+    /**
+     * 编辑已结束的训练时，重量/次数/时长一改就写库，退出页面也不会丢；
+     * 还没落库的新行（[SetEntry.id] 为空）等勾选时再走 [toggleCompleted] 写入。
+     */
+    private fun persistEditedSet(exerciseId: Long, index: Int) {
+        if (!editing) return
+        val entry = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets?.getOrNull(index) ?: return
+        val setId = entry.id ?: return
+        val currentSessionId = sessionId ?: return
+        viewModelScope.launch {
+            workoutRepository.updateSet(
+                entry.toWorkoutSet(setId, currentSessionId, exerciseId, index, completed = entry.completed),
+            )
+        }
     }
 
     private fun mutateSet(exerciseId: Long, index: Int, transform: (SetEntry) -> SetEntry) {
