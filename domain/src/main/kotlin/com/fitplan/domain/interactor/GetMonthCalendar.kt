@@ -37,9 +37,13 @@ data class CalendarSession(
 /**
  * 训练日历上的一天。
  *
- * [muscleGroups] 是格子里显示的肌群：过去练过的日子取当天实际练到的肌群，其余情况取排期计划里的肌群；
- * [isTrainingDay] 表示这一天算不算训练日：过去看有没有训练记录**或**补排的计划，今天及以后看有没有排期。
+ * [muscleGroups] 是格子里显示的肌群：过去的日子只看实际练到的肌群，今天及以后取排期计划里的肌群；
+ * [isTrainingDay] 表示这一天算不算训练日：过去看有没有训练记录，今天及以后看有没有排期。
  * [isRestDay] 表示这一天被编排成了休息日。
+ *
+ * 过去的日子里遗留的排期（当时排了却没练）不参与上面两项——过去没法再规划，明细里也不显示
+ * 「当天计划」，这种日子在格子里保持空白，免得出现「有肌群却没有任何训练」的格子。
+ * 这些排期仍留在库里，因为它们正是漏练检查（`GetMissedTraining`）的判断依据。
  */
 data class CalendarDay(
     val date: LocalDate,
@@ -51,11 +55,7 @@ data class CalendarDay(
     val isRestDay: Boolean = false,
 ) {
     val isTrainingDay: Boolean
-        get() = if (isPast) {
-            actualSessions.isNotEmpty() || planned.isNotEmpty()
-        } else {
-            planned.isNotEmpty()
-        }
+        get() = if (isPast) actualSessions.isNotEmpty() else planned.isNotEmpty()
 }
 
 /**
@@ -64,8 +64,9 @@ data class CalendarDay(
  * - 今天及以后：按当天的排期推算要练的计划与肌群；
  * - 今天以前：用已结束训练的实际组数，算出当天练到的肌群。
  *
- * 无论哪天，[CalendarDay.planned] 都来自排期，供点开某天时查看「当天计划」；给过去的日子加计划
- * 走 [RecordPastWorkout] 补记成实际训练，所以过去某天一般只有 [CalendarDay.actualSessions]。
+ * [CalendarDay.planned] 无论哪天都来自排期，但只有今天及以后才拿它渲染「当天计划」；
+ * 给过去的日子加计划走 [RecordPastWorkout] 补记成实际训练，所以过去某天只会给出
+ * [CalendarDay.actualSessions]。
  */
 @Inject
 class GetMonthCalendar(
@@ -134,9 +135,10 @@ class GetMonthCalendar(
                 .distinct()
 
             val isPast = date < today
-            // 过去的日子优先显示实际练到的肌群；只有当天没练、却补排了计划时才退回计划肌群，
-            // 这样「给已经过去的一天补一个计划」也能在日历上以淡色显示出来，而不是继续空白。
-            val muscleGroups = if (isPast && actualMuscleGroups.isNotEmpty()) {
+            // 过去的日子只认实际练到的肌群。曾经这里会在「当天没练、却排了计划」时退回计划肌群，
+            // 那是给「事后给过去补排计划」准备的显示；现在过去加计划会直接补记成实际训练，
+            // 遗留排期再冒出来就会变成「有肌群、点进去却没练」的错觉。
+            val muscleGroups = if (isPast) {
                 actualMuscleGroups
             } else {
                 planned.flatMap { it.muscleGroups }.distinct()

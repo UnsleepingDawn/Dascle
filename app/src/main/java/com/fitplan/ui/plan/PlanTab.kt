@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.AlertDialog
@@ -440,36 +439,60 @@ private fun DayDetailSheet(
                     }
                 }
 
-                if (day.actualSessions.isNotEmpty()) {
+                // 过去的日子不可能再「规划」，所以只呈现那天到底练没练；休息标记是那天的事实，
+                // 仍留在这里（带取消入口），否则过去标过的休息日就没法撤掉了。
+                if (day.isPast) {
                     SectionTitle(text = stringResource(R.string.calendar_day_actual))
-                    day.actualSessions.forEach { session ->
-                        ActualSessionRow(
-                            session = session,
-                            onEdit = { onEditSession(session.sessionId) },
-                            onDelete = { onDeleteSession(session) },
-                        )
-                    }
-                }
-
-                SectionTitle(text = stringResource(R.string.calendar_day_plan))
-                if (day.isRestDay) {
-                    RestDayRow(onRemove = { onRemoveRest(day.date) })
-                }
-                if (day.planned.isEmpty()) {
-                    if (!day.isRestDay) {
+                    if (day.actualSessions.isEmpty()) {
                         Text(
-                            text = stringResource(R.string.calendar_day_empty),
+                            text = stringResource(R.string.calendar_day_no_actual),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    } else {
+                        day.actualSessions.forEach { session ->
+                            ActualSessionRow(
+                                session = session,
+                                onEdit = { onEditSession(session.sessionId) },
+                                onDelete = { onDeleteSession(session) },
+                            )
+                        }
+                    }
+                    if (day.isRestDay) {
+                        RestDayRow(onRemove = { onRemoveRest(day.date) })
                     }
                 } else {
-                    day.planned.forEach { plan ->
-                        PlannedRoutineRow(
-                            plan = plan,
-                            onClick = { onOpenRoutine(plan.routineId) },
-                            onRemove = { onRemovePlan(plan.entryId) },
-                        )
+                    if (day.actualSessions.isNotEmpty()) {
+                        SectionTitle(text = stringResource(R.string.calendar_day_actual))
+                        day.actualSessions.forEach { session ->
+                            ActualSessionRow(
+                                session = session,
+                                onEdit = { onEditSession(session.sessionId) },
+                                onDelete = { onDeleteSession(session) },
+                            )
+                        }
+                    }
+
+                    SectionTitle(text = stringResource(R.string.calendar_day_plan))
+                    if (day.isRestDay) {
+                        RestDayRow(onRemove = { onRemoveRest(day.date) })
+                    }
+                    if (day.planned.isEmpty()) {
+                        if (!day.isRestDay) {
+                            Text(
+                                text = stringResource(R.string.calendar_day_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        day.planned.forEach { plan ->
+                            PlannedRoutineRow(
+                                plan = plan,
+                                onClick = { onOpenRoutine(plan.routineId) },
+                                onRemove = { onRemovePlan(plan.entryId) },
+                            )
+                        }
                     }
                 }
 
@@ -497,30 +520,31 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun RestDayRow(onRemove: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            // 整行一个底框（用主题里的休息色，和右下角「该天休息」按钮呼应），
+            // 右侧的取消按钮也一起包进来，三个条目的形状才统一。
+            .clip(MaterialTheme.shapes.extraSmall)
+            .background(MaterialTheme.colorScheme.tertiaryContainer),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        Text(
+            text = stringResource(R.string.calendar_rest_day),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier
                 .weight(1f)
-                // 与计划条目同形状的整行底框，用主题里的休息色（绿），和右下角「该天休息」按钮呼应。
-                .clip(MaterialTheme.shapes.extraSmall)
-                .background(MaterialTheme.colorScheme.tertiaryContainer)
                 .padding(
-                    horizontal = MaterialTheme.padding.small,
-                    vertical = MaterialTheme.padding.extraSmall,
+                    start = MaterialTheme.padding.small,
+                    top = MaterialTheme.padding.extraSmall,
+                    bottom = MaterialTheme.padding.extraSmall,
                 ),
-        ) {
-            Text(
-                text = stringResource(R.string.calendar_rest_day),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-        }
+        )
         IconButton(onClick = onRemove) {
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = stringResource(R.string.calendar_remove_rest),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
             )
         }
     }
@@ -533,18 +557,21 @@ private fun ActualSessionRow(
     onDelete: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            // 与「当天计划」条目同形状的底框，用肌群标签那套灰表示已经练完的记录；
+            // 底框连右侧的编辑与删除一起包住。
+            .clip(MaterialTheme.shapes.extraSmall)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
             modifier = Modifier
                 .weight(1f)
-                // 与「当天计划」条目同形状、同尺寸的底框，用肌群标签那套灰表示已经练完的记录。
-                .clip(MaterialTheme.shapes.extraSmall)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(
-                    horizontal = MaterialTheme.padding.small,
-                    vertical = MaterialTheme.padding.extraSmall,
+                    start = MaterialTheme.padding.small,
+                    top = MaterialTheme.padding.extraSmall,
+                    bottom = MaterialTheme.padding.extraSmall,
                 ),
         ) {
             Text(
@@ -564,12 +591,15 @@ private fun ActualSessionRow(
             Icon(
                 imageVector = Icons.Filled.Edit,
                 contentDescription = stringResource(R.string.calendar_edit_session),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        // 删除统一用叉号，和「当天计划」条目上的移除排期一致。
         IconButton(onClick = onDelete) {
             Icon(
-                imageVector = Icons.Filled.Delete,
+                imageVector = Icons.Filled.Close,
                 contentDescription = stringResource(R.string.calendar_delete_session),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -609,19 +639,22 @@ private fun PlannedRoutineRow(
     onRemove: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            // 与「休息」条目同形状的底框，配色对齐编排页「训练」按钮（primaryContainer）；
+            // 底框连右侧的移除排期一起包住。
+            .clip(MaterialTheme.shapes.extraSmall)
+            .background(MaterialTheme.colorScheme.primaryContainer),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
             modifier = Modifier
                 .weight(1f)
-                // 与「休息」条目同形状的底框，配色对齐编排页「训练」按钮（primaryContainer）。
-                .clip(MaterialTheme.shapes.extraSmall)
-                .background(MaterialTheme.colorScheme.primaryContainer)
                 .clickable(onClick = onClick)
                 .padding(
-                    horizontal = MaterialTheme.padding.small,
-                    vertical = MaterialTheme.padding.extraSmall,
+                    start = MaterialTheme.padding.small,
+                    top = MaterialTheme.padding.extraSmall,
+                    bottom = MaterialTheme.padding.extraSmall,
                 ),
         ) {
             Text(
@@ -641,6 +674,7 @@ private fun PlannedRoutineRow(
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = stringResource(R.string.calendar_remove_plan),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
     }
@@ -657,10 +691,14 @@ private fun DayActionsRow(
     onAddPlan: (Long) -> Unit,
     onMarkRest: () -> Unit,
 ) {
-    val plannedIds = day.planned.map { it.routineId }.toSet()
-    // 过去的日子加计划等于补记训练，已经补记过的计划不再重复列出，免得同一天记出两次同样的训练。
-    val recordedIds = if (day.isPast) day.actualSessions.mapNotNull { it.routineId }.toSet() else emptySet()
-    val selectable = routines.filterNot { it.id in plannedIds || it.id in recordedIds }
+    // 今天及以后按排期去重；过去的日子加计划等于补记训练，只按已补记的训练去重——
+    // 那些日子遗留的排期在明细里已经看不到了，不能再用它把计划挡在候选之外。
+    val listedIds = if (day.isPast) {
+        day.actualSessions.mapNotNull { it.routineId }.toSet()
+    } else {
+        day.planned.map { it.routineId }.toSet()
+    }
+    val selectable = routines.filterNot { it.id in listedIds }
     var showPicker by remember { mutableStateOf(false) }
 
     Row(
