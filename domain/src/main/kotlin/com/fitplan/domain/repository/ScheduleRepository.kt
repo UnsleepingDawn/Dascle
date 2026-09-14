@@ -19,6 +19,12 @@ interface ScheduleRepository {
 
     suspend fun getRestDaysBetween(start: LocalDate, endExclusive: LocalDate): List<LocalDate>
 
+    /**
+     * 把 [date] 标成休息日，并撤掉这一天原有的排期——
+     * 一天不是训练日就是休息日，两者不会同时存在。
+     */
+    suspend fun setRestDay(date: LocalDate)
+
     suspend fun deleteRestDay(date: LocalDate)
 
     /**

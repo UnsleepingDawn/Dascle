@@ -89,6 +89,15 @@ class PlanCalendarScreenModel(
         }
     }
 
+    /** 把 [date] 标成休息日；这一天原有的排期一并撤掉（一天不是训练日就是休息日）。 */
+    fun markRestDay(date: LocalDate) {
+        viewModelScope.launch {
+            scheduleRepository.setRestDay(date)
+            refresh()
+            widgetManager.updateTodayWidget()
+        }
+    }
+
     fun removePlan(entryId: Long) {
         viewModelScope.launch {
             scheduleRepository.deleteById(entryId)

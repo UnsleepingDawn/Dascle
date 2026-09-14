@@ -108,6 +108,7 @@
     <string name="calendar_no_routine_left">所有计划都已排入这一天</string>
     <string name="calendar_remove_plan">移除排期</string>
     <string name="calendar_rest_day">休息</string>
+    <string name="calendar_mark_rest">该天休息</string>
     <string name="calendar_remove_rest">取消休息日</string>
     <string name="calendar_exercise_count">%1$d 个动作</string>
     <string name="calendar_edit_session">编辑这次训练</string>

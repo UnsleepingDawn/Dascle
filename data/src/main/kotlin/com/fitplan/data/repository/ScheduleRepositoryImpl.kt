@@ -46,6 +46,14 @@ class ScheduleRepositoryImpl(
             date_ = endExclusive.toDbValue(),
         ).awaitAsList().map { it.toLocalDate() }
 
+    override suspend fun setRestDay(date: LocalDate) {
+        database.transactionWithResult {
+            // 一天不是训练日就是休息日：标休息的同时把这一天的排期撤掉。
+            queries.deleteOnceOnDate(specific_date = date.toDbValue())
+            restQueries.insert(date = date.toDbValue())
+        }
+    }
+
     override suspend fun deleteRestDay(date: LocalDate) {
         restQueries.deleteByDate(date = date.toDbValue())
     }

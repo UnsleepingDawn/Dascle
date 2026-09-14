@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -153,6 +155,7 @@ object PlanTab : Tab {
                     navigator.push(RoutineEditScreen(routineId))
                 },
                 onAddPlan = { routineId -> screenModel.addPlan(routineId, day.date) },
+                onMarkRest = screenModel::markRestDay,
                 onRemovePlan = screenModel::removePlan,
                 onRemoveRest = screenModel::removeRestDay,
                 onEditSession = { sessionId ->
@@ -394,6 +397,7 @@ private fun DayDetailSheet(
     onDismiss: () -> Unit,
     onOpenRoutine: (Long) -> Unit,
     onAddPlan: (Long) -> Unit,
+    onMarkRest: (LocalDate) -> Unit,
     onRemovePlan: (Long) -> Unit,
     onRemoveRest: (LocalDate) -> Unit,
     onEditSession: (Long) -> Unit,
@@ -473,10 +477,11 @@ private fun DayDetailSheet(
                     }
                 }
 
-                AddPlanRow(
+                DayActionsRow(
                     day = day,
                     routines = routines,
                     onAddPlan = onAddPlan,
+                    onMarkRest = { onMarkRest(day.date) },
                 )
             }
         }
@@ -628,27 +633,50 @@ private fun PlannedRoutineRow(
     }
 }
 
+/**
+ * 明细面板右下角的两个快捷操作：给这一天排一个计划，或把这一天标成休息日。
+ * 两者互斥——加计划会撤掉休息标记，标休息会撤掉这一天的排期。
+ */
 @Composable
-private fun AddPlanRow(
+private fun DayActionsRow(
     day: CalendarDay,
     routines: List<Routine>,
     onAddPlan: (Long) -> Unit,
+    onMarkRest: () -> Unit,
 ) {
     val plannedIds = day.planned.map { it.routineId }.toSet()
     val selectable = routines.filterNot { it.id in plannedIds }
     var showPicker by remember { mutableStateOf(false) }
 
-    Box(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.CenterEnd,
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = { showPicker = true }) {
+        Button(
+            onClick = { showPicker = true },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+        ) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = null,
                 modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
             )
             Text(text = stringResource(R.string.calendar_add_plan))
+        }
+        Button(
+            onClick = onMarkRest,
+            // 已经是休息日就不再重复标；要取消休息，用上面「休息」条目上的 ×。
+            enabled = !day.isRestDay,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            ),
+        ) {
+            Text(text = stringResource(R.string.calendar_mark_rest))
         }
     }
 
