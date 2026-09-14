@@ -88,12 +88,7 @@ internal fun WorkoutPlanList(
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
-                        text = stringResource(
-                            R.string.workout_target_hint,
-                            exercise.targetSets,
-                            exercise.targetReps,
-                            exercise.restSeconds,
-                        ),
+                        text = exercise.targetHint(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -156,12 +151,7 @@ internal fun LogExerciseCard(
 
             if (!exercise.isExtra) {
                 Text(
-                    text = stringResource(
-                        R.string.workout_target_hint,
-                        exercise.targetSets,
-                        exercise.targetReps,
-                        exercise.restSeconds,
-                    ),
+                    text = exercise.targetHint(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -600,3 +590,21 @@ private fun durationText(seconds: Long): String {
 
 private fun formatVolume(volume: Double): String =
     if (volume == volume.toLong().toDouble()) volume.toLong().toString() else "%.1f".format(volume)
+
+/** 目标提示：计数是「目标 3 组 × 10 次」，计时是「目标 3 组 × 60 秒」，带默认重量时插入「20 kg」。 */
+@Composable
+private fun LogExercise.targetHint(): String {
+    val target = when {
+        isTimed && targetSeconds != null -> stringResource(R.string.workout_target_timed, targetSets, targetSeconds)
+        // 计划没设默认时长却临时切成了计时，就只报组数，不硬凑一个「0 秒」。
+        isTimed -> stringResource(R.string.workout_target_sets, targetSets)
+        else -> stringResource(R.string.workout_target_counted, targetSets, targetReps)
+    }
+    val weight = if (isTimed || targetWeight == null) {
+        null
+    } else {
+        stringResource(R.string.weight_kg, targetWeight.toWeightText())
+    }
+    return listOfNotNull(target, weight, stringResource(R.string.workout_target_rest, restSeconds))
+        .joinToString(" · ")
+}

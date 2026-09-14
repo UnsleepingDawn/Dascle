@@ -24,6 +24,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -48,6 +51,7 @@ import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.util.Screen
 import com.fitplan.ui.exercise.ExercisePickerScreen
+import com.fitplan.ui.workout.toWeightText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
@@ -113,8 +117,8 @@ class RoutineEditScreen(
             TargetsDialog(
                 exercise = exercise,
                 onDismiss = { editTarget = null },
-                onConfirm = { sets, reps, rest ->
-                    screenModel.updateTargets(exercise.id, sets, reps, rest)
+                onConfirm = { sets, reps, rest, weight, seconds ->
+                    screenModel.updateTargets(exercise.id, sets, reps, rest, weight, seconds)
                     editTarget = null
                 },
             )
@@ -196,11 +200,8 @@ private fun ReorderableCollectionItemScope.RoutineExerciseCard(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    text = stringResource(
-                        R.string.routine_edit_targets,
-                        exercise.targetSets,
-                        exercise.targetReps,
-                    ) + " · " + stringResource(R.string.routine_edit_rest, exercise.restSeconds),
+                    text = exercise.targetText() + " · " +
+                        stringResource(R.string.routine_edit_rest, exercise.restSeconds),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -221,36 +222,91 @@ private fun ReorderableCollectionItemScope.RoutineExerciseCard(
     }
 }
 
+/**
+ * 动作目标文案：计数是「3 组 × 10 次」，计时是「3 组 × 60 秒」，
+ * 计数动作设置了默认重量时再追加「· 20 kg」。
+ */
+@Composable
+internal fun RoutineExercise.targetText(): String {
+    val base = if (isTimed) {
+        stringResource(R.string.routine_edit_targets_timed, targetSets, targetSeconds ?: 0)
+    } else {
+        stringResource(R.string.routine_edit_targets, targetSets, targetReps)
+    }
+    val weight = if (isTimed || targetWeight == null) {
+        null
+    } else {
+        stringResource(R.string.weight_kg, targetWeight.toWeightText())
+    }
+    return listOfNotNull(base, weight).joinToString(" · ")
+}
+
 @Composable
 private fun TargetsDialog(
     exercise: RoutineExercise,
     onDismiss: () -> Unit,
-    onConfirm: (sets: Int, reps: Int, restSeconds: Int) -> Unit,
+    onConfirm: (sets: Int, reps: Int, restSeconds: Int, targetWeight: Double?, targetSeconds: Int?) -> Unit,
 ) {
+    var timed by remember { mutableStateOf(exercise.isTimed) }
     var sets by remember { mutableStateOf(exercise.targetSets.toString()) }
     var reps by remember { mutableStateOf(exercise.targetReps.toString()) }
+    var weight by remember { mutableStateOf(exercise.targetWeight.toWeightText()) }
+    var seconds by remember { mutableStateOf(exercise.targetSeconds?.toString().orEmpty()) }
     var rest by remember { mutableStateOf(exercise.restSeconds.toString()) }
 
-    val parsed = Triple(sets.toIntOrNull(), reps.toIntOrNull(), rest.toIntOrNull())
-    val valid = parsed.first?.let { it > 0 } == true &&
-        parsed.second?.let { it > 0 } == true &&
-        parsed.third?.let { it >= 0 } == true
+    val setsValue = sets.toIntOrNull()
+    val repsValue = reps.toIntOrNull()
+    val restValue = rest.toIntOrNull()
+    val weightValue = if (weight.isBlank()) null else weight.toDoubleOrNull()
+    val secondsValue = seconds.toIntOrNull()
+    val valid = setsValue?.let { it > 0 } == true &&
+        restValue?.let { it >= 0 } == true &&
+        (weight.isBlank() || weightValue?.let { it > 0 } == true) &&
+        (if (timed) secondsValue?.let { it > 0 } == true else repsValue?.let { it > 0 } == true)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = exercise.exerciseName) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = !timed,
+                        onClick = { timed = false },
+                        shape = SegmentedButtonDefaults.itemShape(0, 2),
+                        label = { Text(text = stringResource(R.string.routine_edit_counted)) },
+                    )
+                    SegmentedButton(
+                        selected = timed,
+                        onClick = { timed = true },
+                        shape = SegmentedButtonDefaults.itemShape(1, 2),
+                        label = { Text(text = stringResource(R.string.routine_edit_timed)) },
+                    )
+                }
                 NumberField(
                     value = sets,
                     onValueChange = { sets = it },
                     label = stringResource(R.string.field_target_sets),
                 )
-                NumberField(
-                    value = reps,
-                    onValueChange = { reps = it },
-                    label = stringResource(R.string.field_target_reps),
-                )
+                if (timed) {
+                    NumberField(
+                        value = seconds,
+                        onValueChange = { seconds = it },
+                        label = stringResource(R.string.field_target_seconds),
+                    )
+                } else {
+                    NumberField(
+                        value = reps,
+                        onValueChange = { reps = it },
+                        label = stringResource(R.string.field_target_reps),
+                    )
+                    NumberField(
+                        value = weight,
+                        onValueChange = { weight = it },
+                        label = stringResource(R.string.field_target_weight),
+                        allowDecimal = true,
+                    )
+                }
                 NumberField(
                     value = rest,
                     onValueChange = { rest = it },
@@ -262,10 +318,16 @@ private fun TargetsDialog(
             TextButton(
                 enabled = valid,
                 onClick = {
+                    val parsedSets = setsValue ?: return@TextButton
+                    val parsedReps = repsValue ?: return@TextButton
+                    val parsedRest = restValue ?: return@TextButton
+                    // 计时类动作不需要重量，切过去时顺手清掉，避免留下永远用不上的数据。
                     onConfirm(
-                        parsed.first ?: return@TextButton,
-                        parsed.second ?: return@TextButton,
-                        parsed.third ?: return@TextButton,
+                        parsedSets,
+                        parsedReps,
+                        parsedRest,
+                        if (timed) null else weightValue,
+                        if (timed) secondsValue else null,
                     )
                 },
             ) {
@@ -285,12 +347,19 @@ private fun NumberField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    allowDecimal: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { new -> onValueChange(new.filter(Char::isDigit)) },
+        onValueChange = { new ->
+            onValueChange(
+                if (allowDecimal) new.filter { it.isDigit() || it == '.' } else new.filter(Char::isDigit),
+            )
+        },
         label = { Text(text = label) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (allowDecimal) KeyboardType.Decimal else KeyboardType.Number,
+        ),
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )

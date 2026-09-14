@@ -46,13 +46,22 @@ class RoutineEditScreenModel(
         }
     }
 
-    fun updateTargets(id: Long, targetSets: Int, targetReps: Int, restSeconds: Int) {
+    fun updateTargets(
+        id: Long,
+        targetSets: Int,
+        targetReps: Int,
+        restSeconds: Int,
+        targetWeight: Double?,
+        targetSeconds: Int?,
+    ) {
         viewModelScope.launch {
             routineRepository.updateExerciseTargets(
                 id = id,
                 targetSets = targetSets,
                 targetReps = targetReps,
                 restSeconds = restSeconds,
+                targetWeight = targetWeight,
+                targetSeconds = targetSeconds,
             )
             refresh()
         }

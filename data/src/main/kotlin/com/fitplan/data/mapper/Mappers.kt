@@ -90,6 +90,8 @@ internal fun RoutineExerciseRow.toDomain(): RoutineExercise = RoutineExercise(
     targetSets = target_sets.toInt(),
     targetReps = target_reps.toInt(),
     restSeconds = rest_seconds.toInt(),
+    targetWeight = target_weight,
+    targetSeconds = target_seconds?.toInt(),
 )
 
 private fun scheduleEntry(

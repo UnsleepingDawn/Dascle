@@ -70,6 +70,8 @@ class RoutineRepositoryImpl(
         targetSets: Int,
         targetReps: Int,
         restSeconds: Int,
+        targetWeight: Double?,
+        targetSeconds: Int?,
     ): Long = database.transactionWithResult {
         val position = routineExerciseQueries.selectMaxPosition(routineId).awaitAsOne() + 1
         routineExerciseQueries.insert(
@@ -79,6 +81,8 @@ class RoutineRepositoryImpl(
             target_sets = targetSets.toLong(),
             target_reps = targetReps.toLong(),
             rest_seconds = restSeconds.toLong(),
+            target_weight = targetWeight,
+            target_seconds = targetSeconds?.toLong(),
         )
         utilQueries.lastInsertRowId().awaitAsOne()
     }
@@ -88,11 +92,15 @@ class RoutineRepositoryImpl(
         targetSets: Int,
         targetReps: Int,
         restSeconds: Int,
+        targetWeight: Double?,
+        targetSeconds: Int?,
     ) {
         routineExerciseQueries.updateTargets(
             target_sets = targetSets.toLong(),
             target_reps = targetReps.toLong(),
             rest_seconds = restSeconds.toLong(),
+            target_weight = targetWeight,
+            target_seconds = targetSeconds?.toLong(),
             id = id,
         )
     }

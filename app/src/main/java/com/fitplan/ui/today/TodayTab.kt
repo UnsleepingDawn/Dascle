@@ -34,6 +34,7 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.util.Tab
+import com.fitplan.ui.plan.routine.targetText
 import com.fitplan.ui.workout.WorkoutLogScreen
 import com.fitplan.ui.workout.toClockText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -173,11 +174,7 @@ private fun ScheduledRoutineCard(
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        text = stringResource(
-                            R.string.routine_edit_targets,
-                            exercise.targetSets,
-                            exercise.targetReps,
-                        ),
+                        text = exercise.targetText(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

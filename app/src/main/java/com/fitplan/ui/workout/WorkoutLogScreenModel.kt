@@ -46,6 +46,10 @@ data class LogExercise(
     val isTimed: Boolean = false,
     val skipped: Boolean = false,
     val sets: List<SetEntry> = emptyList(),
+    /** 计划里设定的默认重量（kg）；null 表示自重或不预填。 */
+    val targetWeight: Double? = null,
+    /** 计划里设定的默认时长（秒）；非 null 表示计划把该动作定为计时类。 */
+    val targetSeconds: Int? = null,
 ) {
     val completedSets: Int get() = sets.count { it.completed }
 }
@@ -179,7 +183,21 @@ class WorkoutLogScreenModel(
             if (exercise.sets.any { it.completed }) {
                 exercise
             } else {
-                exercise.copy(isTimed = !exercise.isTimed)
+                val timed = !exercise.isTimed
+                // 切换后把空着的录入框按计划默认值补齐，避免新模式下输入框全是空的。
+                exercise.copy(
+                    isTimed = timed,
+                    sets = exercise.sets.map { entry ->
+                        if (timed) {
+                            entry.copy(seconds = entry.seconds.ifBlank { exercise.targetSeconds?.toString().orEmpty() })
+                        } else {
+                            entry.copy(
+                                weight = entry.weight.ifBlank { exercise.targetWeight.toWeightText() },
+                                reps = entry.reps.ifBlank { exercise.targetReps.toString() },
+                            )
+                        }
+                    },
+                )
             }
         }
     }
@@ -341,33 +359,36 @@ class WorkoutLogScreenModel(
         }
         _exercises.value = exerciseIds.map { exerciseId ->
             val routineExercise = planByExercise[exerciseId]
-            val targetReps = routineExercise?.targetReps ?: DEFAULT_TARGET_REPS
             val ownSets = sets.filter { it.exerciseId == exerciseId }.sortedBy { it.setIndex }
-            val isTimed = ownSets.any { it.durationSeconds != null }
-            LogExercise(
+            // 已经落库的组以库里的记录为准；还没开练时，计划设了默认时长就按计时展示。
+            val isTimed = if (ownSets.isNotEmpty()) {
+                ownSets.any { it.durationSeconds != null }
+            } else {
+                routineExercise?.targetSeconds != null
+            }
+            val exercise = LogExercise(
                 exerciseId = exerciseId,
                 name = routineExercise?.exerciseName ?: names[exerciseId].orEmpty(),
                 targetSets = routineExercise?.targetSets ?: DEFAULT_TARGET_SETS,
-                targetReps = targetReps,
+                targetReps = routineExercise?.targetReps ?: DEFAULT_TARGET_REPS,
                 restSeconds = routineExercise?.restSeconds ?: DEFAULT_REST_SECONDS,
                 isExtra = routineExercise == null,
                 isTimed = isTimed,
+                targetWeight = routineExercise?.targetWeight,
+                targetSeconds = routineExercise?.targetSeconds,
+            )
+            exercise.copy(
                 sets = ownSets
                     .map { set ->
                         SetEntry(
                             id = set.id,
-                            weight = set.weight.toInputText(),
+                            weight = set.weight.toWeightText(),
                             reps = set.reps?.toString().orEmpty(),
                             seconds = set.durationSeconds?.toString().orEmpty(),
                             completed = set.completed,
                         )
                     }
-                    .withTailRow(
-                        targetSets = routineExercise?.targetSets ?: DEFAULT_TARGET_SETS,
-                        targetReps = targetReps,
-                        isTimed = isTimed,
-                        editable = !session.isFinished,
-                    ),
+                    .withTailRow(exercise = exercise, editable = !session.isFinished),
             )
         }
     }
@@ -392,32 +413,36 @@ class WorkoutLogScreenModel(
     }
 }
 
-private fun RoutineExercise.toLogExercise(): LogExercise = LogExercise(
-    exerciseId = exerciseId,
-    name = exerciseName,
-    targetSets = targetSets,
-    targetReps = targetReps,
-    restSeconds = restSeconds,
-    isExtra = false,
-    sets = List(targetSets) { SetEntry(reps = targetReps.toString()) },
-)
+private fun RoutineExercise.toLogExercise(): LogExercise {
+    val exercise = LogExercise(
+        exerciseId = exerciseId,
+        name = exerciseName,
+        targetSets = targetSets,
+        targetReps = targetReps,
+        restSeconds = restSeconds,
+        isExtra = false,
+        isTimed = isTimed,
+        targetWeight = targetWeight,
+        targetSeconds = targetSeconds,
+    )
+    return exercise.copy(sets = List(targetSets) { emptyEntry(exercise) })
+}
 
-private fun emptyEntry(exercise: LogExercise): SetEntry =
-    SetEntry(reps = if (exercise.isTimed) "" else exercise.targetReps.toString())
+/** 一行的初始录入值：计划里设了默认重量/时长就先填进去，让输入框不是空的。 */
+private fun emptyEntry(exercise: LogExercise): SetEntry = if (exercise.isTimed) {
+    SetEntry(seconds = exercise.targetSeconds?.toString().orEmpty())
+} else {
+    SetEntry(weight = exercise.targetWeight.toWeightText(), reps = exercise.targetReps.toString())
+}
 
 /**
  * 把已落库的组补齐成可继续录入的样子：不足目标组数时补空行，
  * 最后一组已经完成时再补一个空行，[editable] 为 false（已经结束的训练）时原样返回。
  */
-private fun List<SetEntry>.withTailRow(
-    targetSets: Int,
-    targetReps: Int,
-    isTimed: Boolean,
-    editable: Boolean,
-): List<SetEntry> {
+private fun List<SetEntry>.withTailRow(exercise: LogExercise, editable: Boolean): List<SetEntry> {
     if (!editable) return this
-    val empty = SetEntry(reps = if (isTimed) "" else targetReps.toString())
-    val padded = if (size < targetSets) this + List(targetSets - size) { empty } else this
+    val empty = emptyEntry(exercise)
+    val padded = if (size < exercise.targetSets) this + List(exercise.targetSets - size) { empty } else this
     return if (padded.isEmpty() || padded.last().completed) padded + empty else padded
 }
 
@@ -438,7 +463,8 @@ private fun SetEntry.toWorkoutSet(
     completed = completed,
 )
 
-private fun Double?.toInputText(): String = when {
+/** 重量转成输入框文本：整数不带小数点，null 显示为空（重量输入框、计划默认重量共用）。 */
+internal fun Double?.toWeightText(): String = when {
     this == null -> ""
     this == toLong().toDouble() -> toLong().toString()
     else -> toString()

@@ -190,7 +190,7 @@ private fun WeekdayHeader() {
         names.forEach { name ->
             Text(
                 text = name,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
@@ -277,7 +277,7 @@ private fun DayCell(
         ) {
             Text(
                 text = day.date.day.toString(),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = if (day.isTrainingDay) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
@@ -297,7 +297,7 @@ private fun DayCell(
             ) {
                 Text(
                     text = muscle.label(),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.inverseOnSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -309,7 +309,7 @@ private fun DayCell(
         if (hiddenMuscles > 0) {
             Text(
                 text = stringResource(R.string.calendar_more_muscles, hiddenMuscles),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )

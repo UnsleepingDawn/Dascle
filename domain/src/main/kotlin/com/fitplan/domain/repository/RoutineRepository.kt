@@ -26,6 +26,8 @@ interface RoutineRepository {
         targetSets: Int,
         targetReps: Int,
         restSeconds: Int,
+        targetWeight: Double? = null,
+        targetSeconds: Int? = null,
     ): Long
 
     suspend fun updateExerciseTargets(
@@ -33,6 +35,8 @@ interface RoutineRepository {
         targetSets: Int,
         targetReps: Int,
         restSeconds: Int,
+        targetWeight: Double? = null,
+        targetSeconds: Int? = null,
     )
 
     /** 按传入的 id 顺序重写 `position`，供拖拽排序使用。 */

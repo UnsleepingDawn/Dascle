@@ -1,11 +1,13 @@
 CREATE TABLE routine_exercise (
-    id           INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    routine_id   INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
-    exercise_id  INTEGER NOT NULL REFERENCES exercise(id),
-    position     INTEGER NOT NULL,
-    target_sets  INTEGER NOT NULL DEFAULT 3,
-    target_reps  INTEGER NOT NULL DEFAULT 10,
-    rest_seconds INTEGER NOT NULL DEFAULT 90
+    id             INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    routine_id     INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
+    exercise_id    INTEGER NOT NULL REFERENCES exercise(id),
+    position       INTEGER NOT NULL,
+    target_sets    INTEGER NOT NULL DEFAULT 3,
+    target_reps    INTEGER NOT NULL DEFAULT 10,
+    rest_seconds   INTEGER NOT NULL DEFAULT 90,
+    target_weight  REAL,
+    target_seconds INTEGER
 );
 
 CREATE INDEX routine_exercise_routine_id ON routine_exercise(routine_id);
@@ -19,6 +21,8 @@ SELECT
     routine_exercise.target_sets,
     routine_exercise.target_reps,
     routine_exercise.rest_seconds,
+    routine_exercise.target_weight,
+    routine_exercise.target_seconds,
     exercise.name AS exercise_name,
     exercise.muscle_group AS muscle_group,
     exercise.equipment AS equipment
@@ -47,12 +51,14 @@ FROM routine_exercise
 WHERE routine_id = ?;
 
 insert:
-INSERT INTO routine_exercise(routine_id, exercise_id, position, target_sets, target_reps, rest_seconds)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO routine_exercise(
+    routine_id, exercise_id, position, target_sets, target_reps, rest_seconds, target_weight, target_seconds
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 updateTargets:
 UPDATE routine_exercise
-SET target_sets = ?, target_reps = ?, rest_seconds = ?
+SET target_sets = ?, target_reps = ?, rest_seconds = ?, target_weight = ?, target_seconds = ?
 WHERE id = ?;
 
 updatePosition:
