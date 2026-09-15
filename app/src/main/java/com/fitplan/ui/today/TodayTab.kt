@@ -3,12 +3,15 @@ package com.fitplan.ui.today
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
@@ -21,11 +24,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabOptions
@@ -57,6 +62,7 @@ object TodayTab : Tab {
         val screenModel = metroViewModel<TodayScreenModel>()
         val date by screenModel.date.collectAsState()
         val routines by screenModel.routines.collectAsState()
+        val restDay by screenModel.restDay.collectAsState()
         val unfinished by screenModel.unfinished.collectAsState()
         val todaySession by screenModel.todaySession.collectAsState()
         val loaded by screenModel.loaded.collectAsState()
@@ -101,6 +107,30 @@ object TodayTab : Tab {
             },
         ) { contentPadding ->
             when {
+                !loaded -> Unit
+
+                // 今天被编排成休息日：整页换成休息页，「计划外训练」之类的入口一个都不给。
+                restDay -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding),
+                ) {
+                    // 撑满剩余空间，让休息内容在整页里居中；下面有未完成的训练时它退到上半屏。
+                    RestDayBlock(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    )
+
+                    // 已经开始的训练仍留着入口，否则休息日会把用户关在这次训练之外。
+                    unfinished?.let { session ->
+                        UnfinishedSessionCard(
+                            session = session,
+                            onClickResume = { navigator.push(WorkoutLogScreen(sessionId = session.id)) },
+                        )
+                    }
+                }
+
                 routines.isNotEmpty() || standaloneUnfinished != null || finishedSession != null -> {
                     LazyColumn(
                         contentPadding = contentPadding,
@@ -161,6 +191,8 @@ object TodayTab : Tab {
                     message = stringResource(R.string.today_empty),
                     modifier = Modifier.padding(contentPadding),
                 )
+
+                else -> Unit
             }
         }
     }
@@ -317,5 +349,38 @@ private fun UnfinishedSessionCard(
                 Text(text = stringResource(R.string.workout_continue))
             }
         }
+    }
+}
+
+/** 今天是休息日：居中给一句休息的话，不做任何训练入口。 */
+@Composable
+private fun RestDayBlock(modifier: Modifier = Modifier) {
+    // 寄语每次进今日页随机取一条，进来就固定，不跟着刷新换句子。
+    val messages = stringArrayResource(R.array.today_rest_encouragements)
+    val message = remember(messages) { messages.random() }
+
+    Column(
+        modifier = modifier.padding(horizontal = MaterialTheme.padding.extraLarge),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.SelfImprovement,
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            tint = MaterialTheme.colorScheme.tertiary,
+        )
+        Text(
+            text = stringResource(R.string.today_rest_title),
+            modifier = Modifier.padding(top = MaterialTheme.padding.medium),
+            style = MaterialTheme.typography.headlineSmall,
+        )
+        Text(
+            text = message,
+            modifier = Modifier.padding(top = MaterialTheme.padding.small),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }

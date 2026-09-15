@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.GetScheduledRoutinesForDate
 import com.fitplan.domain.interactor.GetTodayWorkoutSession
+import com.fitplan.domain.interactor.IsRestDay
 import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.repository.WorkoutRepository
@@ -29,6 +30,7 @@ import kotlin.time.Clock
 class TodayScreenModel(
     private val getScheduledRoutinesForDate: GetScheduledRoutinesForDate,
     private val getTodayWorkoutSession: GetTodayWorkoutSession,
+    private val isRestDay: IsRestDay,
     private val workoutRepository: WorkoutRepository,
     dataRevision: DataRevision,
 ) : ViewModel() {
@@ -45,6 +47,10 @@ class TodayScreenModel(
 
     private val _routines = MutableStateFlow<List<ScheduledRoutine>>(emptyList())
     val routines: StateFlow<List<ScheduledRoutine>> = _routines.asStateFlow()
+
+    /** 今天被编排成了休息日：今日页整页换成休息页。 */
+    private val _restDay = MutableStateFlow(false)
+    val restDay: StateFlow<Boolean> = _restDay.asStateFlow()
 
     /** 上一次没练完就退出的训练，用于把「开始训练」换成「继续训练」。 */
     private val _unfinished = MutableStateFlow<WorkoutSession?>(null)
@@ -65,6 +71,7 @@ class TodayScreenModel(
         viewModelScope.launch {
             val date = today()
             _date.value = date
+            _restDay.value = isRestDay(date)
             _routines.value = getScheduledRoutinesForDate(date)
             _unfinished.value = workoutRepository.getUnfinishedSessions().maxByOrNull { it.startedAt }
             _todaySession.value = getTodayWorkoutSession()

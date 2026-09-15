@@ -27,6 +27,15 @@
     <string name="today_start_workout">开始训练</string>
     <string name="today_extra_title">计划外训练</string>
     <string name="today_start_extra">开始训练（计划外）</string>
+    <string name="today_rest_title">今天休息</string>
+
+    <string-array name="today_rest_encouragements">
+        <item>休息也是训练的一部分，今天好好放松。</item>
+        <item>给身体放个假，恢复好才练得动。</item>
+        <item>肌肉是在休息里长的，今天安心歇着。</item>
+        <item>今天不用练，养足精神，明天继续。</item>
+        <item>休息日就好好休息，别勉强自己。</item>
+    </string-array>
 
     <string-array name="today_encouragements">
         <item>今天的计划已经完成，状态好就再加一点。</item>
