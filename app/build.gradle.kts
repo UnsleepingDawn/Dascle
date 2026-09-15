@@ -59,7 +59,7 @@ android {
 
             isProfileable = true
 
-            proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = true)}\"")
         }
