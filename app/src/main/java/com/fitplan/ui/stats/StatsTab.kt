@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
@@ -50,7 +51,8 @@ object StatsTab : Tab {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val screenModel = metroViewModel<StatsScreenModel>()
-        val days by screenModel.days.collectAsState()
+        val range by screenModel.range.collectAsState()
+        val axisMode by screenModel.axisMode.collectAsState()
         val stats by screenModel.stats.collectAsState()
         val selectedExerciseId by screenModel.selectedExerciseId.collectAsState()
 
@@ -66,23 +68,35 @@ object StatsTab : Tab {
             },
         ) { contentPadding ->
             val current = stats
-            when {
-                current == null -> LoadingScreen(modifier = Modifier.padding(contentPadding))
-
-                current.isEmpty -> EmptyScreen(
-                    message = stringResource(R.string.stats_empty),
-                    modifier = Modifier.padding(contentPadding),
+            // 区间选择器固定在外面：切到还没练过的区间时下面会变成空态，得留一条路切回去。
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(contentPadding),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                StatsRangeSelector(
+                    range = range,
+                    onSelect = screenModel::selectRange,
+                    modifier = Modifier.padding(vertical = MaterialTheme.padding.small),
                 )
 
-                else -> StatsContent(
-                    stats = current,
-                    days = days,
-                    selectedExerciseId = selectedExerciseId,
-                    contentPadding = contentPadding,
-                    onSelectDays = screenModel::selectDays,
-                    onSelectExercise = screenModel::selectExercise,
-                    onOpenHistory = { sessionId -> navigator.push(WorkoutLogScreen(sessionId = sessionId)) },
-                )
+                when {
+                    current == null -> LoadingScreen()
+
+                    current.isEmpty -> EmptyScreen(message = stringResource(R.string.stats_range_empty))
+
+                    else -> StatsContent(
+                        stats = current,
+                        axisMode = axisMode,
+                        selectedExerciseId = selectedExerciseId,
+                        onSelectAxisMode = screenModel::selectAxisMode,
+                        onSelectExercise = screenModel::selectExercise,
+                        onOpenHistory = { sessionId ->
+                            navigator.push(WorkoutLogScreen(sessionId = sessionId))
+                        },
+                    )
+                }
             }
         }
     }
@@ -91,10 +105,9 @@ object StatsTab : Tab {
 @Composable
 private fun StatsContent(
     stats: WorkoutStats,
-    days: Int,
+    axisMode: ProgressAxisMode,
     selectedExerciseId: Long?,
-    contentPadding: PaddingValues,
-    onSelectDays: (Int) -> Unit,
+    onSelectAxisMode: (ProgressAxisMode) -> Unit,
     onSelectExercise: (Long) -> Unit,
     onOpenHistory: (Long) -> Unit,
 ) {
@@ -103,24 +116,12 @@ private fun StatsContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = contentPadding,
+        contentPadding = PaddingValues(bottom = MaterialTheme.padding.small),
         verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
     ) {
         item {
-            StatsRangeSelector(days = days, onSelect = onSelectDays)
-        }
-
-        item {
             SectionCard {
                 StatsOverviewRow(stats = stats)
-            }
-        }
-
-        if (muscleEntries.isNotEmpty()) {
-            item {
-                SectionCard(title = stringResource(R.string.stats_chart_muscle)) {
-                    ColumnChart(entries = muscleEntries)
-                }
             }
         }
 
@@ -133,14 +134,26 @@ private fun StatsContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
+                    val axis = remember(selectedProgress, axisMode, stats.rangeStartDate) {
+                        selectedProgress.axis(mode = axisMode, startDate = stats.rangeStartDate)
+                    }
                     Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                        ProgressAxisSelector(mode = axisMode, onSelect = onSelectAxisMode)
                         ExerciseProgressPicker(
                             progress = stats.exerciseProgress,
                             selectedId = selectedExerciseId,
                             onSelect = onSelectExercise,
                         )
-                        LineChart(entries = selectedProgress.entries())
+                        LineChart(points = axis.points, labelAt = axis.labelAt)
                     }
+                }
+            }
+        }
+
+        if (muscleEntries.isNotEmpty()) {
+            item {
+                SectionCard(title = stringResource(R.string.stats_chart_muscle)) {
+                    ColumnChart(entries = muscleEntries)
                 }
             }
         }
@@ -157,7 +170,7 @@ private fun StatsContent(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = stringResource(R.string.stats_history_count, stats.history.size),
+                    text = stringResource(R.string.stats_history_count, stats.totalSessions),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

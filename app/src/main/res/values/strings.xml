@@ -202,6 +202,8 @@
     <!-- 统计页 -->
     <string name="stats_range_week">近 7 天</string>
     <string name="stats_range_month">近 30 天</string>
+    <string name="stats_range_year">近 1 年</string>
+    <string name="stats_range_all">全部</string>
     <string name="stats_overview_days">训练天数</string>
     <string name="stats_overview_sessions">训练次数</string>
     <string name="stats_overview_sets">完成组数</string>
@@ -209,9 +211,12 @@
     <string name="stats_chart_muscle">肌群组数分布</string>
     <string name="stats_chart_progress">重量进步</string>
     <string name="stats_chart_progress_empty">这段时间还没有带重量的记录</string>
+    <string name="stats_progress_axis_index">等间距</string>
+    <string name="stats_progress_axis_date">按日期</string>
     <string name="stats_history_title">训练历史</string>
     <string name="stats_history_count">共 %1$d 次</string>
     <string name="stats_empty">还没有训练记录，先去「今日」练一场吧</string>
+    <string name="stats_range_empty">这段时间还没有训练记录</string>
 
     <!-- 今日训练桌面组件 -->
     <string name="widget_today_description">今天要练什么、练到哪了</string>

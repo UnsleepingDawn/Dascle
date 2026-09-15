@@ -33,10 +33,12 @@ data class WorkoutHistoryItem(
 
 /** 统计页一次取数的全部结果。 */
 data class WorkoutStats(
+    /** 所选区间的第一天；「全部」时是最早一次训练的那天。 */
+    val rangeStartDate: LocalDate,
     val trainingDays: Int,
     val totalSessions: Int,
     val totalSets: Int,
-    /** 近 4 周平均每周练了几天，与统计页的 7 / 30 天区间无关。 */
+    /** 所选区间内的平均每周训练天数，区间越短越接近实际的练几天。 */
     val weeklyTrainingDays: Double,
     val muscleGroupSets: List<MuscleGroupSets>,
     val exerciseProgress: List<ExerciseProgress>,

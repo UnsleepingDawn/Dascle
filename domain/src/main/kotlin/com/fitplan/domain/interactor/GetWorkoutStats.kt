@@ -2,8 +2,10 @@ package com.fitplan.domain.interactor
 
 import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.ExerciseProgress
+import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.MuscleGroupSets
 import com.fitplan.domain.model.ProgressPoint
+import com.fitplan.domain.model.StatsRange
 import com.fitplan.domain.model.WorkoutSet
 import com.fitplan.domain.model.WorkoutStats
 import com.fitplan.domain.repository.ExerciseRepository
@@ -13,16 +15,16 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.daysUntil
 import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
 /**
- * 统计页的取数：把区间内的已完成组按肌群、动作分别聚合，得到肌群组数分布与动作重量进步，
- * 再附上训练天数、训练次数、完成组数、近 4 周的平均每周训练天数，以及最近若干次训练的历史。
+ * 统计页的取数：把 [range] 区间内的已完成组按肌群、动作分别聚合，得到肌群组数分布与动作重量进步，
+ * 再附上区间内的训练天数、训练次数、完成组数与平均每周训练天数，以及区间内的训练历史。
  *
- * 「平均每周训练天数」固定看近 [FOUR_WEEKS_DAYS] 天，不受 7 / 30 天区间影响，
- * 所以区间更短时也要往前多取一段数据。
+ * 页面上所有数字与列表都由同一个区间决定：切到近 7 天就只统计这 7 天，「全部」则回溯到最早一次训练。
  */
 @Inject
 class GetWorkoutStats(
@@ -30,59 +32,76 @@ class GetWorkoutStats(
     private val exerciseRepository: ExerciseRepository,
 ) {
 
-    suspend operator fun invoke(days: Int): WorkoutStats {
+    suspend operator fun invoke(range: StatsRange): WorkoutStats {
         val zone = TimeZone.currentSystemDefault()
         val end = Clock.System.now()
         val endDate = end.toLocalDateTime(zone).date
-        val rangeStartDate = endDate.minus(days - 1, DateTimeUnit.DAY)
-        val fetchStart = minOf(rangeStartDate, fourWeeksStart(endDate)).atStartOfDayIn(zone)
+        val sessions = workoutRepository.getFinishedSessions()
 
-        val sessions = workoutRepository.getFinishedSessionsBetween(start = fetchStart, end = end)
-        val sessionDates = sessions.associate { it.id to it.startedAt.toLocalDateTime(zone).date }
+        // 固定区间往前数 [range] 天；「全部」则退到最早一次已结束训练那天。一次没练过就用今天，统计结果为空。
+        val rangeStartDate = range.days?.let { endDate.minus(it - 1, DateTimeUnit.DAY) }
+            ?: sessions.minOfOrNull { it.startedAt.toLocalDateTime(zone).date }
+            ?: endDate
+        val fetchStart = rangeStartDate.atStartOfDayIn(zone)
+
+        val rangeSessions = sessions.filter { it.startedAt >= fetchStart }
+        val sessionDates = rangeSessions.associate { it.id to it.startedAt.toLocalDateTime(zone).date }
         val datedSets = workoutRepository.getCompletedSetsBetween(start = fetchStart, end = end)
             .mapNotNull { set -> sessionDates[set.sessionId]?.let { date -> DatedSet(date, set) } }
         val exercises = exerciseRepository.getAll().associateBy { it.id }
-        val rangeSets = datedSets.filter { it.date >= rangeStartDate }
 
         return WorkoutStats(
-            trainingDays = rangeSets.distinctBy { it.date }.size,
-            totalSessions = sessionDates.count { (_, date) -> date >= rangeStartDate },
-            totalSets = rangeSets.size,
-            weeklyTrainingDays = weeklyTrainingDays(datedSets, endDate),
-            muscleGroupSets = muscleGroupSets(rangeSets, exercises),
-            exerciseProgress = exerciseProgress(rangeSets, exercises),
-            history = workoutRepository.getFinishedSessionsWithSummary(),
+            rangeStartDate = rangeStartDate,
+            trainingDays = datedSets.distinctBy { it.date }.size,
+            totalSessions = rangeSessions.size,
+            totalSets = datedSets.size,
+            weeklyTrainingDays = weeklyTrainingDays(datedSets, rangeStartDate, endDate),
+            muscleGroupSets = muscleGroupSets(datedSets, exercises),
+            exerciseProgress = exerciseProgress(datedSets, exercises),
+            history = workoutRepository.getFinishedSessionsWithSummary(start = fetchStart, end = end),
         )
     }
 
-    /** 近 4 周平均每周练了几天；窗口正好 [WEEKS_IN_FOUR_WEEKS] 周，直接除以它。 */
-    private fun weeklyTrainingDays(datedSets: List<DatedSet>, endDate: LocalDate): Double {
-        val start = fourWeeksStart(endDate)
-        val trainingDays = datedSets.filter { it.date >= start }.distinctBy { it.date }.size
-        return trainingDays / WEEKS_IN_FOUR_WEEKS
+    /**
+     * 区间内的平均每周训练天数：把区间的训练天数按 7 天一周折算，近 7 天就等于这个区间的训练天数。
+     * 「全部」区间可能横跨几年，数值会被摊得很小，属于预期。
+     */
+    private fun weeklyTrainingDays(
+        datedSets: List<DatedSet>,
+        rangeStartDate: LocalDate,
+        endDate: LocalDate,
+    ): Double {
+        val rangeDays = rangeStartDate.daysUntil(endDate) + 1
+        val trainingDays = datedSets.distinctBy { it.date }.size
+        return trainingDays * DAYS_PER_WEEK / rangeDays
     }
-
-    private fun fourWeeksStart(endDate: LocalDate): LocalDate =
-        endDate.minus(FOUR_WEEKS_DAYS - 1, DateTimeUnit.DAY)
 
     /**
      * 一个动作的组数按部位分摊：主部位记全额，每个次部位记一半，
      * 因此各部位组数之和会略高于实际完成组数，属于预期。
+     *
+     * 横轴按 [MuscleGroup.chartOrder] 铺满全部肌群，没数据的补 0，
+     * 这样不同区间的柱子位置一致，也不会出现「没练过的肌群直接消失」。
      */
     private fun muscleGroupSets(
         datedSets: List<DatedSet>,
         exercises: Map<Long, Exercise>,
-    ): List<MuscleGroupSets> = datedSets
-        .flatMap { dated ->
-            val exercise = exercises[dated.set.exerciseId] ?: return@flatMap emptyList()
-            buildList {
-                add(exercise.muscleGroup to 1.0)
-                exercise.secondaryMuscleGroups.forEach { add(it to SECONDARY_MUSCLE_WEIGHT) }
+    ): List<MuscleGroupSets> {
+        val setsByGroup = datedSets
+            .flatMap { dated ->
+                val exercise = exercises[dated.set.exerciseId] ?: return@flatMap emptyList()
+                buildList {
+                    add(exercise.muscleGroup to 1.0)
+                    exercise.secondaryMuscleGroups.forEach { add(it to SECONDARY_MUSCLE_WEIGHT) }
+                }
             }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, sets) -> sets.sum() }
+
+        return MuscleGroup.chartOrder.map { group ->
+            MuscleGroupSets(muscleGroup = group, sets = setsByGroup[group] ?: 0.0)
         }
-        .groupBy({ it.first }, { it.second })
-        .map { (muscleGroup, sets) -> MuscleGroupSets(muscleGroup, sets.sum()) }
-        .sortedByDescending { it.sets }
+    }
 
     /** 只挑有重量记录的动作，取数据点最多的前几个给图表做选择器。 */
     private fun exerciseProgress(
@@ -111,9 +130,7 @@ class GetWorkoutStats(
         /** 次部位分摊到的组数比例。 */
         const val SECONDARY_MUSCLE_WEIGHT = 0.5
 
-        /** 「平均每周训练天数」的统计窗口：近 4 周。 */
-        const val FOUR_WEEKS_DAYS = 28
-
-        const val WEEKS_IN_FOUR_WEEKS = 4.0
+        /** 平均每周训练天数的折算：一周 7 天。 */
+        const val DAYS_PER_WEEK = 7.0
     }
 }

@@ -2,12 +2,15 @@ package com.fitplan.presentation.widget.chart
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.VicoZoomState
@@ -27,16 +30,35 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
-import com.patrykandpatrick.vico.compose.common.data.ExtraStore
+import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 
-/** 图表上的一个数据点：[label] 画在横轴上，[value] 决定柱高或折线位置。 */
+/** 柱状图上的一个数据点：[label] 画在横轴上，[value] 决定柱高。 */
 data class ChartEntry(
     val label: String,
     val value: Double,
 )
 
+/**
+ * 折线图上的一个数据点。
+ *
+ * [x] 是横轴坐标，不再固定是序号：等间距模式下就是数据点的序号，
+ * 按日期模式下是「区间第几天」，于是没训练的日子会自然留出空档。
+ */
+data class LinePoint(
+    val x: Int,
+    val value: Double,
+)
+
 /** 横轴最多摆这么多标签，再多的日子就隔几个标一个，免得糊成一团。 */
 private const val MAX_AXIS_LABELS = 6
+
+/** 图表高度，两张图保持一致。 */
+private val CHART_HEIGHT = 180.dp
+
+/** 折线的粗细与空心圆点的大小。 */
+private val LINE_THICKNESS = 2.dp
+private val POINT_SIZE = 8.dp
+private val POINT_STROKE_THICKNESS = 1.5.dp
 
 private fun labelSpacing(count: Int): Int =
     if (count <= MAX_AXIS_LABELS) 1 else (count + MAX_AXIS_LABELS - 1) / MAX_AXIS_LABELS
@@ -50,8 +72,19 @@ private fun contentZoomState(): VicoZoomState =
     rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content)
 
 /**
+ * 横轴把 x 值当作索引去 [labelAt] 取文案。
+ * 取不到（返回空串）时退回索引本身：Vico 不允许这里返回空串。
+ */
+private fun xLabelFormatter(labelAt: (Int) -> String): CartesianValueFormatter =
+    CartesianValueFormatter { _, value, _ ->
+        val index = value.toInt()
+        labelAt(index).ifBlank { index.toString() }
+    }
+
+/**
  * 柱状图，统计页的肌群组数分布用它。
- * 只认「标签 + 数值」，文案与配色由调用方决定。
+ *
+ * 横轴是分类轴：每个柱位一个标签，不跳号，所以肌群再多也每个都带自己的名字。
  */
 @Composable
 fun ColumnChart(
@@ -59,13 +92,14 @@ fun ColumnChart(
     modifier: Modifier = Modifier,
 ) {
     val color = MaterialTheme.colorScheme.primary
-    val labelsKey = remember { ExtraStore.Key<List<String>>() }
     val modelProducer = remember { CartesianChartModelProducer() }
+    val labels = remember(entries) { entries.map { it.label } }
+    val formatter = remember(labels) { xLabelFormatter { labels.getOrElse(it) { "" } } }
+    val itemPlacer = remember { HorizontalAxis.ItemPlacer.aligned() }
 
     LaunchedEffect(entries) {
         modelProducer.runTransaction {
             columnModel { series(entries.map { it.value }) }
-            extras { it[labelsKey] = entries.map { it.label } }
         }
     }
 
@@ -82,30 +116,50 @@ fun ColumnChart(
             ),
             startAxis = VerticalAxis.rememberStart(),
             bottomAxis = HorizontalAxis.rememberBottom(
-                itemPlacer = HorizontalAxis.ItemPlacer.aligned(spacing = { labelSpacing(entries.size) }),
-                valueFormatter = labelFormatter(labelsKey),
+                itemPlacer = itemPlacer,
+                valueFormatter = formatter,
             ),
         ),
         modelProducer = modelProducer,
         zoomState = contentZoomState(),
-        modifier = modifier.fillMaxWidth().height(180.dp),
+        modifier = modifier.fillMaxWidth().height(CHART_HEIGHT),
     )
 }
 
-/** 折线图，统计页的动作重量进步用它。 */
+/**
+ * 折线图，统计页的动作重量进步用它。
+ *
+ * [labelAt] 把横轴坐标换算成标签文案，缺数据的日子也会被问到，
+ * 所以按日期显示时横向的空档位置同样有日期，不会露出「0、1」这种序号。
+ */
 @Composable
 fun LineChart(
-    entries: List<ChartEntry>,
+    points: List<LinePoint>,
+    labelAt: (Int) -> String,
     modifier: Modifier = Modifier,
 ) {
-    val color = MaterialTheme.colorScheme.tertiary
-    val labelsKey = remember { ExtraStore.Key<List<String>>() }
+    val color = MaterialTheme.colorScheme.primary
     val modelProducer = remember { CartesianChartModelProducer() }
+    val span = remember(points) {
+        if (points.isEmpty()) 1 else points.maxOf { it.x } - points.minOf { it.x } + 1
+    }
+    val spacing = remember(span) { labelSpacing(span) }
+    val formatter = remember(labelAt) { xLabelFormatter(labelAt) }
+    val itemPlacer = remember(spacing) { HorizontalAxis.ItemPlacer.aligned(spacing = { spacing }) }
 
-    LaunchedEffect(entries) {
+    // 空心圆点：透明填充打底，只用主色描一圈。
+    val marker = rememberShapeComponent(
+        fill = Fill(Color.Transparent),
+        shape = CircleShape,
+        strokeFill = Fill(color),
+        strokeThickness = POINT_STROKE_THICKNESS,
+    )
+
+    LaunchedEffect(points) {
         modelProducer.runTransaction {
-            lineModel { series(entries.map { it.value }) }
-            extras { it[labelsKey] = entries.map { it.label } }
+            lineModel {
+                series(points.map { it.x.toDouble() }, points.map { it.value })
+            }
         }
     }
 
@@ -113,27 +167,23 @@ fun LineChart(
         chart = rememberCartesianChart(
             rememberLineCartesianLayer(
                 lineProvider = LineCartesianLayer.LineProvider.series(
-                    LineCartesianLayer.rememberLine(fill = LineCartesianLayer.LineFill.single(Fill(color))),
+                    LineCartesianLayer.rememberLine(
+                        fill = LineCartesianLayer.LineFill.single(Fill(color)),
+                        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = LINE_THICKNESS),
+                        pointProvider = LineCartesianLayer.PointProvider.single(
+                            LineCartesianLayer.Point(component = marker, size = POINT_SIZE),
+                        ),
+                    ),
                 ),
             ),
             startAxis = VerticalAxis.rememberStart(),
             bottomAxis = HorizontalAxis.rememberBottom(
-                itemPlacer = HorizontalAxis.ItemPlacer.aligned(spacing = { labelSpacing(entries.size) }),
-                valueFormatter = labelFormatter(labelsKey),
+                itemPlacer = itemPlacer,
+                valueFormatter = formatter,
             ),
         ),
         modelProducer = modelProducer,
         zoomState = contentZoomState(),
-        modifier = modifier.fillMaxWidth().height(180.dp),
+        modifier = modifier.fillMaxWidth().height(CHART_HEIGHT),
     )
 }
-
-/**
- * 横轴把 x 值当作索引，去 [labelsKey] 里取调用方塞进来的标签。
- * 取不到时退回索引本身：Vico 不允许这里返回空串。
- */
-private fun labelFormatter(labelsKey: ExtraStore.Key<List<String>>): CartesianValueFormatter =
-    CartesianValueFormatter { context, value, _ ->
-        val index = value.toInt()
-        context.extraStore.getOrNull(labelsKey)?.getOrNull(index) ?: index.toString()
-    }

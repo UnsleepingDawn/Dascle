@@ -61,8 +61,14 @@ class WorkoutRepositoryImpl(
             started_at_ = end.toDbValue(),
         ).awaitAsList().map { it.toDomain() }
 
-    override suspend fun getFinishedSessionsWithSummary(): List<WorkoutHistoryItem> =
-        sessionQueries.selectFinishedWithSummary().awaitAsList().map { it.toDomain() }
+    override suspend fun getFinishedSessionsWithSummary(
+        start: Instant,
+        end: Instant,
+    ): List<WorkoutHistoryItem> =
+        sessionQueries.selectFinishedWithSummary(
+            started_at = start.toDbValue(),
+            started_at_ = end.toDbValue(),
+        ).awaitAsList().map { it.toDomain() }
 
     override suspend fun countFinishedSessions(): Long =
         sessionQueries.countFinished().awaitAsOneOrNull() ?: 0L

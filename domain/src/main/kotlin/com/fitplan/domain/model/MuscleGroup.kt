@@ -18,6 +18,23 @@ enum class MuscleGroup {
     ;
 
     companion object {
+        /**
+         * 统计页「肌群组数分布」的横轴顺序：按人体从上到下摆。
+         *
+         * [ARM_OTHER] 只是兼容旧数据的兜底分组，新数据都会落到 [BICEPS] / [TRICEPS]，
+         * 所以不进球图，横轴上不会出现它。
+         */
+        val chartOrder: List<MuscleGroup> = listOf(
+            SHOULDER,
+            CHEST,
+            BACK,
+            BICEPS,
+            TRICEPS,
+            ABS,
+            GLUTE,
+            LEG,
+        )
+
         fun fromValue(value: String): MuscleGroup? = entries.find { it.name == value }
     }
 }
