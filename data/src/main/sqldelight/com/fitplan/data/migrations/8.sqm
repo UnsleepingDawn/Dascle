@@ -1,0 +1,7 @@
+-- 渐进重量提示：每个动作一条状态，随动作删除一起消失。
+CREATE TABLE exercise_progress_hint (
+    exercise_id    INTEGER NOT NULL PRIMARY KEY REFERENCES exercise(id) ON DELETE CASCADE,
+    snooze_count   INTEGER NOT NULL DEFAULT 0,
+    next_remind_at INTEGER,
+    updated_at     INTEGER NOT NULL DEFAULT 0
+);

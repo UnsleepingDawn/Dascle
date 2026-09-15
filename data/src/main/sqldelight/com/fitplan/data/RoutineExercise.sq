@@ -75,6 +75,12 @@ SET target_weight = coalesce(
         (SELECT default_duration_seconds FROM exercise WHERE exercise.id = routine_exercise.exercise_id)
     );
 
+-- 渐进重量提示点「好的！」：该动作在所有计划里的目标重量一起改掉。
+updateTargetWeightByExerciseId:
+UPDATE routine_exercise
+SET target_weight = ?
+WHERE exercise_id = ?;
+
 updatePosition:
 UPDATE routine_exercise
 SET position = ?

@@ -93,6 +93,10 @@ class ExerciseRepositoryImpl(
         queries.deleteById(id)
     }
 
+    override suspend fun updateDefaultWeight(id: Long, weight: Double) {
+        queries.updateDefaultWeight(default_weight = weight, id = id)
+    }
+
     /** 写入次部位，跳过与主部位重复的项。 */
     private suspend fun writeSecondary(
         exerciseId: Long,

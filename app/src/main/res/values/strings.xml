@@ -198,6 +198,15 @@
     <string name="field_weight">重量（kg）</string>
     <string name="field_seconds">秒</string>
     <string name="weight_kg">%1$s kg</string>
+    <string name="workout_weight_hint_title">「%1$s」要不要加重量？</string>
+    <string name="workout_weight_hint_message">你已经能在这个重量完整做完 %1$d 组了！真棒！需要我帮你把今后这个动作的重量增加吗？</string>
+    <string name="workout_weight_hint_later">不用，下次再提醒我</string>
+    <string name="workout_weight_hint_ok">好的！</string>
+    <string name="workout_weight_hint_snooze">暂时别提醒我加重量</string>
+    <string name="workout_weight_increase_title">把「%1$s」加重多少？</string>
+    <string name="workout_weight_increase_message">当前 %1$s kg，这是今天和以后练这个动作的默认重量</string>
+    <string name="workout_weight_increase_label">增加（kg）</string>
+    <string name="workout_weight_increase_preview">增加后为 %1$s kg</string>
 
     <!-- 统计页 -->
     <string name="stats_range_week">近 7 天</string>

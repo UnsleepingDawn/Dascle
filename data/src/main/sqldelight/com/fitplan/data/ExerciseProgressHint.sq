@@ -1,0 +1,23 @@
+-- 每个动作各自的渐进重量提示状态：暂缓次数与下次可提醒时间。
+-- snooze_count = 0 且 next_remind_at 为空：可提醒（从未暂缓，或被「好的！」/主动加重量清空过）。
+-- next_remind_at 非空：暂缓中，到点后重新可提醒。
+-- snooze_count >= 5 且 next_remind_at 为空：休眠，只等用户主动加重量来解除。
+CREATE TABLE exercise_progress_hint (
+    exercise_id    INTEGER NOT NULL PRIMARY KEY REFERENCES exercise(id) ON DELETE CASCADE,
+    snooze_count   INTEGER NOT NULL DEFAULT 0,
+    next_remind_at INTEGER,
+    updated_at     INTEGER NOT NULL DEFAULT 0
+);
+
+selectByExerciseId:
+SELECT *
+FROM exercise_progress_hint
+WHERE exercise_id = ?;
+
+upsert:
+INSERT OR REPLACE INTO exercise_progress_hint(exercise_id, snooze_count, next_remind_at, updated_at)
+VALUES (?, ?, ?, ?);
+
+deleteByExerciseId:
+DELETE FROM exercise_progress_hint
+WHERE exercise_id = ?;

@@ -2,6 +2,7 @@ package com.fitplan.ui.plan.routine
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.domain.interactor.UpdateExerciseWeight
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.widget.WidgetManager
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class RoutineEditScreenModel(
     private val routineRepository: RoutineRepository,
+    private val updateExerciseWeight: UpdateExerciseWeight,
     private val widgetManager: WidgetManager,
 ) : ViewModel() {
 
@@ -55,6 +57,7 @@ class RoutineEditScreenModel(
         targetSeconds: Int?,
     ) {
         viewModelScope.launch {
+            val previous = _exercises.value.firstOrNull { it.id == id }
             routineRepository.updateExerciseTargets(
                 id = id,
                 targetSets = targetSets,
@@ -63,6 +66,10 @@ class RoutineEditScreenModel(
                 targetWeight = targetWeight,
                 targetSeconds = targetSeconds,
             )
+            // 用户主动调高目标重量时，解除这个动作渐进重量提示的暂缓 / 休眠。
+            previous?.let {
+                updateExerciseWeight.onManualWeightChanged(it.exerciseId, it.targetWeight, targetWeight)
+            }
             refresh()
         }
     }

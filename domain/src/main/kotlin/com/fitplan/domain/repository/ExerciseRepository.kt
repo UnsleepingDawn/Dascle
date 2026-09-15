@@ -35,5 +35,8 @@ interface ExerciseRepository {
 
     suspend fun update(exercise: Exercise)
 
+    /** 抬高 / 调整动作库里的默认重量，供渐进重量提示使用。 */
+    suspend fun updateDefaultWeight(id: Long, weight: Double)
+
     suspend fun deleteById(id: Long)
 }

@@ -4,6 +4,7 @@ import com.fitplan.data.SelectFinishedWithSummary
 import com.fitplan.domain.model.BodyMetric
 import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
+import com.fitplan.domain.model.ExerciseProgressHint
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
@@ -15,6 +16,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.time.Instant
 import com.fitplan.data.Body_metric as BodyMetricRow
 import com.fitplan.data.Exercise as ExerciseRow
+import com.fitplan.data.Exercise_progress_hint as ExerciseProgressHintRow
 import com.fitplan.data.Exercise_secondary_muscle as ExerciseSecondaryMuscleRow
 import com.fitplan.data.Routine as RoutineRow
 import com.fitplan.data.Schedule_entry as ScheduleEntryRow
@@ -66,6 +68,12 @@ internal fun ExerciseRow.toDomain(): Exercise = Exercise(
 
 /** `exercise_secondary_muscle` 的一行转成次部位；取值非法时抛异常，与主部位一致。 */
 internal fun ExerciseSecondaryMuscleRow.toMuscleGroup(): MuscleGroup = muscle_group.toMuscleGroup()
+
+internal fun ExerciseProgressHintRow.toDomain(): ExerciseProgressHint = ExerciseProgressHint(
+    exerciseId = exercise_id,
+    snoozeCount = snooze_count.toInt(),
+    nextRemindAt = next_remind_at?.toInstant(),
+)
 
 internal fun RoutineRow.toDomain(): Routine = Routine(
     id = id,

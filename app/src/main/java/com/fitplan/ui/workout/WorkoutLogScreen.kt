@@ -68,6 +68,8 @@ class WorkoutLogScreen(
         val restFinishedTick by screenModel.restFinishedTick.collectAsState()
         val exitTick by screenModel.exitTick.collectAsState()
         val allExercises by screenModel.allExercises.collectAsState()
+        val weightHint by screenModel.weightHint.collectAsState()
+        val weightIncreaseInput by screenModel.weightIncreaseInput.collectAsState()
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
         LaunchedEffect(sessionId, routineId, editing, reopen) {
@@ -245,6 +247,25 @@ class WorkoutLogScreen(
                     screenModel.addExtraExercise(exerciseId)
                 },
                 onDismiss = { showExtraDialog = false },
+            )
+        }
+
+        // 渐进重量提示：先问要不要加，点了「好的！」再让用户填加多少。
+        weightHint?.let { hint ->
+            WeightIncreaseHintDialog(
+                hint = hint,
+                onLater = screenModel::dismissWeightHint,
+                onConfirm = screenModel::promptWeightIncrease,
+                onSnooze = screenModel::snoozeWeightHint,
+                onDismiss = screenModel::dismissWeightHint,
+            )
+        }
+
+        weightIncreaseInput?.let { hint ->
+            WeightIncreaseInputDialog(
+                hint = hint,
+                onConfirm = screenModel::applyWeightIncrease,
+                onDismiss = screenModel::dismissWeightIncreaseInput,
             )
         }
     }

@@ -77,6 +77,12 @@ UPDATE exercise
 SET default_duration_seconds = ?
 WHERE id = ? AND default_duration_seconds IS NULL;
 
+-- 渐进重量提示点「好的！」：抬高动作库里的默认重量。
+updateDefaultWeight:
+UPDATE exercise
+SET default_weight = ?
+WHERE id = ?;
+
 update:
 UPDATE exercise
 SET name = ?, muscle_group = ?, equipment = ?, description = ?
