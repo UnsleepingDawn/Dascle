@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FF1B5E20</color>
-    <color name="splash_background">#FF1B5E20</color>
+    <!-- 品牌蓝，与「训练」主题（FitPlanColorScheme）的 Primary #2979FF 一致 -->
+    <color name="ic_launcher_background">#FF2979FF</color>
+    <color name="splash_background">#FF2979FF</color>
 </resources>
