@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -27,7 +28,7 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -103,26 +104,23 @@ object PlanTab : Tab {
             topBar = { scrollBehavior ->
                 TopAppBar(
                     title = { Text(text = stringResource(R.string.calendar_title)) },
+                    // 两个入口摆在「训练日历」右侧，日历本身占满整个页面。
+                    actions = {
+                        CalendarEntryButton(
+                            text = stringResource(R.string.calendar_entry_routine_list),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            onClick = { navigator.push(RoutineListScreen) },
+                        )
+                        CalendarEntryButton(
+                            text = stringResource(R.string.calendar_entry_compose),
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            onClick = { navigator.push(PlanComposeScreen) },
+                        )
+                    },
                     scrollBehavior = scrollBehavior,
                 )
-            },
-            floatingActionButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                    ExtendedFloatingActionButton(
-                        onClick = { navigator.push(RoutineListScreen) },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ) {
-                        Text(text = stringResource(R.string.plan_title))
-                    }
-                    ExtendedFloatingActionButton(
-                        onClick = { navigator.push(PlanComposeScreen) },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    ) {
-                        Text(text = stringResource(R.string.plan_compose_entry))
-                    }
-                }
             },
         ) { contentPadding ->
             Column(
@@ -175,6 +173,34 @@ object PlanTab : Tab {
                 onDismiss = { deleteSessionTarget = null },
             )
         }
+    }
+}
+
+/**
+ * 训练日历右上角的入口按钮：和「训练日历」标题排在同一条顶栏上。
+ *
+ * 顶栏空间有限，所以把左右内边距收到 8dp，让两个入口能跟标题挤进一行而不被截断。
+ */
+@Composable
+private fun CalendarEntryButton(
+    text: String,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = containerColor,
+            contentColor = contentColor,
+        ),
+        contentPadding = PaddingValues(
+            horizontal = MaterialTheme.padding.small,
+            vertical = MaterialTheme.padding.extraSmall,
+        ),
+        modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+    ) {
+        Text(text = text, maxLines = 1)
     }
 }
 

@@ -69,7 +69,6 @@
     <string name="field_routine_note">备注（可选）</string>
 
     <!-- 编排健身计划 -->
-    <string name="plan_compose_entry">编排健身计划</string>
     <string name="plan_compose_title">编排健身计划</string>
     <string name="plan_compose_apply">应用</string>
     <string name="plan_compose_day_label">Day</string>
@@ -78,7 +77,7 @@
     <string name="plan_compose_empty">先给 Day 1 安排训练或休息</string>
     <string name="plan_compose_pick_title">Day %1$d 安排</string>
     <string name="plan_compose_pick_hint">选一个训练计划，或把这一天设为休息日。</string>
-    <string name="plan_compose_pick_empty">还没有训练计划\n先到「训练计划」里新建一个</string>
+    <string name="plan_compose_pick_empty">还没有训练计划\n先到「设置单日方案」里新建一个</string>
     <string name="plan_compose_remove_day">移除这一天</string>
     <string name="plan_compose_apply_title">应用编排</string>
     <string name="plan_compose_start_date">起始日期</string>
@@ -115,6 +114,9 @@
     <!-- 训练日历 -->
     <string name="plan_calendar">日历</string>
     <string name="calendar_title">训练日历</string>
+    <!-- 顶栏右上角的两个入口：改单个计划的内容 / 批量铺多日循环 -->
+    <string name="calendar_entry_routine_list">设置单日方案</string>
+    <string name="calendar_entry_compose">编排多日循环</string>
     <string name="calendar_month">%1$d 年 %2$d 月</string>
     <string name="calendar_prev_month">上个月</string>
     <string name="calendar_next_month">下个月</string>
