@@ -22,7 +22,8 @@ import kotlin.time.Clock
 
 /**
  * 统计页的取数：把 [range] 区间内的已完成组按肌群、动作分别聚合，得到肌群组数分布与动作重量进步，
- * 再附上区间内的训练天数、训练次数、完成组数与平均每周训练天数，以及区间内的训练历史。
+ * 再附上区间内的训练天数、训练次数、完成组数与平均每周训练天数，以及区间内最近的几条训练历史
+ * （[MAX_HISTORY_ITEMS] 条，按开始时间从新到旧）。
  *
  * 页面上所有数字与列表都由同一个区间决定：切到近 7 天就只统计这 7 天，「全部」则回溯到最早一次训练。
  */
@@ -58,7 +59,9 @@ class GetWorkoutStats(
             weeklyTrainingDays = weeklyTrainingDays(datedSets, rangeStartDate, endDate),
             muscleGroupSets = muscleGroupSets(datedSets, exercises),
             exerciseProgress = exerciseProgress(datedSets, exercises),
-            history = workoutRepository.getFinishedSessionsWithSummary(start = fetchStart, end = end),
+            history = workoutRepository.getFinishedSessionsWithSummary(start = fetchStart, end = end)
+                .sortedByDescending { it.startedAt }
+                .take(MAX_HISTORY_ITEMS),
         )
     }
 
@@ -129,6 +132,9 @@ class GetWorkoutStats(
 
         /** 次部位分摊到的组数比例。 */
         const val SECONDARY_MUSCLE_WEIGHT = 0.5
+
+        /** 训练历史列表最多显示几条，只保留最近的几次。 */
+        const val MAX_HISTORY_ITEMS = 5
 
         /** 平均每周训练天数的折算：一周 7 天。 */
         const val DAYS_PER_WEEK = 7.0
