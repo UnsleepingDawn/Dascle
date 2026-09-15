@@ -9,7 +9,13 @@ interface ScheduleRepository {
 
     suspend fun getEnabledForDate(date: LocalDate): List<ScheduleEntry>
 
-    suspend fun insertOnce(routineId: Long, date: LocalDate): Long
+    /**
+     * 把 [routineId] 排到 [date]，并返回新排期的 id。
+     *
+     * 一天只能有一个训练计划，所以这里等价于「替换该日的排期」：这一天原来排的是别的计划，
+     * 会被直接顶掉（`schedule_entry.specific_date` 上有唯一索引）。
+     */
+    suspend fun replacePlanOn(routineId: Long, date: LocalDate): Long
 
     suspend fun setEnabled(id: Long, enabled: Boolean)
 

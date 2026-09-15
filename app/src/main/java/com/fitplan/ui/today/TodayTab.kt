@@ -20,10 +20,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabOptions
@@ -56,12 +58,20 @@ object TodayTab : Tab {
         val date by screenModel.date.collectAsState()
         val routines by screenModel.routines.collectAsState()
         val unfinished by screenModel.unfinished.collectAsState()
+        val todaySession by screenModel.todaySession.collectAsState()
         val loaded by screenModel.loaded.collectAsState()
 
         // 从训练记录页返回时本组合会重建，顺带刷新一次。
         LaunchedEffect(Unit) { screenModel.refresh() }
 
         val weekdayNames = stringArrayResource(R.array.weekday_names)
+
+        // 今天的训练已经做完：计划卡片的「开始训练」置灰，下方改给一张「计划外训练」卡片。
+        val finishedSession = todaySession?.takeIf { it.isFinished }
+
+        // 鼓励语每次进今日页随机取一条，取完就固定，不跟着列表滚动换句子。
+        val encouragements = stringArrayResource(R.array.today_encouragements)
+        val encouragement = remember(encouragements) { encouragements.random() }
 
         // 没排进今日计划里的未完成训练（例如计划外训练）单独在顶部给一张卡片。
         val standaloneUnfinished = unfinished?.takeIf { session ->
@@ -91,7 +101,7 @@ object TodayTab : Tab {
             },
         ) { contentPadding ->
             when {
-                routines.isNotEmpty() || standaloneUnfinished != null -> {
+                routines.isNotEmpty() || standaloneUnfinished != null || finishedSession != null -> {
                     LazyColumn(
                         contentPadding = contentPadding,
                         verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
@@ -110,6 +120,8 @@ object TodayTab : Tab {
                             ScheduledRoutineCard(
                                 scheduled = scheduled,
                                 isResuming = resumable != null,
+                                // 今天的训练已经结束，就不再从计划卡片开新的一次训练。
+                                startEnabled = resumable != null || finishedSession == null,
                                 onClick = {
                                     if (resumable != null) {
                                         navigator.push(WorkoutLogScreen(sessionId = resumable.id))
@@ -118,6 +130,29 @@ object TodayTab : Tab {
                                     }
                                 },
                             )
+                        }
+
+                        if (finishedSession != null) {
+                            item(key = "encouragement") {
+                                Text(
+                                    text = encouragement,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = MaterialTheme.padding.large),
+                                )
+                            }
+                            item(key = "extra") {
+                                ExtraWorkoutCard(
+                                    onClick = {
+                                        navigator.push(
+                                            WorkoutLogScreen(sessionId = finishedSession.id, reopen = true),
+                                        )
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -135,6 +170,7 @@ object TodayTab : Tab {
 private fun ScheduledRoutineCard(
     scheduled: ScheduledRoutine,
     isResuming: Boolean,
+    startEnabled: Boolean,
     onClick: () -> Unit,
 ) {
     ElevatedCard(
@@ -183,6 +219,7 @@ private fun ScheduledRoutineCard(
 
             Button(
                 onClick = onClick,
+                enabled = startEnabled,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(
@@ -195,6 +232,43 @@ private fun ScheduledRoutineCard(
                         if (isResuming) R.string.workout_continue else R.string.workout_start,
                     ),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * 今天练完之后才出现的「计划外训练」卡片：与计划卡片同规格，但只给一个入口，
+ * 点进去把今天的训练重新变成进行中，往里加的动作都追加到同一次训练上。
+ */
+@Composable
+private fun ExtraWorkoutCard(onClick: () -> Unit) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.medium),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.padding.medium),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+        ) {
+            Text(
+                text = stringResource(R.string.today_extra_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Button(
+                onClick = onClick,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+                )
+                Text(text = stringResource(R.string.today_start_extra))
             }
         }
     }

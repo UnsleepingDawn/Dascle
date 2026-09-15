@@ -7,6 +7,9 @@ CREATE TABLE schedule_entry (
 
 CREATE INDEX schedule_entry_routine_id ON schedule_entry(routine_id);
 
+-- 一天只能有一个训练计划：写排期一律先删掉该日的旧行，这个唯一索引只是兜底。
+CREATE UNIQUE INDEX schedule_entry_specific_date ON schedule_entry(specific_date);
+
 selectAll:
 SELECT
     schedule_entry.id,
@@ -38,6 +41,7 @@ insert:
 INSERT INTO schedule_entry(routine_id, specific_date, enabled)
 VALUES (?, ?, ?);
 
+-- 编排铺排期：同一天只会出现一次，重复写入由唯一索引挡掉。
 insertOnceIgnore:
 INSERT OR IGNORE INTO schedule_entry(routine_id, specific_date, enabled)
 VALUES (?, ?, 1);
@@ -57,12 +61,13 @@ deleteOnceFrom:
 DELETE FROM schedule_entry
 WHERE specific_date >= ?;
 
--- 顺延时原样搬走（保留 enabled），这是它与 insertOnceIgnore 的唯一区别。
+-- 顺延时原样搬走（保留 enabled），这是它与 insertOnceIgnore 的区别；
+-- 日期按 offset 整体后移，与留在原地的行不会撞上唯一索引。
 insertOnceWithEnabled:
 INSERT OR IGNORE INTO schedule_entry(routine_id, specific_date, enabled)
 VALUES (?, ?, ?);
 
--- 跳过 / 顺延：清掉某一天的排期。
+-- 跳过 / 顺延 / 替换该日计划：清掉某一天的排期。
 deleteOnceOnDate:
 DELETE FROM schedule_entry
 WHERE specific_date = ?;

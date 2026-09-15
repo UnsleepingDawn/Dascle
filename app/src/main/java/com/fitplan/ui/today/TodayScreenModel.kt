@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.GetScheduledRoutinesForDate
+import com.fitplan.domain.interactor.GetTodayWorkoutSession
 import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.repository.WorkoutRepository
@@ -27,6 +28,7 @@ import kotlin.time.Clock
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class TodayScreenModel(
     private val getScheduledRoutinesForDate: GetScheduledRoutinesForDate,
+    private val getTodayWorkoutSession: GetTodayWorkoutSession,
     private val workoutRepository: WorkoutRepository,
     dataRevision: DataRevision,
 ) : ViewModel() {
@@ -48,6 +50,14 @@ class TodayScreenModel(
     private val _unfinished = MutableStateFlow<WorkoutSession?>(null)
     val unfinished: StateFlow<WorkoutSession?> = _unfinished.asStateFlow()
 
+    /**
+     * 今天开始的那次训练（结束与否都算）。
+     * [WorkoutSession.isFinished] 为 true 表示今天的训练已经做完：计划卡片的「开始训练」置灰，
+     * 下方改给一张「计划外训练」卡片，往里加的动作仍然追加到这一次训练上。
+     */
+    private val _todaySession = MutableStateFlow<WorkoutSession?>(null)
+    val todaySession: StateFlow<WorkoutSession?> = _todaySession.asStateFlow()
+
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
 
@@ -57,6 +67,7 @@ class TodayScreenModel(
             _date.value = date
             _routines.value = getScheduledRoutinesForDate(date)
             _unfinished.value = workoutRepository.getUnfinishedSessions().maxByOrNull { it.startedAt }
+            _todaySession.value = getTodayWorkoutSession()
             _loaded.value = true
         }
     }

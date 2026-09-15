@@ -50,6 +50,12 @@ interface WorkoutRepository {
 
     suspend fun finishSession(id: Long, finishedAt: Instant)
 
+    /**
+     * 把一次已结束的训练重新置为进行中（`finished_at` 置空），供「开始训练（计划外）」继续往里加动作；
+     * 这次训练原有的记录都留着，之后点「结束训练」会写回新的结束时间。
+     */
+    suspend fun reopenSession(id: Long)
+
     suspend fun updateSessionName(id: Long, name: String)
 
     suspend fun updateSessionNote(id: Long, note: String)

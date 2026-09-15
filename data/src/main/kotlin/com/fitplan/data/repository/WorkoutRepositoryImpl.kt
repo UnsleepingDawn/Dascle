@@ -112,6 +112,10 @@ class WorkoutRepositoryImpl(
         sessionQueries.finish(finished_at = finishedAt.toDbValue(), id = id)
     }
 
+    override suspend fun reopenSession(id: Long) {
+        sessionQueries.reopen(id = id)
+    }
+
     override suspend fun updateSessionName(id: Long, name: String) {
         sessionQueries.updateName(name = name, id = id)
     }

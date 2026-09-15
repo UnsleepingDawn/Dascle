@@ -30,8 +30,10 @@ class ScheduleRepositoryImpl(
     override suspend fun getEnabledForDate(date: LocalDate): List<ScheduleEntry> =
         queries.selectEnabledBySpecificDate(date.toDbValue()).awaitAsList().map { it.toDomain() }
 
-    override suspend fun insertOnce(routineId: Long, date: LocalDate): Long =
+    override suspend fun replacePlanOn(routineId: Long, date: LocalDate): Long =
         database.transactionWithResult {
+            // 一天只能有一个计划：先把这一天的旧排期清掉，再写入新的那条。
+            queries.deleteOnceOnDate(specific_date = date.toDbValue())
             queries.insert(
                 routine_id = routineId,
                 specific_date = date.toDbValue(),

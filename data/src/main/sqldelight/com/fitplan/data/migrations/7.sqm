@@ -1,0 +1,12 @@
+-- 一天只能有一个训练计划：同一天多出来的旧排期按 id 保留最早的那条。
+DELETE FROM schedule_entry
+WHERE specific_date IS NOT NULL
+  AND id NOT IN (
+      SELECT min(id)
+      FROM schedule_entry
+      WHERE specific_date IS NOT NULL
+      GROUP BY specific_date
+  );
+
+-- 由数据库兜底「一天最多一条排期」，写排期一律先删该日再插入。
+CREATE UNIQUE INDEX schedule_entry_specific_date ON schedule_entry(specific_date);

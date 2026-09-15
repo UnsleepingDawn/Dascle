@@ -683,6 +683,8 @@ private fun PlannedRoutineRow(
 /**
  * 明细面板右下角的两个快捷操作：给这一天排一个计划，或把这一天标成休息日。
  * 两者互斥——加计划会撤掉休息标记，标休息会撤掉这一天的排期。
+ *
+ * 「添加计划」只在既没有排期、也没有实际训练的空白天可用（一天只能有一个训练计划）。
  */
 @Composable
 private fun DayActionsRow(
@@ -691,14 +693,14 @@ private fun DayActionsRow(
     onAddPlan: (Long) -> Unit,
     onMarkRest: () -> Unit,
 ) {
-    // 今天及以后按排期去重；过去的日子加计划等于补记训练，只按已补记的训练去重——
-    // 那些日子遗留的排期在明细里已经看不到了，不能再用它把计划挡在候选之外。
-    val listedIds = if (day.isPast) {
-        day.actualSessions.mapNotNull { it.routineId }.toSet()
+    // 一天只能有一个计划：这天已经有排期、或者已经练过了，就不再给「添加计划」入口，
+    // 用户只能去改已有排期或改当天已记录的训练。
+    // 过去的日子明细里只列「实际训练」，遗留排期看不见，所以不能拿它挡住补记。
+    val canAddPlan = if (day.isPast) {
+        day.actualSessions.isEmpty()
     } else {
-        day.planned.map { it.routineId }.toSet()
+        day.planned.isEmpty() && day.actualSessions.isEmpty()
     }
-    val selectable = routines.filterNot { it.id in listedIds }
     var showPicker by remember { mutableStateOf(false) }
 
     Row(
@@ -708,6 +710,7 @@ private fun DayActionsRow(
     ) {
         Button(
             onClick = { showPicker = true },
+            enabled = canAddPlan,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -738,11 +741,11 @@ private fun DayActionsRow(
             onDismissRequest = { showPicker = false },
             title = { Text(text = stringResource(R.string.calendar_pick_routine)) },
             text = {
-                if (selectable.isEmpty()) {
+                if (routines.isEmpty()) {
                     Text(text = stringResource(R.string.calendar_no_routine_left))
                 } else {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        selectable.forEach { routine ->
+                        routines.forEach { routine ->
                             Text(
                                 text = routine.name,
                                 style = MaterialTheme.typography.bodyLarge,

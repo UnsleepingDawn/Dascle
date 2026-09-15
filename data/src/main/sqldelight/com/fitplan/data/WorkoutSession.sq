@@ -80,6 +80,12 @@ UPDATE workout_session
 SET finished_at = ?
 WHERE id = ?;
 
+-- 「计划外训练」：把今天那次已结束的训练重新置为进行中，好继续往里追加动作或组。
+reopen:
+UPDATE workout_session
+SET finished_at = NULL
+WHERE id = ?;
+
 updateName:
 UPDATE workout_session
 SET name = ?

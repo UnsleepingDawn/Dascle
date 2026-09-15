@@ -52,6 +52,8 @@ class WorkoutLogScreen(
     private val routineId: Long? = null,
     /** true 表示编辑一次已经结束的训练：输入框解锁、可增删组，改动即时落库。 */
     private val editing: Boolean = false,
+    /** true 表示把这次已结束的训练重新置为进行中（「计划外训练」入口），新加内容追加到同一次训练。 */
+    private val reopen: Boolean = false,
 ) : Screen() {
 
     @Composable
@@ -68,7 +70,9 @@ class WorkoutLogScreen(
         val allExercises by screenModel.allExercises.collectAsState()
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
-        LaunchedEffect(sessionId, routineId, editing) { screenModel.load(sessionId, routineId, editing) }
+        LaunchedEffect(sessionId, routineId, editing, reopen) {
+            screenModel.load(sessionId, routineId, editing, reopen)
+        }
 
         val vibrateOnce = rememberVibrateOnce()
         LaunchedEffect(restFinishedTick) {
@@ -136,11 +140,15 @@ class WorkoutLogScreen(
                         }
                     }
 
-                    editing -> ActionBar {
-                        Button(onClick = navigator::pop, modifier = Modifier.fillMaxWidth()) {
-                            Text(text = stringResource(R.string.workout_edit_done))
-                        }
-                    }
+                    // 编辑已经结束的训练：一样能加计划外动作，加完点「完成编辑」退出。
+                    editing -> ExtraActionBar(
+                        confirmText = stringResource(R.string.workout_edit_done),
+                        onAddExtra = {
+                            screenModel.loadExercises()
+                            showExtraDialog = true
+                        },
+                        onConfirm = navigator::pop,
+                    )
 
                     readOnly -> ActionBar {
                         Button(onClick = navigator::pop, modifier = Modifier.fillMaxWidth()) {
@@ -150,37 +158,14 @@ class WorkoutLogScreen(
 
                     else -> Column(modifier = Modifier.fillMaxWidth()) {
                         currentRest?.let { RestBar(rest = it, onSkip = screenModel::skipRest) }
-                        ActionBar {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-                            ) {
-                                Button(
-                                    onClick = {
-                                        screenModel.loadExercises()
-                                        showExtraDialog = true
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
-                                    )
-                                    Text(text = stringResource(R.string.workout_add_extra))
-                                }
-                                Button(
-                                    onClick = { showFinishDialog = true },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.error,
-                                        contentColor = MaterialTheme.colorScheme.onError,
-                                    ),
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Text(text = stringResource(R.string.workout_finish))
-                                }
-                            }
-                        }
+                        ExtraActionBar(
+                            confirmText = stringResource(R.string.workout_finish),
+                            onAddExtra = {
+                                screenModel.loadExercises()
+                                showExtraDialog = true
+                            },
+                            onConfirm = { showFinishDialog = true },
+                        )
                     }
                 }
             },
@@ -261,6 +246,46 @@ class WorkoutLogScreen(
                 },
                 onDismiss = { showExtraDialog = false },
             )
+        }
+    }
+}
+
+/**
+ * 「添加计划外动作」与右侧主操作并排的半宽按钮条：
+ * 训练中主操作是「结束训练」（红），编辑已结束的训练时是「完成编辑」（红）。
+ */
+@Composable
+private fun ExtraActionBar(
+    confirmText: String,
+    onAddExtra: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    ActionBar {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Button(
+                onClick = onAddExtra,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+                )
+                Text(text = stringResource(R.string.workout_add_extra))
+            }
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                ),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(text = confirmText)
+            }
         }
     }
 }

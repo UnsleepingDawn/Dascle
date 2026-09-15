@@ -5,15 +5,19 @@ import com.fitplan.domain.model.WorkoutSetDraft
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.WorkoutRepository
 import dev.zacsweers.metro.Inject
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.plus
 
 /**
  * 给已经过去的一天补记一次训练：直接写成一次已结束的训练，而不是排期。
  *
  * 组数按计划目标铺满并全部记为已完成，所以日历格子里能照常看到练到的肌群、统计页也算数；
  * 补记的时间未知，`finished_at` 与 `started_at` 取同一天零点，统计页对这种零时长不显示时长。
+ *
+ * 一天只记一次训练：这一天已经有训练记录时直接跳过，免得绕过界面重复补记。
  */
 @Inject
 class RecordPastWorkout(
@@ -22,14 +26,18 @@ class RecordPastWorkout(
 ) {
 
     suspend operator fun invoke(routineId: Long, date: LocalDate) {
+        val zone = TimeZone.currentSystemDefault()
+        val dayStart = date.atStartOfDayIn(zone)
+        val dayEnd = date.plus(1, DateTimeUnit.DAY).atStartOfDayIn(zone)
+        if (workoutRepository.getSessionsBetween(dayStart, dayEnd).isNotEmpty()) return
+
         val routine = routineRepository.getById(routineId) ?: return
         val exercises = routineRepository.getExercises(routineId)
-        val startedAt = date.atStartOfDayIn(TimeZone.currentSystemDefault())
         workoutRepository.insertFinishedSession(
             routineId = routine.id,
             name = routine.name,
-            startedAt = startedAt,
-            finishedAt = startedAt,
+            startedAt = dayStart,
+            finishedAt = dayStart,
             sets = exercises.flatMap { it.toSetDrafts() },
         )
     }

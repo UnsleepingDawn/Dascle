@@ -130,12 +130,23 @@ class WorkoutLogScreenModel(
     /**
      * [sessionId] 用于继续或回看一次训练；否则按 [routineId] 展示计划预览。
      * [editing] 为 true 时把已结束的训练当作可编辑状态打开（从训练日历的「编辑」进入）。
+     * [reopen] 为 true 时先把已结束的训练重新置为进行中（从今日页的「计划外训练」进入），
+     * 之后加的动作与组都追加到同一次训练上。
      */
-    fun load(sessionId: Long? = null, routineId: Long? = null, editing: Boolean = false) {
+    fun load(
+        sessionId: Long? = null,
+        routineId: Long? = null,
+        editing: Boolean = false,
+        reopen: Boolean = false,
+    ) {
         this.routineId = routineId
         this.editing = editing
         viewModelScope.launch {
             if (sessionId != null) {
+                if (reopen && workoutRepository.getSession(sessionId)?.isFinished == true) {
+                    workoutRepository.reopenSession(sessionId)
+                    widgetManager.updateTodayWidget()
+                }
                 loadSession(sessionId)
             } else {
                 this@WorkoutLogScreenModel.sessionId = null

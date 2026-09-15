@@ -84,13 +84,15 @@ class PlanCalendarScreenModel(
     /**
      * 把计划加到 [date] 这一天：今天及以后写排期；已经过去的日子没法再「排」，直接补记成实际训练。
      * 无论哪种，这一天原本若标着休息，都把休息标记撤掉。
+     *
+     * 排期一天只有一条，写排期时会替换掉这一天原有的计划（界面上只在空白日子给「添加计划」入口）。
      */
     fun addPlan(routineId: Long, date: LocalDate) {
         viewModelScope.launch {
             if (date < today()) {
                 recordPastWorkout(routineId, date)
             } else {
-                scheduleRepository.insertOnce(routineId, date)
+                scheduleRepository.replacePlanOn(routineId, date)
             }
             scheduleRepository.deleteRestDay(date)
             refresh()
