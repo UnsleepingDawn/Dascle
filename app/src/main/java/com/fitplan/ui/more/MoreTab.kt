@@ -3,6 +3,7 @@ package com.fitplan.ui.more
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -22,6 +23,7 @@ import com.fitplan.presentation.core.components.IconItem
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.util.Tab
 import com.fitplan.ui.about.AboutScreen
+import com.fitplan.ui.profile.ProfileScreen
 import com.fitplan.ui.settings.SettingsScreen
 
 object MoreTab : Tab {
@@ -46,6 +48,13 @@ object MoreTab : Tab {
             },
         ) { contentPadding ->
             Column(modifier = Modifier.padding(contentPadding)) {
+                IconItem(
+                    label = stringResource(R.string.profile_title),
+                    icon = Icons.Filled.AccountCircle,
+                    onClick = { navigator.push(ProfileScreen) },
+                    labelStyle = MaterialTheme.typography.titleMedium,
+                    iconSize = 28.dp,
+                )
                 IconItem(
                     label = stringResource(R.string.settings_title),
                     icon = Icons.Filled.Settings,

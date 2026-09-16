@@ -17,6 +17,9 @@
     <string name="action_add">添加</string>
     <string name="action_rename">重命名</string>
     <string name="action_close">关闭</string>
+    <string name="action_clear">清除</string>
+    <string name="action_record_now">去记录</string>
+    <string name="action_later">以后再说</string>
     <string name="date_month_day">%1$d 月 %2$d 日</string>
 
     <!-- 今日 -->
@@ -229,6 +232,27 @@
     <string name="stats_empty">还没有训练记录，先去「今日」练一场吧</string>
     <string name="stats_range_empty">这段时间还没有训练记录</string>
 
+    <!-- 统计页 · 身体数据 -->
+    <string name="stats_tab_workout">锻炼数据</string>
+    <string name="stats_tab_body">身体数据</string>
+    <string name="stats_body_record_weight">记录今日体重</string>
+    <string name="stats_body_record_body_fat">记录今日体脂</string>
+    <string name="stats_body_record_title">记录今日%1$s</string>
+    <string name="stats_body_record_overwrite">今天已经记过%1$s（%2$s），保存会覆盖它。</string>
+    <string name="stats_chart_weight">体重变化</string>
+    <string name="stats_chart_body_fat">体脂率变化</string>
+    <string name="stats_body_weight_empty">这段时间还没有体重记录</string>
+    <string name="stats_body_fat_empty">这段时间还没有体脂记录</string>
+    <string name="stats_body_empty">还没有身体数据\n点上面的按钮记录今天的体重或体脂率</string>
+    <string name="stats_body_last_record">上次记录：%1$s</string>
+    <string name="stats_body_never_recorded">还没有记录</string>
+    <string name="body_fat_value">%1$s%%</string>
+    <string name="stats_body_reminder_title">该更新身体数据了</string>
+    <string name="stats_body_reminder_message">已经 %1$d 天没有记录%2$s了，去补一条吧。</string>
+    <string name="stats_body_reminder_subject_weight">体重</string>
+    <string name="stats_body_reminder_subject_body_fat">体脂率</string>
+    <string name="stats_body_reminder_subject_both">体重和体脂率</string>
+
     <!-- 今日训练桌面组件 -->
     <string name="widget_today_description">今天要练什么、练到哪了</string>
     <string name="widget_status_in_progress">训练中 · 已完成 %1$d 组</string>
@@ -253,6 +277,31 @@
     <string name="reminder_channel_description">到点提醒当天的训练安排</string>
     <string name="reminder_notification_title">该训练了</string>
     <string name="reminder_notification_text">今天安排：%1$s</string>
+
+    <!-- 个人信息（首次引导页 / 我的入口共用） -->
+    <string name="profile_title">个人信息</string>
+    <string name="profile_gender">性别</string>
+    <string name="profile_gender_male">男</string>
+    <string name="profile_gender_female">女</string>
+    <string name="profile_gender_other">其他</string>
+    <string name="profile_birthday">生日</string>
+    <string name="profile_age_value">%1$d 岁</string>
+    <string name="profile_weight">体重</string>
+    <string name="profile_body_fat">体脂率</string>
+    <string name="profile_unset">未填写</string>
+    <string name="profile_optional_hint">都可以不填，留空就行；以后在「我的 → 个人信息」里也能改。</string>
+    <string name="profile_current">当前数据</string>
+    <string name="profile_saved">个人信息已保存</string>
+    <string name="field_body_weight">体重（kg）</string>
+    <string name="field_body_fat">体脂率（%）</string>
+    <string name="profile_weight_invalid">体重请填 1 ~ 499 之间的数字</string>
+    <string name="profile_body_fat_invalid">体脂率请填 0 ~ 100 之间的数字</string>
+
+    <!-- 首次打开时的个人信息引导 -->
+    <string name="onboarding_title">先认识一下</string>
+    <string name="onboarding_subtitle">填了这些，「统计」里的身体数据才有参照。</string>
+    <string name="onboarding_skip">跳过</string>
+    <string name="onboarding_done">保存并开始</string>
 
     <!-- 漏练检查 -->
     <string name="missed_training_title">这段时间有训练没记录</string>

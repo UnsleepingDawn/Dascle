@@ -18,10 +18,27 @@ FROM body_metric
 ORDER BY date DESC
 LIMIT 1;
 
+-- 只看有体重 / 体脂的那几条：一天只记了其中一项时，另一项的「最近一次」要往前找。
+selectLatestWeight:
+SELECT *
+FROM body_metric
+WHERE weight IS NOT NULL
+ORDER BY date DESC
+LIMIT 1;
+
+selectLatestBodyFat:
+SELECT *
+FROM body_metric
+WHERE body_fat IS NOT NULL
+ORDER BY date DESC
+LIMIT 1;
+
+-- 只取一条：老版本可能给同一天留下过多行，配合 upsert 之后不会再有。
 selectByDate:
 SELECT *
 FROM body_metric
-WHERE date = ?;
+WHERE date = ?
+LIMIT 1;
 
 selectBetween:
 SELECT *

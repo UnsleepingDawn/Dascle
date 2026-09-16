@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -26,15 +28,18 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import com.fitplan.app.R
+import com.fitplan.domain.model.BodyStats
 import com.fitplan.domain.model.WorkoutStats
 import com.fitplan.presentation.core.components.SectionCard
 import com.fitplan.presentation.core.components.material.Scaffold
+import com.fitplan.presentation.core.components.material.TabText
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.core.screens.LoadingScreen
 import com.fitplan.presentation.util.Tab
 import com.fitplan.presentation.widget.chart.ColumnChart
 import com.fitplan.presentation.widget.chart.LineChart
+import com.fitplan.ui.profile.BodyMetricField
 import com.fitplan.ui.workout.WorkoutLogScreen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
@@ -51,43 +56,58 @@ object StatsTab : Tab {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val screenModel = metroViewModel<StatsScreenModel>()
+        val page by screenModel.page.collectAsState()
         val range by screenModel.range.collectAsState()
         val axisMode by screenModel.axisMode.collectAsState()
         val stats by screenModel.stats.collectAsState()
+        val bodyStats by screenModel.bodyStats.collectAsState()
+        val loading by screenModel.loading.collectAsState()
+        val bodyInput by screenModel.bodyInput.collectAsState()
+        val reminder by screenModel.reminder.collectAsState()
         val selectedExerciseId by screenModel.selectedExerciseId.collectAsState()
 
-        // 从历史详情页返回时本组合会重建，顺带刷新一次。
+        // 从历史详情页返回时本组合会重建，顺带刷新一次；每次进这个 Tab 也会顺带查一次
+        // 身体数据该不该补记。
         LaunchedEffect(Unit) { screenModel.refresh() }
 
         Scaffold(
             topBar = { scrollBehavior ->
-                TopAppBar(
-                    title = { Text(text = stringResource(R.string.tab_stats)) },
-                    scrollBehavior = scrollBehavior,
-                )
+                Column {
+                    TopAppBar(
+                        title = { Text(text = stringResource(R.string.tab_stats)) },
+                        scrollBehavior = scrollBehavior,
+                    )
+                    // 上方的标签栏：锻炼数据 / 身体数据，时间区间与下面的内容都由同一个状态决定。
+                    TabRow(selectedTabIndex = page.ordinal) {
+                        StatsPage.entries.forEach { item ->
+                            Tab(
+                                selected = item == page,
+                                onClick = { screenModel.selectPage(item) },
+                                text = { TabText(text = item.label()) },
+                            )
+                        }
+                    }
+                }
             },
         ) { contentPadding ->
-            val current = stats
-            // 区间选择器固定在外面：切到还没练过的区间时下面会变成空态，得留一条路切回去。
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding),
                 verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
+                // 区间选择器固定在外面：两个标签共用一套区间，切到没数据的区间时下面会变成空态，
+                // 得留一条路切回去。
                 StatsRangeSelector(
                     range = range,
                     onSelect = screenModel::selectRange,
                     modifier = Modifier.padding(vertical = MaterialTheme.padding.small),
                 )
 
-                when {
-                    current == null -> LoadingScreen()
-
-                    current.isEmpty -> EmptyScreen(message = stringResource(R.string.stats_range_empty))
-
-                    else -> StatsContent(
-                        stats = current,
+                when (page) {
+                    StatsPage.WORKOUT -> WorkoutSection(
+                        stats = stats,
+                        loading = loading,
                         axisMode = axisMode,
                         selectedExerciseId = selectedExerciseId,
                         onSelectAxisMode = screenModel::selectAxisMode,
@@ -96,10 +116,74 @@ object StatsTab : Tab {
                             navigator.push(WorkoutLogScreen(sessionId = sessionId))
                         },
                     )
+
+                    StatsPage.BODY -> BodySection(
+                        stats = bodyStats,
+                        loading = loading,
+                        onRecord = screenModel::openBodyInput,
+                    )
                 }
             }
         }
+
+        bodyInput?.let { input ->
+            BodyMetricInputDialog(
+                state = input,
+                todayValue = screenModel.todayValue(input.field),
+                onConfirm = screenModel::saveBodyInput,
+                onDismiss = screenModel::dismissBodyInput,
+            )
+        }
+
+        reminder?.let {
+            BodyMetricReminderDialog(
+                reminder = it,
+                onRecord = screenModel::recordFromReminder,
+                onDismiss = screenModel::dismissReminder,
+            )
+        }
     }
+}
+
+@Composable
+private fun WorkoutSection(
+    stats: WorkoutStats?,
+    loading: Boolean,
+    axisMode: ProgressAxisMode,
+    selectedExerciseId: Long?,
+    onSelectAxisMode: (ProgressAxisMode) -> Unit,
+    onSelectExercise: (Long) -> Unit,
+    onOpenHistory: (Long) -> Unit,
+) {
+    val current = stats
+    when {
+        current == null || loading -> LoadingScreen()
+
+        current.isEmpty -> EmptyScreen(message = stringResource(R.string.stats_range_empty))
+
+        else -> StatsContent(
+            stats = current,
+            axisMode = axisMode,
+            selectedExerciseId = selectedExerciseId,
+            onSelectAxisMode = onSelectAxisMode,
+            onSelectExercise = onSelectExercise,
+            onOpenHistory = onOpenHistory,
+        )
+    }
+}
+
+@Composable
+private fun BodySection(
+    stats: BodyStats?,
+    loading: Boolean,
+    onRecord: (BodyMetricField) -> Unit,
+) {
+    val current = stats
+    if (current == null || loading) {
+        LoadingScreen()
+        return
+    }
+    BodyStatsContent(stats = current, onRecord = onRecord)
 }
 
 @Composable

@@ -25,6 +25,8 @@ import com.fitplan.data.SelectByRoutineId as RoutineExerciseRow
 import com.fitplan.data.SelectEnabledBySpecificDate as EnabledByDateRow
 import com.fitplan.data.SelectFinished as FinishedSessionRow
 import com.fitplan.data.SelectFinishedBetween as FinishedSessionBetweenRow
+import com.fitplan.data.SelectLatestBodyFat as LatestBodyFatRow
+import com.fitplan.data.SelectLatestWeight as LatestWeightRow
 import com.fitplan.data.Workout_session as WorkoutSessionRow
 import com.fitplan.data.Workout_set as WorkoutSetRow
 
@@ -165,6 +167,21 @@ internal fun WorkoutSetRow.toDomain(): WorkoutSet = WorkoutSet(
 )
 
 internal fun BodyMetricRow.toDomain(): BodyMetric = BodyMetric(
+    id = id,
+    date = date.toLocalDate(),
+    weight = weight,
+    bodyFat = body_fat,
+)
+
+/** `selectLatestWeight` / `selectLatestBodyFat`：查询本身保证那一项非空，另一项可能为空。 */
+internal fun LatestWeightRow.toDomain(): BodyMetric = BodyMetric(
+    id = id,
+    date = date.toLocalDate(),
+    weight = weight,
+    bodyFat = body_fat,
+)
+
+internal fun LatestBodyFatRow.toDomain(): BodyMetric = BodyMetric(
     id = id,
     date = date.toLocalDate(),
     weight = weight,

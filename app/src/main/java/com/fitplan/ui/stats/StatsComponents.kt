@@ -66,6 +66,15 @@ internal fun StatsRange.label(): String = stringResource(
     },
 )
 
+/** 统计页标签栏的两个标签名。 */
+@Composable
+internal fun StatsPage.label(): String = stringResource(
+    when (this) {
+        StatsPage.WORKOUT -> R.string.stats_tab_workout
+        StatsPage.BODY -> R.string.stats_tab_body
+    },
+)
+
 /** 概览：区间内的训练天数、训练次数、完成组数与平均每周训练天数。 */
 @Composable
 internal fun StatsOverviewRow(
@@ -270,7 +279,7 @@ private fun durationText(seconds: Long): String {
 }
 
 /** 横轴标签短一点，30 天的柱子才排得下。 */
-private fun shortDate(date: LocalDate): String = "${date.month.ordinal + 1}/${date.day}"
+internal fun shortDate(date: LocalDate): String = "${date.month.ordinal + 1}/${date.day}"
 
 /** 历史列表里日期要写全，跨年的记录才不会看成今年。 */
 private fun fullDate(date: LocalDate): String = "${date.year}/${date.month.ordinal + 1}/${date.day}"

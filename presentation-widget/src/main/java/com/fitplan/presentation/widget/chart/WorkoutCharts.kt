@@ -137,8 +137,8 @@ fun LineChart(
     points: List<LinePoint>,
     labelAt: (Int) -> String,
     modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
 ) {
-    val color = MaterialTheme.colorScheme.primary
     val modelProducer = remember { CartesianChartModelProducer() }
     val span = remember(points) {
         if (points.isEmpty()) 1 else points.maxOf { it.x } - points.minOf { it.x } + 1
