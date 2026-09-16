@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "exercises": [
     { "name": "平板杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "description": "仰卧平板凳，握距略宽于肩，下放至胸部中段后推起", "defaultWeightKg": 40 },
     { "name": "上斜杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "description": "上斜凳约 30-45 度，重点刺激胸大肌上部", "defaultWeightKg": 30 },
@@ -10,6 +10,7 @@
     { "name": "坐姿推胸", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "MACHINE", "description": "坐姿推举，轨迹固定，适合新手稳定发力", "defaultWeightKg": 30 },
     { "name": "绳索夹胸", "muscleGroup": "CHEST", "equipment": "CABLE", "description": "站姿龙门架中位，双臂由外向内画弧夹胸", "defaultWeightKg": 15 },
     { "name": "俯卧撑", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BODYWEIGHT", "description": "双手略宽于肩，身体成直线，下放至胸部接近地面，可做跪姿简化版" },
+    { "name": "悍马机推胸", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "MACHINE", "description": "片杆式坐姿推胸，上背贴住护垫，两侧握把独立推起，胸肌收缩后控制回放", "defaultWeightKg": 30 },
 
     { "name": "引体向上", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "BODYWEIGHT", "description": "正握宽距悬垂，拉至下巴过杠，背部主导发力" },
     { "name": "反握引体向上", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "BODYWEIGHT", "description": "反握窄距，肱二头肌参与更多" },
@@ -20,6 +21,8 @@
     { "name": "T 杠划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "BARBELL", "description": "俯身抱住 T 杠把手，拉向胸腹之间", "defaultWeightKg": 20 },
     { "name": "直臂下压", "muscleGroup": "BACK", "equipment": "CABLE", "description": "站姿手臂伸直由高位下压至大腿前，练背阔肌", "defaultWeightKg": 15 },
     { "name": "器械划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "description": "坐姿胸垫抵住，双手后拉至肘部过背", "defaultWeightKg": 30 },
+    { "name": "坐姿拉杆划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "description": "坐姿胸口抵住支撑垫，双手拉横杆至腹部，肩胛后缩挤压背阔肌", "defaultWeightKg": 25 },
+    { "name": "悍马机高位下拉", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "description": "片杆式高位下拉，胸口抵垫，握把由上向下拉至肩胛下沉、背阔肌收紧", "defaultWeightKg": 30 },
     { "name": "山羊挺身", "muscleGroup": "BACK", "secondaryMuscleGroups": ["GLUTE"], "equipment": "BODYWEIGHT", "description": "俯卧于罗马椅，髋部为轴上下起伏，练下背与竖脊肌" },
 
     { "name": "杠铃深蹲", "muscleGroup": "LEG", "secondaryMuscleGroups": ["GLUTE"], "equipment": "BARBELL", "description": "杠铃置于斜方肌上，下蹲至大腿平行地面或更低，膝盖与脚尖同向", "defaultWeightKg": 40 },
@@ -42,12 +45,15 @@
 
     { "name": "坐姿杠铃推举", "muscleGroup": "SHOULDER", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "description": "坐姿颈前推举，核心收紧避免腰部代偿", "defaultWeightKg": 25 },
     { "name": "站姿哑铃推举", "muscleGroup": "SHOULDER", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "DUMBBELL", "description": "站姿双手推举哑铃过头，肩部主导", "defaultWeightKg": 12 },
+    { "name": "坐姿哑铃推举", "muscleGroup": "SHOULDER", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "DUMBBELL", "description": "靠背调至约 80 度，哑铃从耳侧推起过头，核心收紧避免腰部代偿", "defaultWeightKg": 10 },
     { "name": "哑铃侧平举", "muscleGroup": "SHOULDER", "equipment": "DUMBBELL", "description": "双臂微屈向两侧抬至与肩同高，练三角肌中束", "defaultWeightKg": 6 },
+    { "name": "绳索侧平举", "muscleGroup": "SHOULDER", "equipment": "CABLE", "description": "站在低位滑轮侧方，单手由体侧向斜上方抬起至与肩同高，全程保持张力", "defaultWeightKg": 5 },
     { "name": "哑铃前平举", "muscleGroup": "SHOULDER", "equipment": "DUMBBELL", "description": "向前抬至与肩同高，练三角肌前束", "defaultWeightKg": 6 },
     { "name": "俯身飞鸟", "muscleGroup": "SHOULDER", "equipment": "DUMBBELL", "description": "俯身双臂向两侧张开，练三角肌后束", "defaultWeightKg": 6 },
     { "name": "绳索面拉", "muscleGroup": "SHOULDER", "secondaryMuscleGroups": ["BACK"], "equipment": "CABLE", "description": "绳索拉向面部，肘部外展，练后束与斜方肌", "defaultWeightKg": 15 },
     { "name": "阿诺德推举", "muscleGroup": "SHOULDER", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "DUMBBELL", "description": "推举过程中手掌由朝内旋至朝前，兼顾前中束", "defaultWeightKg": 10 },
     { "name": "反向蝴蝶机", "muscleGroup": "SHOULDER", "secondaryMuscleGroups": ["BACK"], "equipment": "MACHINE", "description": "面朝靠垫坐姿，双臂向后展开，练后束", "defaultWeightKg": 20 },
+    { "name": "悍马机肩推", "muscleGroup": "SHOULDER", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "MACHINE", "description": "片杆式坐姿肩推，握把在耳侧起始，向上推至肘部接近伸直", "defaultWeightKg": 20 },
 
     { "name": "杠铃弯举", "muscleGroup": "BICEPS", "equipment": "BARBELL", "description": "站姿正握，肘部固定，肱二头肌发力弯举", "defaultWeightKg": 20 },
     { "name": "哑铃交替弯举", "muscleGroup": "BICEPS", "equipment": "DUMBBELL", "description": "交替弯举，顶点可旋腕加强收缩", "defaultWeightKg": 10 },
