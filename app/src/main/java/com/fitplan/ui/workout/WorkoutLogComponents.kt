@@ -122,6 +122,7 @@ internal fun LogExerciseCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         ) {
+            // 动作名一行：右侧依次挂「计划外」「已完成 N 组」和跳过动作的按钮。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = exercise.name,
@@ -144,6 +145,28 @@ internal fun LogExerciseCard(
                         modifier = Modifier.padding(start = MaterialTheme.padding.small),
                     )
                 }
+                if (exercise.skipped) {
+                    Text(
+                        text = stringResource(R.string.workout_skipped),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                    )
+                }
+                if (!readOnly) {
+                    TextButton(
+                        onClick = onToggleSkipped,
+                        contentPadding = PaddingValues(horizontal = MaterialTheme.padding.small),
+                    ) {
+                        Text(
+                            text = if (exercise.skipped) {
+                                stringResource(R.string.workout_unskip)
+                            } else {
+                                stringResource(R.string.workout_skip)
+                            },
+                        )
+                    }
+                }
             }
 
             // 动作库里的训练提示：放在动作名下方，和「目标 N 组」那行同一个字号。
@@ -163,33 +186,8 @@ internal fun LogExerciseCard(
                 )
             }
 
-            if (exercise.skipped) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = stringResource(R.string.workout_skipped),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (!readOnly) {
-                        TextButton(onClick = onToggleSkipped) {
-                            Text(text = stringResource(R.string.workout_unskip))
-                        }
-                    }
-                }
-            } else {
-                if (!readOnly) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = onToggleSkipped) {
-                            Text(text = stringResource(R.string.workout_skip))
-                        }
-                    }
-                }
-
+            // 跳过的动作不再展示组行，只保留上面的动作信息与「恢复动作」入口。
+            if (!exercise.skipped) {
                 exercise.sets.forEachIndexed { index, entry ->
                     SetEntryRow(
                         index = index,
