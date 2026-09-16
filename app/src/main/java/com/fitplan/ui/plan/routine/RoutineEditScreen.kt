@@ -19,9 +19,8 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -94,29 +93,12 @@ class RoutineEditScreen(
                     scrollBehavior = scrollBehavior,
                 )
             },
-            floatingActionButton = {
-                // 两个入口：先加一个空的动作组，或者直接把某个动作排到计划里。
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-                ) {
-                    ExtendedFloatingActionButton(
-                        onClick = screenModel::addGroup,
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = null,
-                            )
-                        },
-                        text = { Text(text = stringResource(R.string.routine_edit_add_group)) },
-                    )
-                    FloatingActionButton(onClick = { navigator.push(ExercisePickerScreen(routineId)) }) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = stringResource(R.string.routine_edit_add_exercise),
-                        )
-                    }
-                }
+            bottomBar = {
+                // 两个入口并排：先加一个空的动作组，或者直接把某个动作排到计划里。
+                AddActionBar(
+                    onAddExercise = { navigator.push(ExercisePickerScreen(routineId)) },
+                    onAddGroup = screenModel::addGroup,
+                )
             },
         ) { contentPadding ->
             if (items.isEmpty()) {
@@ -149,6 +131,52 @@ class RoutineEditScreen(
                     editTarget = null
                 },
             )
+        }
+    }
+}
+
+/**
+ * 贴在底部的两个蓝色按钮：「单独动作」从动作库挑一个排进来，「动作组」新建一个空组。
+ *
+ * 风格与训练记录页的「计划外动作 / 结束训练」按钮条保持一致。
+ */
+@Composable
+private fun AddActionBar(
+    onAddExercise: () -> Unit,
+    onAddGroup: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.padding.medium),
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Button(
+                onClick = onAddExercise,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+                )
+                Text(text = stringResource(R.string.routine_edit_add_exercise))
+            }
+            Button(
+                onClick = onAddGroup,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+                )
+                Text(text = stringResource(R.string.routine_edit_add_group))
+            }
         }
     }
 }

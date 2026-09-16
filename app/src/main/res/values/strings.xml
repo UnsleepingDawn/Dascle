@@ -92,9 +92,9 @@
     <string name="plan_compose_until_invalid">截止日期不能早于起始日期</string>
 
     <!-- 计划内的动作编排 -->
-    <string name="routine_edit_empty">这个计划还没有动作\n点右下角按钮从动作库里挑几个，或者先建一个动作组</string>
-    <string name="routine_edit_add_exercise">添加动作</string>
-    <string name="routine_edit_add_group">+动作组</string>
+    <string name="routine_edit_empty">这个计划还没有动作\n点下面的「单独动作」挑几个，或者先建一个「动作组」</string>
+    <string name="routine_edit_add_exercise">单独动作</string>
+    <string name="routine_edit_add_group">动作组</string>
     <string name="routine_edit_group_title">动作组</string>
     <string name="routine_edit_group_member_count">组内 %1$d 个动作</string>
     <string name="routine_edit_group_picks_label">做其中</string>
