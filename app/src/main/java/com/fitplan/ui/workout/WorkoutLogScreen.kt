@@ -68,8 +68,8 @@ class WorkoutLogScreen(
         val restFinishedTick by screenModel.restFinishedTick.collectAsState()
         val exitTick by screenModel.exitTick.collectAsState()
         val allExercises by screenModel.allExercises.collectAsState()
-        val weightHint by screenModel.weightHint.collectAsState()
-        val weightIncreaseInput by screenModel.weightIncreaseInput.collectAsState()
+        val progressHint by screenModel.progressHint.collectAsState()
+        val progressIncreaseInput by screenModel.progressIncreaseInput.collectAsState()
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
         LaunchedEffect(sessionId, routineId, editing, reopen) {
@@ -210,7 +210,6 @@ class WorkoutLogScreen(
                             },
                             onAddSet = { screenModel.addSetRow(exercise.exerciseId) },
                             onRemoveSet = { screenModel.removeSetRow(exercise.exerciseId) },
-                            onToggleTimed = { screenModel.toggleTimed(exercise.exerciseId) },
                             onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
                         )
                     }
@@ -250,22 +249,22 @@ class WorkoutLogScreen(
             )
         }
 
-        // 渐进重量提示：先问要不要加，点了「好的！」再让用户填加多少。
-        weightHint?.let { hint ->
-            WeightIncreaseHintDialog(
+        // 渐进提示：先问要不要提高目标，选了方向再让用户填增量。
+        progressHint?.let { hint ->
+            ProgressHintDialog(
                 hint = hint,
-                onLater = screenModel::dismissWeightHint,
-                onConfirm = screenModel::promptWeightIncrease,
-                onSnooze = screenModel::snoozeWeightHint,
-                onDismiss = screenModel::dismissWeightHint,
+                onIncrease = screenModel::promptProgressIncrease,
+                onLater = screenModel::dismissProgressHint,
+                onSnooze = screenModel::snoozeProgressHint,
+                onDismiss = screenModel::dismissProgressHint,
             )
         }
 
-        weightIncreaseInput?.let { hint ->
-            WeightIncreaseInputDialog(
-                hint = hint,
-                onConfirm = screenModel::applyWeightIncrease,
-                onDismiss = screenModel::dismissWeightIncreaseInput,
+        progressIncreaseInput?.let { input ->
+            ProgressIncreaseDialog(
+                input = input,
+                onConfirm = screenModel::applyProgressIncrease,
+                onDismiss = screenModel::dismissProgressIncreaseInput,
             )
         }
     }

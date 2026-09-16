@@ -1,6 +1,7 @@
 package com.fitplan.domain.interactor
 
 import com.fitplan.domain.model.Exercise
+import com.fitplan.domain.model.ExerciseLoadMode
 import com.fitplan.domain.model.ExerciseProgress
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.MuscleGroupSets
@@ -106,12 +107,16 @@ class GetWorkoutStats(
         }
     }
 
-    /** 只挑有重量记录的动作，取数据点最多的前几个给图表做选择器。 */
+    /**
+     * 只挑「重量越大越进步」的动作，取数据点最多的前几个给图表做选择器。
+     * 辅助类动作的重量是助力，越大越轻松，方向相反，不放进这张图。
+     */
     private fun exerciseProgress(
         datedSets: List<DatedSet>,
         exercises: Map<Long, Exercise>,
     ): List<ExerciseProgress> = datedSets
         .filter { it.set.weight != null }
+        .filter { exercises[it.set.exerciseId]?.loadMode != ExerciseLoadMode.ASSISTED }
         .groupBy { it.set.exerciseId }
         .mapNotNull { (exerciseId, sets) ->
             val exercise = exercises[exerciseId] ?: return@mapNotNull null

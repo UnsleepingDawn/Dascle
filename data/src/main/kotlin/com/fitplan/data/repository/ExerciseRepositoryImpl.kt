@@ -9,6 +9,8 @@ import com.fitplan.data.mapper.toDomain
 import com.fitplan.data.mapper.toMuscleGroup
 import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
+import com.fitplan.domain.model.ExerciseLoadMode
+import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.repository.ExerciseRepository
 import dev.zacsweers.metro.AppScope
@@ -57,6 +59,8 @@ class ExerciseRepositoryImpl(
         description: String,
         isCustom: Boolean,
         createdAt: Instant,
+        metric: ExerciseMetric,
+        loadMode: ExerciseLoadMode,
     ): Long = database.transactionWithResult {
         queries.insert(
             name = name,
@@ -65,9 +69,12 @@ class ExerciseRepositoryImpl(
             description = description,
             is_custom = if (isCustom) 1L else 0L,
             created_at = createdAt.toDbValue(),
-            // 默认重量/时长只由内置动作种子提供，自建动作留空。
+            // 默认重量/时长/次数只由内置动作种子与渐进提示提供，自建动作留空。
             default_weight = null,
             default_duration_seconds = null,
+            metric = metric.toDbValue(),
+            load_mode = loadMode.toDbValue(),
+            default_reps = null,
         )
         val id = utilQueries.lastInsertRowId().awaitAsOne()
         writeSecondary(id, muscleGroup, secondaryMuscleGroups)
@@ -95,6 +102,14 @@ class ExerciseRepositoryImpl(
 
     override suspend fun updateDefaultWeight(id: Long, weight: Double) {
         queries.updateDefaultWeight(default_weight = weight, id = id)
+    }
+
+    override suspend fun updateDefaultReps(id: Long, reps: Int) {
+        queries.updateDefaultReps(default_reps = reps.toLong(), id = id)
+    }
+
+    override suspend fun updateDefaultDuration(id: Long, seconds: Int) {
+        queries.updateDefaultDuration(default_duration_seconds = seconds.toLong(), id = id)
     }
 
     /** 写入次部位，跳过与主部位重复的项。 */

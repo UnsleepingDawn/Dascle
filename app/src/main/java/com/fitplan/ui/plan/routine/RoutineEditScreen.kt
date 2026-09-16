@@ -24,9 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -223,8 +220,8 @@ private fun ReorderableCollectionItemScope.RoutineExerciseCard(
 }
 
 /**
- * 动作目标文案：计数是「3 组 × 10 次」，计时是「3 组 × 60 秒」，
- * 计数动作设置了默认重量时再追加「· 20 kg」。
+ * 动作目标文案：计时是「3 组 × 60 秒」，计数是「3 组 × 10 次」，
+ * 需要记录重量的动作设了目标重量时再追加「· 20 kg」（辅助类写成「辅助 40 kg」）。
  */
 @Composable
 internal fun RoutineExercise.targetText(): String {
@@ -233,10 +230,10 @@ internal fun RoutineExercise.targetText(): String {
     } else {
         stringResource(R.string.routine_edit_targets, targetSets, targetReps)
     }
-    val weight = if (isTimed || targetWeight == null) {
-        null
-    } else {
-        stringResource(R.string.weight_kg, targetWeight.toWeightText())
+    val weight = when {
+        !showsWeight || targetWeight == null -> null
+        weightIsAssistance -> stringResource(R.string.weight_kg_assist, targetWeight.toWeightText())
+        else -> stringResource(R.string.weight_kg, targetWeight.toWeightText())
     }
     return listOfNotNull(base, weight).joinToString(" · ")
 }
@@ -247,12 +244,15 @@ private fun TargetsDialog(
     onDismiss: () -> Unit,
     onConfirm: (sets: Int, reps: Int, restSeconds: Int, targetWeight: Double?, targetSeconds: Int?) -> Unit,
 ) {
-    var timed by remember { mutableStateOf(exercise.isTimed) }
     var sets by remember { mutableStateOf(exercise.targetSets.toString()) }
     var reps by remember { mutableStateOf(exercise.targetReps.toString()) }
     var weight by remember { mutableStateOf(exercise.targetWeight.toWeightText()) }
     var seconds by remember { mutableStateOf(exercise.targetSeconds?.toString().orEmpty()) }
     var rest by remember { mutableStateOf(exercise.restSeconds.toString()) }
+
+    // 计数 / 计时与是否需要重量都由动作库决定，这里只按类型展示对应的输入框，不给切换入口。
+    val timed = exercise.isTimed
+    val showsWeight = exercise.showsWeight
 
     val setsValue = sets.toIntOrNull()
     val repsValue = reps.toIntOrNull()
@@ -261,7 +261,7 @@ private fun TargetsDialog(
     val secondsValue = seconds.toIntOrNull()
     val valid = setsValue?.let { it > 0 } == true &&
         restValue?.let { it >= 0 } == true &&
-        (weight.isBlank() || weightValue?.let { it > 0 } == true) &&
+        (!showsWeight || weight.isBlank() || weightValue?.let { it > 0 } == true) &&
         (if (timed) secondsValue?.let { it > 0 } == true else repsValue?.let { it > 0 } == true)
 
     AlertDialog(
@@ -269,20 +269,6 @@ private fun TargetsDialog(
         title = { Text(text = exercise.exerciseName) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    SegmentedButton(
-                        selected = !timed,
-                        onClick = { timed = false },
-                        shape = SegmentedButtonDefaults.itemShape(0, 2),
-                        label = { Text(text = stringResource(R.string.routine_edit_counted)) },
-                    )
-                    SegmentedButton(
-                        selected = timed,
-                        onClick = { timed = true },
-                        shape = SegmentedButtonDefaults.itemShape(1, 2),
-                        label = { Text(text = stringResource(R.string.routine_edit_timed)) },
-                    )
-                }
                 NumberField(
                     value = sets,
                     onValueChange = { sets = it },
@@ -300,10 +286,19 @@ private fun TargetsDialog(
                         onValueChange = { reps = it },
                         label = stringResource(R.string.field_target_reps),
                     )
+                }
+                // 纯自重动作没有重量输入框，只保留次数 / 时长。
+                if (showsWeight) {
                     NumberField(
                         value = weight,
                         onValueChange = { weight = it },
-                        label = stringResource(R.string.field_target_weight),
+                        label = stringResource(
+                            if (exercise.weightIsAssistance) {
+                                R.string.field_target_weight_assist
+                            } else {
+                                R.string.field_target_weight
+                            },
+                        ),
                         allowDecimal = true,
                     )
                 }
@@ -319,14 +314,13 @@ private fun TargetsDialog(
                 enabled = valid,
                 onClick = {
                     val parsedSets = setsValue ?: return@TextButton
-                    val parsedReps = repsValue ?: return@TextButton
                     val parsedRest = restValue ?: return@TextButton
-                    // 计时类动作不需要重量，切过去时顺手清掉，避免留下永远用不上的数据。
+                    // 计时类动作不需要次数目标，计数类动作不需要时长目标，顺手清掉另一侧的旧值。
                     onConfirm(
                         parsedSets,
-                        parsedReps,
+                        if (timed) exercise.targetReps else (repsValue ?: return@TextButton),
                         parsedRest,
-                        if (timed) null else weightValue,
+                        if (showsWeight) weightValue else null,
                         if (timed) secondsValue else null,
                     )
                 },

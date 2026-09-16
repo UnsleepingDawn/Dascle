@@ -25,21 +25,9 @@ SELECT
     routine_exercise.target_seconds,
     exercise.name AS exercise_name,
     exercise.muscle_group AS muscle_group,
-    exercise.equipment AS equipment
-FROM routine_exercise
-JOIN exercise ON exercise.id = routine_exercise.exercise_id
-WHERE routine_exercise.routine_id = ?
-ORDER BY routine_exercise.position;
-
-selectByRoutineIdWithSets:
-SELECT
-    routine_exercise.id AS routine_exercise_id,
-    exercise.id AS exercise_id,
-    exercise.name AS exercise_name,
-    exercise.muscle_group AS muscle_group,
-    routine_exercise.target_sets AS target_sets,
-    routine_exercise.target_reps AS target_reps,
-    routine_exercise.rest_seconds AS rest_seconds
+    exercise.equipment AS equipment,
+    exercise.metric AS metric,
+    exercise.load_mode AS load_mode
 FROM routine_exercise
 JOIN exercise ON exercise.id = routine_exercise.exercise_id
 WHERE routine_exercise.routine_id = ?
@@ -75,10 +63,22 @@ SET target_weight = coalesce(
         (SELECT default_duration_seconds FROM exercise WHERE exercise.id = routine_exercise.exercise_id)
     );
 
--- 渐进重量提示点「好的！」：该动作在所有计划里的目标重量一起改掉。
+-- 渐进提示选了「加重量」：该动作在所有计划里的目标重量一起改掉。
 updateTargetWeightByExerciseId:
 UPDATE routine_exercise
 SET target_weight = ?
+WHERE exercise_id = ?;
+
+-- 渐进提示选了「加次数」：该动作在所有计划里的目标次数一起改掉。
+updateTargetRepsByExerciseId:
+UPDATE routine_exercise
+SET target_reps = ?
+WHERE exercise_id = ?;
+
+-- 渐进提示选了「加时间」：该动作在所有计划里的目标时长一起改掉。
+updateTargetSecondsByExerciseId:
+UPDATE routine_exercise
+SET target_seconds = ?
 WHERE exercise_id = ?;
 
 updatePosition:

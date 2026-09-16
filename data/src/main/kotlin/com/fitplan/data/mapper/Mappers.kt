@@ -4,6 +4,8 @@ import com.fitplan.data.SelectFinishedWithSummary
 import com.fitplan.domain.model.BodyMetric
 import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
+import com.fitplan.domain.model.ExerciseLoadMode
+import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.ExerciseProgressHint
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.Routine
@@ -48,6 +50,16 @@ internal fun MuscleGroup.toDbValue(): String = name
 
 internal fun Equipment.toDbValue(): String = name
 
+internal fun ExerciseMetric.toDbValue(): String = name
+
+/** 老数据 / 自建动作这一列为空，按 [ExerciseMetric.DEFAULT] 兜底。 */
+internal fun String?.toExerciseMetric(): ExerciseMetric = ExerciseMetric.fromValue(this)
+
+internal fun ExerciseLoadMode.toDbValue(): String = name
+
+/** 老数据 / 自建动作这一列为空，按 [ExerciseLoadMode.DEFAULT] 兜底。 */
+internal fun String?.toExerciseLoadMode(): ExerciseLoadMode = ExerciseLoadMode.fromValue(this)
+
 internal fun String.toMuscleGroup(): MuscleGroup =
     requireNotNull(MuscleGroup.fromValue(this)) { "未知的肌群取值: $this" }
 
@@ -64,8 +76,11 @@ internal fun ExerciseRow.toDomain(): Exercise = Exercise(
     description = description,
     isCustom = is_custom.toBoolean(),
     createdAt = created_at.toInstant(),
+    metric = metric.toExerciseMetric(),
+    loadMode = load_mode.toExerciseLoadMode(),
     defaultWeight = default_weight,
     defaultDurationSeconds = default_duration_seconds?.toInt(),
+    defaultReps = default_reps?.toInt(),
 )
 
 /** `exercise_secondary_muscle` 的一行转成次部位；取值非法时抛异常，与主部位一致。 */
@@ -95,6 +110,8 @@ internal fun RoutineExerciseRow.toDomain(): RoutineExercise = RoutineExercise(
     targetSets = target_sets.toInt(),
     targetReps = target_reps.toInt(),
     restSeconds = rest_seconds.toInt(),
+    metric = metric.toExerciseMetric(),
+    loadMode = load_mode.toExerciseLoadMode(),
     targetWeight = target_weight,
     targetSeconds = target_seconds?.toInt(),
 )

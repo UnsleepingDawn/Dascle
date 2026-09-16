@@ -42,8 +42,14 @@ interface RoutineRepository {
     /** 按传入的 id 顺序重写 `position`，供拖拽排序使用。 */
     suspend fun reorderExercises(routineId: Long, orderedRoutineExerciseIds: List<Long>)
 
-    /** 把某个动作在**所有**计划里的目标重量一起改成 [weight]，供渐进重量提示使用。 */
+    /** 把某个动作在**所有**计划里的目标重量一起改成 [weight]，供渐进提示使用。 */
     suspend fun updateTargetWeightForExercise(exerciseId: Long, weight: Double)
+
+    /** 把某个动作在**所有**计划里的目标次数一起改成 [reps]，供渐进提示使用。 */
+    suspend fun updateTargetRepsForExercise(exerciseId: Long, reps: Int)
+
+    /** 把某个动作在**所有**计划里的目标时长一起改成 [seconds]，供渐进提示使用。 */
+    suspend fun updateTargetSecondsForExercise(exerciseId: Long, seconds: Int)
 
     suspend fun removeExercise(id: Long)
 }

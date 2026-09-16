@@ -28,9 +28,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +52,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
-/** ??????????????????????? */
+/** 训练还没开始时的计划预览列表：只展示动作与目标，不能录入。 */
 @Composable
 internal fun WorkoutPlanList(
     exercises: List<LogExercise>,
@@ -98,7 +95,7 @@ internal fun WorkoutPlanList(
     }
 }
 
-/** ??????????????[readOnly] ?????????? */
+/** 记录页里的一个动作卡：[readOnly] 为 true 时只展示、不可改。 */
 @Composable
 internal fun LogExerciseCard(
     exercise: LogExercise,
@@ -110,7 +107,6 @@ internal fun LogExerciseCard(
     onToggleCompleted: (Int) -> Unit,
     onAddSet: () -> Unit,
     onRemoveSet: () -> Unit,
-    onToggleTimed: () -> Unit,
     onToggleSkipped: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -183,25 +179,11 @@ internal fun LogExerciseCard(
                 }
             } else {
                 if (!readOnly) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // ????????????????????????????????
-                        val switchEnabled = exercise.sets.none { it.completed }
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                            SegmentedButton(
-                                selected = !exercise.isTimed,
-                                onClick = { if (exercise.isTimed) onToggleTimed() },
-                                shape = SegmentedButtonDefaults.itemShape(0, 2),
-                                enabled = switchEnabled,
-                                label = { Text(text = stringResource(R.string.workout_counted)) },
-                            )
-                            SegmentedButton(
-                                selected = exercise.isTimed,
-                                onClick = { if (!exercise.isTimed) onToggleTimed() },
-                                shape = SegmentedButtonDefaults.itemShape(1, 2),
-                                enabled = switchEnabled,
-                                label = { Text(text = stringResource(R.string.workout_timed)) },
-                            )
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         TextButton(onClick = onToggleSkipped) {
                             Text(text = stringResource(R.string.workout_skip))
                         }
@@ -213,6 +195,8 @@ internal fun LogExerciseCard(
                         index = index,
                         entry = entry,
                         timed = exercise.isTimed,
+                        showsWeight = exercise.showsWeight,
+                        weightIsAssistance = exercise.weightIsAssistance,
                         readOnly = readOnly,
                         editableCompletedSets = editableCompletedSets,
                         onWeightChange = { onWeightChange(index, it) },
@@ -247,6 +231,8 @@ private fun SetEntryRow(
     index: Int,
     entry: SetEntry,
     timed: Boolean,
+    showsWeight: Boolean,
+    weightIsAssistance: Boolean,
     readOnly: Boolean,
     editableCompletedSets: Boolean,
     onWeightChange: (String) -> Unit,
@@ -267,6 +253,27 @@ private fun SetEntryRow(
             modifier = Modifier.width(48.dp),
         )
 
+        // 纯自重动作没有重量输入框，一行只剩次数（或时长）。
+        if (showsWeight) {
+            OutlinedTextField(
+                value = entry.weight,
+                onValueChange = onWeightChange,
+                label = {
+                    Text(
+                        text = if (weightIsAssistance) {
+                            stringResource(R.string.field_weight_assist)
+                        } else {
+                            stringResource(R.string.field_weight)
+                        },
+                    )
+                },
+                enabled = editable,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+
         if (timed) {
             OutlinedTextField(
                 value = entry.seconds,
@@ -278,15 +285,6 @@ private fun SetEntryRow(
                 modifier = Modifier.weight(1f),
             )
         } else {
-            OutlinedTextField(
-                value = entry.weight,
-                onValueChange = onWeightChange,
-                label = { Text(text = stringResource(R.string.field_weight)) },
-                enabled = editable,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f),
-            )
             OutlinedTextField(
                 value = entry.reps,
                 onValueChange = onRepsChange,
@@ -324,7 +322,7 @@ private fun SetEntryRow(
     }
 }
 
-/** ??????????? Scaffold ? bottomBar ?? */
+/** 组间休息条：贴在 Scaffold 的 bottomBar 上。 */
 @Composable
 internal fun RestBar(
     rest: RestState,
@@ -376,7 +374,7 @@ internal fun RestBar(
     }
 }
 
-/** ????????????? */
+/** 已结束训练的汇总卡片。 */
 @Composable
 internal fun WorkoutSummaryCard(
     summary: WorkoutSummary,
@@ -410,7 +408,7 @@ internal fun WorkoutSummaryCard(
     }
 }
 
-/** ?????????????????????????????? */
+/** 计划外动作选择弹窗：可按肌群与器械筛选。 */
 @Composable
 internal fun ExtraExerciseDialog(
     exercises: List<Exercise>,
@@ -512,7 +510,7 @@ private fun FilterChipRow(content: @Composable () -> Unit) {
     }
 }
 
-/** ?????????????? */
+/** 结束训练前填备注的弹窗。 */
 @Composable
 internal fun FinishWorkoutDialog(
     onConfirm: (String) -> Unit,
@@ -570,7 +568,7 @@ internal fun AbandonWorkoutDialog(
     )
 }
 
-/** ????????????????? */
+/** 把时间点格式化成 HH:mm。 */
 internal fun Instant.toClockText(): String {
     val dateTime = toLocalDateTime(TimeZone.currentSystemDefault())
     return "${dateTime.hour.toString().padStart(2, '0')}:${dateTime.minute.toString().padStart(2, '0')}"
@@ -586,19 +584,22 @@ private fun durationText(seconds: Long): String {
     }
 }
 
-/** 目标提示：计数是「目标 3 组 × 10 次」，计时是「目标 3 组 × 60 秒」，带默认重量时插入「20 kg」。 */
+/**
+ * 目标提示：计时是「目标 3 组 × 60 秒」，计数是「目标 3 组 × 10 次」；
+ * 需要记录重量的动作在有目标重量时再插入「20 kg」（辅助类写成「辅助 40 kg」）。
+ */
 @Composable
 private fun LogExercise.targetHint(): String {
     val target = when {
         isTimed && targetSeconds != null -> stringResource(R.string.workout_target_timed, targetSets, targetSeconds)
-        // 计划没设默认时长却临时切成了计时，就只报组数，不硬凑一个「0 秒」。
+        // 计时动作没设目标时长时只报组数，不硬凑一个「0 秒」。
         isTimed -> stringResource(R.string.workout_target_sets, targetSets)
         else -> stringResource(R.string.workout_target_counted, targetSets, targetReps)
     }
-    val weight = if (isTimed || targetWeight == null) {
-        null
-    } else {
-        stringResource(R.string.weight_kg, targetWeight.toWeightText())
+    val weight = when {
+        !showsWeight || targetWeight == null -> null
+        weightIsAssistance -> stringResource(R.string.weight_kg_assist, targetWeight.toWeightText())
+        else -> stringResource(R.string.weight_kg, targetWeight.toWeightText())
     }
     return listOfNotNull(target, weight, stringResource(R.string.workout_target_rest, restSeconds))
         .joinToString(" · ")

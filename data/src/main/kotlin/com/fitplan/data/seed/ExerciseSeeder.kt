@@ -8,6 +8,8 @@ import com.fitplan.core.common.util.system.logcat
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.domain.model.Equipment
+import com.fitplan.domain.model.ExerciseLoadMode
+import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.repository.ExerciseSeedRepository
 import dev.zacsweers.metro.AppScope
@@ -35,9 +37,13 @@ internal data class SeedExercise(
     val secondaryMuscleGroups: List<String> = emptyList(),
     val equipment: String,
     val description: String = "",
-    /** 默认重量（kg）；缺省表示自重动作，不预填重量。 */
+    /** 计量方式：REPS（缺省）/ DURATION；取值非法时按 REPS 兜底。 */
+    val metric: String? = null,
+    /** 负重方式：EXTERNAL（缺省）/ BODYWEIGHT / ASSISTED；取值非法时按 EXTERNAL 兜底。 */
+    val loadMode: String? = null,
+    /** 默认重量（kg）；缺省表示自重动作，不预填重量。辅助类动作表示辅助重量。 */
     val defaultWeightKg: Double? = null,
-    /** 默认时长（秒）；标注后该动作在计划里按计时类处理。 */
+    /** 默认时长（秒）；标注后该动作按计时类处理。 */
     val defaultDurationSeconds: Int? = null,
 )
 
@@ -75,6 +81,8 @@ class ExerciseSeeder(
                     }
                     return@forEach
                 }
+                val metric = seed.metric.toSeedMetric(seed.name)
+                val loadMode = seed.loadMode.toSeedLoadMode(seed.name)
 
                 val existingId = idByName[seed.name]
                 val exerciseId = existingId ?: run {
@@ -87,12 +95,15 @@ class ExerciseSeeder(
                         created_at = createdAt,
                         default_weight = seed.defaultWeightKg,
                         default_duration_seconds = seed.defaultDurationSeconds?.toLong(),
+                        metric = metric.toDbValue(),
+                        load_mode = loadMode.toDbValue(),
+                        default_reps = null,
                     )
                     inserted++
                     database.utilQueries.lastInsertRowId().awaitAsOne()
                 }
 
-                // 老库里这两个字段还是空的时候补上种子值，已经在用的值不动。
+                // 老库里这些字段还是空的时候补上种子值，已经在用的值不动。
                 if (existingId != null) {
                     database.exerciseQueries.updateSeedWeight(
                         default_weight = seed.defaultWeightKg,
@@ -100,6 +111,14 @@ class ExerciseSeeder(
                     )
                     database.exerciseQueries.updateSeedDuration(
                         default_duration_seconds = seed.defaultDurationSeconds?.toLong(),
+                        id = existingId,
+                    )
+                    database.exerciseQueries.updateSeedMetric(
+                        metric = metric.toDbValue(),
+                        id = existingId,
+                    )
+                    database.exerciseQueries.updateSeedLoadMode(
+                        load_mode = loadMode.toDbValue(),
                         id = existingId,
                     )
                 }
@@ -137,4 +156,24 @@ class ExerciseSeeder(
     private companion object {
         const val SEED_ASSET_NAME = "exercises.json"
     }
+}
+
+/** 种子里的计量方式；漏写按 REPS 兜底，写错时记一条错误日志再兜底。 */
+private fun String?.toSeedMetric(exerciseName: String): ExerciseMetric {
+    if (this == null) return ExerciseMetric.DEFAULT
+    val metric = ExerciseMetric.entries.find { it.name == this }
+    if (metric == null) {
+        logcat(LogPriority.ERROR) { "种子动作 metric 取值非法，按 REPS 处理：$exerciseName ($this)" }
+    }
+    return metric ?: ExerciseMetric.DEFAULT
+}
+
+/** 种子里的负重方式；漏写按 EXTERNAL 兜底，写错时记一条错误日志再兜底。 */
+private fun String?.toSeedLoadMode(exerciseName: String): ExerciseLoadMode {
+    if (this == null) return ExerciseLoadMode.DEFAULT
+    val loadMode = ExerciseLoadMode.entries.find { it.name == this }
+    if (loadMode == null) {
+        logcat(LogPriority.ERROR) { "种子动作 loadMode 取值非法，按 EXTERNAL 处理：$exerciseName ($this)" }
+    }
+    return loadMode ?: ExerciseLoadMode.DEFAULT
 }

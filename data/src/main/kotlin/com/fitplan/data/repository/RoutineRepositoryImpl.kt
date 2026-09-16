@@ -117,6 +117,17 @@ class RoutineRepositoryImpl(
         routineExerciseQueries.updateTargetWeightByExerciseId(target_weight = weight, exercise_id = exerciseId)
     }
 
+    override suspend fun updateTargetRepsForExercise(exerciseId: Long, reps: Int) {
+        routineExerciseQueries.updateTargetRepsByExerciseId(target_reps = reps.toLong(), exercise_id = exerciseId)
+    }
+
+    override suspend fun updateTargetSecondsForExercise(exerciseId: Long, seconds: Int) {
+        routineExerciseQueries.updateTargetSecondsByExerciseId(
+            target_seconds = seconds.toLong(),
+            exercise_id = exerciseId,
+        )
+    }
+
     override suspend fun removeExercise(id: Long) {
         routineExerciseQueries.deleteById(id)
     }

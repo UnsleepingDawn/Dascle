@@ -2,6 +2,8 @@ package com.fitplan.domain.repository
 
 import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
+import com.fitplan.domain.model.ExerciseLoadMode
+import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.MuscleGroup
 import kotlin.time.Instant
 
@@ -31,12 +33,20 @@ interface ExerciseRepository {
         description: String,
         isCustom: Boolean,
         createdAt: Instant,
+        metric: ExerciseMetric = ExerciseMetric.DEFAULT,
+        loadMode: ExerciseLoadMode = ExerciseLoadMode.DEFAULT,
     ): Long
 
     suspend fun update(exercise: Exercise)
 
-    /** 抬高 / 调整动作库里的默认重量，供渐进重量提示使用。 */
+    /** 抬高 / 调整动作库里的默认重量，供渐进提示使用；辅助类动作则调低辅助重量。 */
     suspend fun updateDefaultWeight(id: Long, weight: Double)
+
+    /** 调整动作库里的默认次数，供「增加次数」的渐进提示使用。 */
+    suspend fun updateDefaultReps(id: Long, reps: Int)
+
+    /** 调整动作库里的默认时长（秒），供「增加时间」的渐进提示使用。 */
+    suspend fun updateDefaultDuration(id: Long, seconds: Int)
 
     suspend fun deleteById(id: Long)
 }

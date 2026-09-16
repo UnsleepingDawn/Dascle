@@ -7,7 +7,10 @@ CREATE TABLE exercise (
     is_custom                INTEGER NOT NULL DEFAULT 0,
     created_at               INTEGER NOT NULL DEFAULT 0,
     default_weight           REAL,
-    default_duration_seconds INTEGER
+    default_duration_seconds INTEGER,
+    metric                   TEXT,
+    load_mode                TEXT,
+    default_reps             INTEGER
 );
 
 CREATE INDEX exercise_muscle_group ON exercise(muscle_group);
@@ -56,15 +59,17 @@ FROM exercise;
 
 insert:
 INSERT INTO exercise(
-    name, muscle_group, equipment, description, is_custom, created_at, default_weight, default_duration_seconds
+    name, muscle_group, equipment, description, is_custom, created_at,
+    default_weight, default_duration_seconds, metric, load_mode, default_reps
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertIgnore:
 INSERT OR IGNORE INTO exercise(
-    name, muscle_group, equipment, description, is_custom, created_at, default_weight, default_duration_seconds
+    name, muscle_group, equipment, description, is_custom, created_at,
+    default_weight, default_duration_seconds, metric, load_mode, default_reps
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- 种子升级时为已存在的内置动作补默认值：只在原来为空时写入，不动用户已有数据。
 updateSeedWeight:
@@ -77,10 +82,37 @@ UPDATE exercise
 SET default_duration_seconds = ?
 WHERE id = ? AND default_duration_seconds IS NULL;
 
--- 渐进重量提示点「好的！」：抬高动作库里的默认重量。
+updateSeedMetric:
+UPDATE exercise
+SET metric = ?
+WHERE id = ? AND metric IS NULL;
+
+updateSeedLoadMode:
+UPDATE exercise
+SET load_mode = ?
+WHERE id = ? AND load_mode IS NULL;
+
+updateSeedReps:
+UPDATE exercise
+SET default_reps = ?
+WHERE id = ? AND default_reps IS NULL;
+
+-- 渐进提示点「好的！」：抬高动作库里的默认重量（辅助类动作则是调低助力）。
 updateDefaultWeight:
 UPDATE exercise
 SET default_weight = ?
+WHERE id = ?;
+
+-- 渐进提示选了「增加次数」：抬高动作库里的默认次数。
+updateDefaultReps:
+UPDATE exercise
+SET default_reps = ?
+WHERE id = ?;
+
+-- 渐进提示选了「增加时间」：抬高动作库里的默认时长。
+updateDefaultDuration:
+UPDATE exercise
+SET default_duration_seconds = ?
 WHERE id = ?;
 
 update:

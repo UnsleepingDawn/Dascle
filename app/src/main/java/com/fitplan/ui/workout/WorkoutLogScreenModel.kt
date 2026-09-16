@@ -2,8 +2,10 @@ package com.fitplan.ui.workout
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.fitplan.domain.interactor.UpdateExerciseWeight
+import com.fitplan.domain.interactor.UpdateExerciseProgression
 import com.fitplan.domain.model.Exercise
+import com.fitplan.domain.model.ExerciseLoadMode
+import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.ExerciseProgressHint
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.WorkoutSet
@@ -48,22 +50,44 @@ data class LogExercise(
     val targetReps: Int,
     val restSeconds: Int,
     val isExtra: Boolean,
-    val isTimed: Boolean = false,
+    /** 计量方式（次数 / 时长），跟随动作库，记录页不允许切换。 */
+    val metric: ExerciseMetric = ExerciseMetric.DEFAULT,
+    /** 负重方式（外部负重 / 自重 / 辅助），决定要不要填重量。 */
+    val loadMode: ExerciseLoadMode = ExerciseLoadMode.DEFAULT,
     val skipped: Boolean = false,
     val sets: List<SetEntry> = emptyList(),
-    /** 计划里设定的默认重量（kg）；null 表示自重或不预填。 */
+    /** 计划里设定的默认重量（kg）；辅助类动作表示助力。null 表示自重或不预填。 */
     val targetWeight: Double? = null,
-    /** 计划里设定的默认时长（秒）；非 null 表示计划把该动作定为计时类。 */
+    /** 计划里设定的默认时长（秒）；只在计时动作下有意义。 */
     val targetSeconds: Int? = null,
     /** 动作库里的默认重量（kg）；计划没设目标重量时用它兜底。 */
     val defaultWeight: Double? = null,
+    /** 动作库里的默认次数；计划目标次数缺失时用它兜底。 */
+    val defaultReps: Int? = null,
+    /** 动作库里的默认时长（秒）；计划目标时长缺失时用它兜底。 */
+    val defaultDurationSeconds: Int? = null,
     /** 动作库里的训练提示（动作要领）；空串表示这个动作没有提示。 */
     val description: String = "",
 ) {
     val completedSets: Int get() = sets.count { it.completed }
 
-    /** 判定达标与提示加重量用的基准：计划目标重量优先，没设就用动作库默认重量。 */
+    /** 按次数还是按时长录入。 */
+    val isTimed: Boolean get() = metric == ExerciseMetric.DURATION
+
+    /** 要不要给重量输入框；纯自重动作不给。 */
+    val showsWeight: Boolean get() = loadMode != ExerciseLoadMode.BODYWEIGHT
+
+    /** 重量是不是「助力」（辅助引体向上等）：越大越轻松。 */
+    val weightIsAssistance: Boolean get() = loadMode == ExerciseLoadMode.ASSISTED
+
+    /** 达标与提示用的重量基准：计划目标重量优先，没设就用动作库默认重量。 */
     val weightBaseline: Double? get() = targetWeight ?: defaultWeight
+
+    /** 达标与提示用的次数基准；都缺失时退回 [DEFAULT_TARGET_REPS]。 */
+    val repsBaseline: Int get() = targetReps.takeIf { it > 0 } ?: defaultReps ?: DEFAULT_TARGET_REPS
+
+    /** 达标与提示用的时长基准；计划与动作库都没标时为空，此时不提示加时间。 */
+    val secondsBaseline: Int? get() = targetSeconds ?: defaultDurationSeconds
 }
 
 /** 组间休息倒计时；[remainingSeconds] 为 0 表示刚刚结束。 */
@@ -79,17 +103,45 @@ data class WorkoutSummary(
     val durationSeconds: Long,
 )
 
+/** 渐进提示要往上调的目标：[WEIGHT] 重量、[REPS] 次数、[SECONDS] 时长。 */
+enum class ProgressKind { WEIGHT, REPS, SECONDS }
+
 /**
- * 渐进重量提示：某个动作已经能拿 [currentWeight] 做满目标组了，问问要不要加重量。
+ * 渐进提示：某个动作已经按当前基准做满目标组了，问问要不要把目标抬高一点。
+ *
  * 同一个动作在一场训练里只会提示一次，处理过就记进 `handledHintExerciseIds`。
+ * 可选的方向由 [metric] 与 [loadMode] 决定：自重只能加次数 / 加时间，负重可以加重量，
+ * 辅助类动作则是「减少辅助重量」。
  */
-data class WeightIncreaseHint(
+data class ProgressHint(
     val exerciseId: Long,
     val name: String,
-    /** 当前基准重量（kg），用户填的增量在它之上累加。 */
-    val currentWeight: Double,
     /** 本次达标的组数，弹窗文案用。 */
     val completedSets: Int,
+    val metric: ExerciseMetric,
+    val loadMode: ExerciseLoadMode,
+    /** 当前基准重量（kg）；辅助类动作是助力值。null 表示没有重量基准。 */
+    val weightBaseline: Double?,
+    /** 当前基准次数；只在 [ExerciseMetric.REPS] 下有意义。 */
+    val repsBaseline: Int?,
+    /** 当前基准时长（秒）；只在 [ExerciseMetric.DURATION] 下有意义。 */
+    val secondsBaseline: Int?,
+) {
+    /** 弹窗里能给出哪些方向：越靠前越主推。 */
+    val kinds: List<ProgressKind>
+        get() = buildList {
+            if (weightBaseline != null) add(ProgressKind.WEIGHT)
+            when (metric) {
+                ExerciseMetric.REPS -> add(ProgressKind.REPS)
+                ExerciseMetric.DURATION -> if (secondsBaseline != null) add(ProgressKind.SECONDS)
+            }
+        }
+}
+
+/** 用户已经选了方向、正在填增量。 */
+data class ProgressIncreaseInput(
+    val hint: ProgressHint,
+    val kind: ProgressKind,
 )
 
 /**
@@ -104,7 +156,7 @@ class WorkoutLogScreenModel(
     private val routineRepository: RoutineRepository,
     private val exerciseRepository: ExerciseRepository,
     private val hintRepository: ExerciseProgressHintRepository,
-    private val updateExerciseWeight: UpdateExerciseWeight,
+    private val updateProgress: UpdateExerciseProgression,
     private val widgetManager: WidgetManager,
     private val restNotifier: RestNotifier,
 ) : ViewModel() {
@@ -142,13 +194,13 @@ class WorkoutLogScreenModel(
     private val _allExercises = MutableStateFlow<List<Exercise>>(emptyList())
     val allExercises: StateFlow<List<Exercise>> = _allExercises.asStateFlow()
 
-    /** 非空表示正在问「要不要加重量」；[WeightIncreaseHint] 里的动作就是被问的那个。 */
-    private val _weightHint = MutableStateFlow<WeightIncreaseHint?>(null)
-    val weightHint: StateFlow<WeightIncreaseHint?> = _weightHint.asStateFlow()
+    /** 非空表示正在问「要不要把目标提高一点」；[ProgressHint] 里的动作就是被问的那个。 */
+    private val _progressHint = MutableStateFlow<ProgressHint?>(null)
+    val progressHint: StateFlow<ProgressHint?> = _progressHint.asStateFlow()
 
-    /** 非空表示用户点了「好的！」，正在等他填要加多少 kg。 */
-    private val _weightIncreaseInput = MutableStateFlow<WeightIncreaseHint?>(null)
-    val weightIncreaseInput: StateFlow<WeightIncreaseHint?> = _weightIncreaseInput.asStateFlow()
+    /** 非空表示用户选了方向，正在等他填要加多少。 */
+    private val _progressIncreaseInput = MutableStateFlow<ProgressIncreaseInput?>(null)
+    val progressIncreaseInput: StateFlow<ProgressIncreaseInput?> = _progressIncreaseInput.asStateFlow()
 
     /**
      * 这一场里已经处理过（点过任意一个按钮、或者点掉遮罩）的动作，处理过就不再重复弹；
@@ -182,8 +234,8 @@ class WorkoutLogScreenModel(
         this.editing = editing
         // 换了一场训练就重新开始判定，上一场处理过的动作不影响这一场。
         handledHintExerciseIds.clear()
-        _weightHint.value = null
-        _weightIncreaseInput.value = null
+        _progressHint.value = null
+        _progressIncreaseInput.value = null
         viewModelScope.launch {
             if (sessionId != null) {
                 if (reopen && workoutRepository.getSession(sessionId)?.isFinished == true) {
@@ -243,31 +295,6 @@ class WorkoutLogScreenModel(
         persistEditedSet(exerciseId, index)
     }
 
-    /** 切换计时 / 计数；同一动作已经有完成的组时不允许切换，避免两种记录混在一起。 */
-    fun toggleTimed(exerciseId: Long) {
-        mutate(exerciseId) { exercise ->
-            if (exercise.sets.any { it.completed }) {
-                exercise
-            } else {
-                val timed = !exercise.isTimed
-                // 切换后把空着的录入框按计划默认值补齐，避免新模式下输入框全是空的。
-                exercise.copy(
-                    isTimed = timed,
-                    sets = exercise.sets.map { entry ->
-                        if (timed) {
-                            entry.copy(seconds = entry.seconds.ifBlank { exercise.targetSeconds?.toString().orEmpty() })
-                        } else {
-                            entry.copy(
-                                weight = entry.weight.ifBlank { exercise.targetWeight.toWeightText() },
-                                reps = entry.reps.ifBlank { exercise.targetReps.toString() },
-                            )
-                        }
-                    },
-                )
-            }
-        }
-    }
-
     fun toggleSkipped(exerciseId: Long) {
         mutate(exerciseId) { it.copy(skipped = !it.skipped) }
     }
@@ -311,7 +338,8 @@ class WorkoutLogScreenModel(
                 sessionId = currentSessionId,
                 exerciseId = exerciseId,
                 setIndex = index + 1,
-                weight = if (exercise.isTimed) null else entry.weight.toDoubleOrNull(),
+                // 纯自重动作不给重量输入框，落库时也不要凭空写一个 0。
+                weight = if (exercise.showsWeight) entry.weight.toDoubleOrNull() else null,
                 reps = if (exercise.isTimed) null else reps,
                 durationSeconds = if (exercise.isTimed) seconds else null,
             )
@@ -330,37 +358,37 @@ class WorkoutLogScreenModel(
             }
 
             startRest(exercise.name, exercise.restSeconds)
-            maybeShowWeightHint(exerciseId)
+            maybeShowProgressHint(exerciseId)
         }
     }
 
     /** 点「不用，下次再提醒我」或点掉遮罩：这一场不再打扰，该动作的暂缓档位保持不变。 */
-    fun dismissWeightHint() {
-        _weightHint.value?.let { handledHintExerciseIds += it.exerciseId }
-        _weightHint.value = null
+    fun dismissProgressHint() {
+        _progressHint.value?.let { handledHintExerciseIds += it.exerciseId }
+        _progressHint.value = null
     }
 
-    /** 点「好的！」：收起提示，改让用户填要加多少 kg。 */
-    fun promptWeightIncrease() {
-        val hint = _weightHint.value ?: return
+    /** 选了某个方向（加重 / 加次数 / 加时间）：收起提示，改让用户填要加多少。 */
+    fun promptProgressIncrease(kind: ProgressKind) {
+        val hint = _progressHint.value ?: return
         handledHintExerciseIds += hint.exerciseId
-        _weightHint.value = null
-        _weightIncreaseInput.value = hint
+        _progressHint.value = null
+        _progressIncreaseInput.value = ProgressIncreaseInput(hint, kind)
     }
 
     /** 关掉输入增量的弹窗：什么都不改，这一场也不再问这个动作。 */
-    fun dismissWeightIncreaseInput() {
-        _weightIncreaseInput.value = null
+    fun dismissProgressIncreaseInput() {
+        _progressIncreaseInput.value = null
     }
 
     /**
-     * 点「暂时别提醒我加重量」：推迟 3 / 5 / 7 / 9 天，点满后该动作进入休眠，
-     * 不再按时间提醒，等用户主动加重量时才重新激活。
+     * 点「暂时别提醒我提高目标」：推迟 3 / 5 / 7 / 9 天，点满后该动作进入休眠，
+     * 不再按时间提醒，等用户主动提高目标时才重新激活。
      */
-    fun snoozeWeightHint() {
-        val hint = _weightHint.value ?: return
+    fun snoozeProgressHint() {
+        val hint = _progressHint.value ?: return
         handledHintExerciseIds += hint.exerciseId
-        _weightHint.value = null
+        _progressHint.value = null
         viewModelScope.launch {
             val current = hintRepository.get(hint.exerciseId)
             val base = current ?: ExerciseProgressHint(exerciseId = hint.exerciseId)
@@ -369,65 +397,149 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 输入要加多少 kg 并确认：动作库的默认重量与所有计划编排的目标重量一起换成新值，
-     * 今天还没勾选的行也跟着改，已经完成的记录保留当时的实际重量。
+     * 填入增量并确认：按 [ProgressIncreaseInput.kind] 把动作库的默认值与该动作在**所有**计划里的
+     * 目标值一起换成新值，今天还没勾选的行也跟着改，已经完成的记录保留当时的实际数值。
+     *
+     * 辅助类动作（器械辅助引体向上）的重量是助力，输入的增量表示**减少**多少辅助重量。
      */
-    fun applyWeightIncrease(delta: Double) {
-        val hint = _weightIncreaseInput.value ?: return
-        _weightIncreaseInput.value = null
-        val newWeight = hint.currentWeight + delta
+    fun applyProgressIncrease(delta: Double) {
+        val input = _progressIncreaseInput.value ?: return
+        _progressIncreaseInput.value = null
+        val hint = input.hint
         viewModelScope.launch {
-            updateExerciseWeight.applyFromHint(hint.exerciseId, newWeight)
-            mutate(hint.exerciseId) { exercise ->
-                exercise.copy(
-                    targetWeight = newWeight,
-                    sets = exercise.sets.map { entry ->
-                        if (entry.isPrefilledWith(hint.currentWeight)) {
-                            entry.copy(weight = newWeight.toWeightText())
-                        } else {
-                            entry
-                        }
-                    },
-                )
+            when (input.kind) {
+                ProgressKind.WEIGHT -> {
+                    val baseline = hint.weightBaseline ?: return@launch
+                    val newWeight = if (hint.loadMode == ExerciseLoadMode.ASSISTED) {
+                        (baseline - delta).coerceAtLeast(0.0)
+                    } else {
+                        baseline + delta
+                    }
+                    updateProgress.applyWeight(hint.exerciseId, newWeight)
+                    mutate(hint.exerciseId) { exercise ->
+                        exercise.copy(
+                            targetWeight = newWeight,
+                            sets = exercise.sets.map { entry ->
+                                if (entry.isPrefilledWeight(baseline)) {
+                                    entry.copy(weight = newWeight.toWeightText())
+                                } else {
+                                    entry
+                                }
+                            },
+                        )
+                    }
+                }
+
+                ProgressKind.REPS -> {
+                    val baseline = hint.repsBaseline ?: return@launch
+                    val newReps = baseline + delta.toInt()
+                    if (newReps <= baseline) return@launch
+                    updateProgress.applyReps(hint.exerciseId, newReps)
+                    mutate(hint.exerciseId) { exercise ->
+                        exercise.copy(
+                            targetReps = newReps,
+                            sets = exercise.sets.map { entry ->
+                                if (entry.isPrefilledReps(baseline)) {
+                                    entry.copy(reps = newReps.toString())
+                                } else {
+                                    entry
+                                }
+                            },
+                        )
+                    }
+                }
+
+                ProgressKind.SECONDS -> {
+                    val baseline = hint.secondsBaseline ?: return@launch
+                    val newSeconds = baseline + delta.toInt()
+                    if (newSeconds <= baseline) return@launch
+                    updateProgress.applySeconds(hint.exerciseId, newSeconds)
+                    mutate(hint.exerciseId) { exercise ->
+                        exercise.copy(
+                            targetSeconds = newSeconds,
+                            sets = exercise.sets.map { entry ->
+                                if (entry.isPrefilledSeconds(baseline)) {
+                                    entry.copy(seconds = newSeconds.toString())
+                                } else {
+                                    entry
+                                }
+                            },
+                        )
+                    }
+                }
             }
         }
     }
 
     /**
-     * 一个动作的目标组全部用「基准重量及以上、目标次数及以上」做完时，问一句要不要加重量。
-     * 计时动作没有重量、暂缓期内与已休眠的动作、这一场已经处理过的动作都不打扰。
+     * 一个动作的目标组全部按当前基准做完时，问一句要不要把目标提高一点。
+     *
+     * 可给的方向由动作类型决定：自重动作只能加次数 / 加时间；外部负重可以加重量；
+     * 辅助类动作给的是「减少辅助重量」。暂缓期内、已休眠、已跳过、这一场处理过的动作都不打扰。
      */
-    private fun maybeShowWeightHint(exerciseId: Long) {
+    private fun maybeShowProgressHint(exerciseId: Long) {
         if (_phase.value != WorkoutPhase.IN_PROGRESS || editing) return
         if (exerciseId in handledHintExerciseIds) return
         val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
-        if (exercise.isTimed || exercise.skipped) return
-        val baseline = exercise.weightBaseline ?: return
+        if (exercise.skipped) return
 
         val completed = exercise.sets.filter { it.completed }
         if (completed.size < exercise.targetSets) return
+
+        // 重量基准：计划 / 动作库都没标时，退回「本次每组都一样的那个重量」（单杠悬挂这类可选负重动作）。
+        val weightBaseline = if (exercise.showsWeight) {
+            exercise.weightBaseline ?: completed
+                .mapNotNull { it.weight.toDoubleOrNull() }
+                .distinct()
+                .singleOrNull()
+        } else {
+            null
+        }
+        val repsBaseline = exercise.repsBaseline.takeIf { !exercise.isTimed }
+        val secondsBaseline = exercise.secondsBaseline.takeIf { exercise.isTimed }
+        if (exercise.isTimed && secondsBaseline == null) return
+
         val qualified = completed.all { entry ->
-            val weight = entry.weight.toDoubleOrNull()
-            val reps = entry.reps.toIntOrNull()
-            weight != null && reps != null && weight >= baseline && reps >= exercise.targetReps
+            val weightOk = when (exercise.loadMode) {
+                ExerciseLoadMode.BODYWEIGHT -> true
+                ExerciseLoadMode.EXTERNAL ->
+                    weightBaseline == null ||
+                        (entry.weight.toDoubleOrNull()?.let { it >= weightBaseline } == true)
+                ExerciseLoadMode.ASSISTED ->
+                    weightBaseline == null ||
+                        (entry.weight.toDoubleOrNull()?.let { it <= weightBaseline } == true)
+            }
+            if (!weightOk) return@all false
+            if (exercise.isTimed) {
+                (entry.seconds.toIntOrNull() ?: 0) >= (secondsBaseline ?: return@all false)
+            } else {
+                (entry.reps.toIntOrNull() ?: 0) >= (repsBaseline ?: return@all false)
+            }
         }
         if (!qualified) return
 
+        val hint = ProgressHint(
+            exerciseId = exerciseId,
+            name = exercise.name,
+            completedSets = completed.size,
+            metric = exercise.metric,
+            loadMode = exercise.loadMode,
+            weightBaseline = weightBaseline,
+            repsBaseline = repsBaseline,
+            secondsBaseline = secondsBaseline,
+        )
+        if (hint.kinds.isEmpty()) return
+
         viewModelScope.launch {
-            val hint = hintRepository.get(exerciseId)
+            val saved = hintRepository.get(exerciseId)
             // 查库期间用户可能已经练到下一个动作、或者处理过这条提示，落状态前再确认一次。
             if (exerciseId in handledHintExerciseIds) return@launch
-            if (hint != null && !hint.canRemindAt(Clock.System.now())) return@launch
-            _weightHint.value = WeightIncreaseHint(
-                exerciseId = exerciseId,
-                name = exercise.name,
-                currentWeight = baseline,
-                completedSets = completed.size,
-            )
+            if (saved != null && !saved.canRemindAt(Clock.System.now())) return@launch
+            _progressHint.value = hint
         }
     }
 
-    /** 把动作库里的动作临时加进本次训练，目标值取默认的 3 组 × 10 次、休息 90 秒。 */
+    /** 把动作库里的动作临时加进本次训练，目标值取动作库默认值（次数缺省 10 次）、休息 90 秒。 */
     fun addExtraExercise(exerciseId: Long) {
         if (_exercises.value.any { it.exerciseId == exerciseId }) return
         viewModelScope.launch {
@@ -436,10 +548,16 @@ class WorkoutLogScreenModel(
                 exerciseId = exercise.id,
                 name = exercise.name,
                 targetSets = DEFAULT_TARGET_SETS,
-                targetReps = DEFAULT_TARGET_REPS,
+                targetReps = exercise.repsOrDefault,
                 restSeconds = DEFAULT_REST_SECONDS,
                 isExtra = true,
+                metric = exercise.metric,
+                loadMode = exercise.loadMode,
+                targetWeight = if (exercise.showsWeight) exercise.defaultWeight else null,
+                targetSeconds = if (exercise.isTimed) exercise.defaultDurationSeconds else null,
                 defaultWeight = exercise.defaultWeight,
+                defaultReps = exercise.defaultReps,
+                defaultDurationSeconds = exercise.defaultDurationSeconds,
                 description = exercise.description,
             )
             _exercises.value = _exercises.value + extra.copy(sets = List(extra.targetSets) { emptyEntry(extra) })
@@ -530,25 +648,26 @@ class WorkoutLogScreenModel(
         }
         _exercises.value = exerciseIds.map { exerciseId ->
             val routineExercise = planByExercise[exerciseId]
+            val libraryExercise = exercisesById[exerciseId]
             val ownSets = sets.filter { it.exerciseId == exerciseId }.sortedBy { it.setIndex }
-            // 已经落库的组以库里的记录为准；还没开练时，计划设了默认时长就按计时展示。
-            val isTimed = if (ownSets.isNotEmpty()) {
-                ownSets.any { it.durationSeconds != null }
-            } else {
-                routineExercise?.targetSeconds != null
-            }
+            // 计量方式 / 负重方式一律以动作库为准；动作库查不到时退回计划编排上的值。
+            val metric = libraryExercise?.metric ?: routineExercise?.metric ?: ExerciseMetric.DEFAULT
+            val loadMode = libraryExercise?.loadMode ?: routineExercise?.loadMode ?: ExerciseLoadMode.DEFAULT
             val exercise = LogExercise(
                 exerciseId = exerciseId,
-                name = routineExercise?.exerciseName ?: exercisesById[exerciseId]?.name.orEmpty(),
+                name = routineExercise?.exerciseName ?: libraryExercise?.name.orEmpty(),
                 targetSets = routineExercise?.targetSets ?: DEFAULT_TARGET_SETS,
-                targetReps = routineExercise?.targetReps ?: DEFAULT_TARGET_REPS,
+                targetReps = routineExercise?.targetReps ?: libraryExercise?.repsOrDefault ?: DEFAULT_TARGET_REPS,
                 restSeconds = routineExercise?.restSeconds ?: DEFAULT_REST_SECONDS,
                 isExtra = routineExercise == null,
-                isTimed = isTimed,
+                metric = metric,
+                loadMode = loadMode,
                 targetWeight = routineExercise?.targetWeight,
                 targetSeconds = routineExercise?.targetSeconds,
-                defaultWeight = exercisesById[exerciseId]?.defaultWeight,
-                description = exercisesById[exerciseId]?.description.orEmpty(),
+                defaultWeight = libraryExercise?.defaultWeight,
+                defaultReps = libraryExercise?.defaultReps,
+                defaultDurationSeconds = libraryExercise?.defaultDurationSeconds,
+                description = libraryExercise?.description.orEmpty(),
             )
             exercise.copy(
                 sets = ownSets
@@ -595,14 +714,20 @@ class WorkoutLogScreenModel(
     }
 
     private companion object {
-        const val DEFAULT_TARGET_SETS = 3
-        const val DEFAULT_TARGET_REPS = 10
-        const val DEFAULT_REST_SECONDS = 90
         const val REST_TICK_MILLIS = 1_000L
         const val REST_DONE_MILLIS = 2_500L
         const val MILLIS_PER_SECOND = 1_000L
     }
 }
+
+/** 计划外动作的默认目标组数。 */
+private const val DEFAULT_TARGET_SETS = 3
+
+/** 计划外动作与各类兜底用的默认目标次数。 */
+private const val DEFAULT_TARGET_REPS = 10
+
+/** 计划外动作的默认组间休息（秒）。 */
+private const val DEFAULT_REST_SECONDS = 90
 
 private fun RoutineExercise.toLogExercise(): LogExercise {
     val exercise = LogExercise(
@@ -612,28 +737,44 @@ private fun RoutineExercise.toLogExercise(): LogExercise {
         targetReps = targetReps,
         restSeconds = restSeconds,
         isExtra = false,
-        isTimed = isTimed,
+        metric = metric,
+        loadMode = loadMode,
         targetWeight = targetWeight,
         targetSeconds = targetSeconds,
     )
     return exercise.copy(sets = List(targetSets) { emptyEntry(exercise) })
 }
 
-/** 一行的初始录入值：计划里设了默认重量/时长就先填进去，让输入框不是空的。 */
-private fun emptyEntry(exercise: LogExercise): SetEntry = if (exercise.isTimed) {
-    SetEntry(seconds = exercise.targetSeconds?.toString().orEmpty())
-} else {
-    SetEntry(weight = exercise.targetWeight.toWeightText(), reps = exercise.targetReps.toString())
-}
+/**
+ * 一行的初始录入值：需要重量的动作预填计划目标重量，计时动作预填目标时长，计数动作预填目标次数；
+ * 纯自重动作不预填重量（连输入框都没有）。
+ */
+private fun emptyEntry(exercise: LogExercise): SetEntry = SetEntry(
+    weight = if (exercise.showsWeight) exercise.targetWeight.toWeightText() else "",
+    reps = if (exercise.isTimed) "" else exercise.targetReps.toString(),
+    seconds = if (exercise.isTimed) exercise.targetSeconds?.toString().orEmpty() else "",
+)
 
 /**
- * 这一行还是「按基准重量预填、且没勾选」的状态：默认重量一变，这些行要跟着一起换；
- * 已经完成的记录保留当时实际用的重量，用户手动改过重量的行也不动。
+ * 这一行还是「按基准值预填、且没勾选」的状态：默认值一变，这些行要跟着一起换；
+ * 已经完成的记录保留当时实际用的数值，用户手动改过的行也不动。
  */
-private fun SetEntry.isPrefilledWith(baseline: Double): Boolean {
+private fun SetEntry.isPrefilledWeight(baseline: Double): Boolean {
     if (completed) return false
-    val weight = weight.toDoubleOrNull()
-    return weight == null || weight == baseline
+    val value = weight.toDoubleOrNull()
+    return value == null || value == baseline
+}
+
+private fun SetEntry.isPrefilledReps(baseline: Int): Boolean {
+    if (completed) return false
+    val value = reps.toIntOrNull()
+    return value == null || value == baseline
+}
+
+private fun SetEntry.isPrefilledSeconds(baseline: Int): Boolean {
+    if (completed) return false
+    val value = seconds.toIntOrNull()
+    return value == null || value == baseline
 }
 
 /**

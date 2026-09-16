@@ -96,8 +96,6 @@
     <string name="routine_edit_add_exercise">添加动作</string>
     <string name="routine_edit_targets">%1$d 组 × %2$d 次</string>
     <string name="routine_edit_targets_timed">%1$d 组 × %2$d 秒</string>
-    <string name="routine_edit_counted">计数</string>
-    <string name="routine_edit_timed">计时</string>
     <string name="routine_edit_rest">休息 %1$d 秒</string>
     <string name="routine_edit_edit_target">编辑目标</string>
     <string name="routine_edit_remove_exercise">移除动作</string>
@@ -105,6 +103,7 @@
     <string name="field_target_sets">组数</string>
     <string name="field_target_reps">次数</string>
     <string name="field_target_weight">默认重量（kg，可选）</string>
+    <string name="field_target_weight_assist">辅助重量（kg，可选）</string>
     <string name="field_target_seconds">默认时长（秒）</string>
     <string name="field_rest_seconds">组间休息（秒）</string>
 
@@ -166,8 +165,6 @@
     <string name="workout_plan_empty">这个计划还没有动作\n开始后可以临时添加</string>
     <string name="workout_add_extra">计划外动作</string>
     <string name="workout_extra">计划外</string>
-    <string name="workout_timed">计时</string>
-    <string name="workout_counted">计数</string>
     <string name="workout_target_counted">目标 %1$d 组 × %2$d 次</string>
     <string name="workout_target_timed">目标 %1$d 组 × %2$d 秒</string>
     <string name="workout_target_sets">目标 %1$d 组</string>
@@ -201,17 +198,26 @@
     <string name="workout_duration_minutes">%1$d 分钟</string>
     <string name="workout_duration_hours">%1$d 小时 %2$d 分</string>
     <string name="field_weight">重量（kg）</string>
+    <string name="field_weight_assist">辅助重量（kg）</string>
     <string name="field_seconds">秒</string>
     <string name="weight_kg">%1$s kg</string>
-    <string name="workout_weight_hint_title">「%1$s」要不要加重量？</string>
-    <string name="workout_weight_hint_message">你已经能在这个重量完整做完 %1$d 组了！真棒！需要我帮你把今后这个动作的重量增加吗？</string>
-    <string name="workout_weight_hint_later">不用，下次再提醒我</string>
-    <string name="workout_weight_hint_ok">好的！</string>
-    <string name="workout_weight_hint_snooze">暂时别提醒我加重量</string>
-    <string name="workout_weight_increase_title">把「%1$s」加重多少？</string>
-    <string name="workout_weight_increase_message">当前 %1$s kg，这是今天和以后练这个动作的默认重量</string>
-    <string name="workout_weight_increase_label">增加（kg）</string>
-    <string name="workout_weight_increase_preview">增加后为 %1$s kg</string>
+    <string name="weight_kg_assist">辅助 %1$s kg</string>
+    <string name="workout_progress_hint_title">「%1$s」要不要提高目标？</string>
+    <string name="workout_progress_hint_message">你已经按当前目标完整做完 %1$d 组了！真棒！需要我帮你把今后的目标提高一点吗？</string>
+    <string name="workout_progress_hint_later">不用，下次再提醒我</string>
+    <string name="workout_progress_hint_snooze">暂时别提醒我提高目标</string>
+    <string name="workout_progress_increase_weight">增加重量</string>
+    <string name="workout_progress_increase_weight_assist">减少辅助重量</string>
+    <string name="workout_progress_increase_reps">增加次数</string>
+    <string name="workout_progress_increase_seconds">增加时间</string>
+    <string name="workout_progress_increase_title">把「%1$s」调整多少？</string>
+    <string name="workout_progress_increase_message">当前 %1$s，这是今天和以后练这个动作的默认目标</string>
+    <string name="workout_progress_increase_note_assist">辅助重量越少越难，这里填要减少多少</string>
+    <string name="workout_progress_increase_label">增加（%1$s）</string>
+    <string name="workout_progress_increase_preview">调整后为 %1$s</string>
+    <string name="unit_kg">kg</string>
+    <string name="unit_reps">次</string>
+    <string name="unit_seconds">秒</string>
 
     <!-- 统计页 -->
     <string name="stats_range_week">近 7 天</string>

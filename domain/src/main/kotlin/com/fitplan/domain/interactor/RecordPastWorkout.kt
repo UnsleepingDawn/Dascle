@@ -43,12 +43,15 @@ class RecordPastWorkout(
     }
 }
 
-/** 按计划目标把动作铺成整组：计时类记时长，计数类记默认重量与次数。 */
+/**
+ * 按计划目标把动作铺成整组：计时类记时长，计数类记次数；
+ * 重量只在动作需要记录重量时才写（纯自重动作留空）。
+ */
 private fun RoutineExercise.toSetDrafts(): List<WorkoutSetDraft> = List(targetSets) { index ->
     WorkoutSetDraft(
         exerciseId = exerciseId,
         setIndex = index + 1,
-        weight = if (isTimed) null else targetWeight,
+        weight = if (showsWeight) targetWeight else null,
         reps = if (isTimed) null else targetReps,
         durationSeconds = if (isTimed) targetSeconds else null,
     )

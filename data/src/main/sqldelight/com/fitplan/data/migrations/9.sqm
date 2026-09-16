@@ -1,0 +1,9 @@
+-- 动作类型：计量方式（次数 / 时长）与负重方式（外部负重 / 自重 / 辅助）。
+-- 可空列 + IS NULL 回填，与 default_weight / default_duration_seconds 的处理一致：
+-- 老数据先留空（读取时按 REPS / EXTERNAL 兜底），种子升级到版本 7 时会逐条补上。
+ALTER TABLE exercise ADD COLUMN metric TEXT;
+
+ALTER TABLE exercise ADD COLUMN load_mode TEXT;
+
+-- 渐进提示「增加次数」写入的默认次数基准。
+ALTER TABLE exercise ADD COLUMN default_reps INTEGER;
