@@ -57,6 +57,8 @@ data class LogExercise(
     val targetSeconds: Int? = null,
     /** 动作库里的默认重量（kg）；计划没设目标重量时用它兜底。 */
     val defaultWeight: Double? = null,
+    /** 动作库里的训练提示（动作要领）；空串表示这个动作没有提示。 */
+    val description: String = "",
 ) {
     val completedSets: Int get() = sets.count { it.completed }
 
@@ -438,6 +440,7 @@ class WorkoutLogScreenModel(
                 restSeconds = DEFAULT_REST_SECONDS,
                 isExtra = true,
                 defaultWeight = exercise.defaultWeight,
+                description = exercise.description,
             )
             _exercises.value = _exercises.value + extra.copy(sets = List(extra.targetSets) { emptyEntry(extra) })
         }
@@ -545,6 +548,7 @@ class WorkoutLogScreenModel(
                 targetWeight = routineExercise?.targetWeight,
                 targetSeconds = routineExercise?.targetSeconds,
                 defaultWeight = exercisesById[exerciseId]?.defaultWeight,
+                description = exercisesById[exerciseId]?.description.orEmpty(),
             )
             exercise.copy(
                 sets = ownSets

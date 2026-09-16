@@ -150,6 +150,15 @@ internal fun LogExerciseCard(
                 }
             }
 
+            // 动作库里的训练提示：放在动作名下方，和「目标 N 组」那行同一个字号。
+            if (exercise.description.isNotBlank()) {
+                Text(
+                    text = exercise.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             if (!exercise.isExtra) {
                 Text(
                     text = exercise.targetHint(),

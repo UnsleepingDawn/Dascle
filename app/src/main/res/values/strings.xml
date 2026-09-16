@@ -56,7 +56,7 @@
     </string-array>
 
     <!-- 计划 -->
-    <string name="plan_title">训练计划</string>
+    <string name="plan_title">设置单日方案</string>
     <string name="plan_empty">还没有训练计划\n点右下角按钮新建一个计划</string>
     <string name="plan_new">新建计划</string>
     <string name="plan_rename">重命名计划</string>
@@ -68,8 +68,8 @@
     <string name="field_routine_name">计划名称</string>
     <string name="field_routine_note">备注（可选）</string>
 
-    <!-- 编排健身计划 -->
-    <string name="plan_compose_title">编排健身计划</string>
+    <!-- 编排多日循环 -->
+    <string name="plan_compose_title">编排多日循环</string>
     <string name="plan_compose_apply">应用</string>
     <string name="plan_compose_day_label">Day</string>
     <string name="plan_compose_training">训练</string>
@@ -161,7 +161,7 @@
     <string name="workout_note_label">备注（可选）</string>
     <string name="workout_plan_hint">练完一组勾一组，勾选后自动开始组间休息。</string>
     <string name="workout_plan_empty">这个计划还没有动作\n开始后可以临时添加</string>
-    <string name="workout_add_extra">添加计划外动作</string>
+    <string name="workout_add_extra">计划外动作</string>
     <string name="workout_extra">计划外</string>
     <string name="workout_timed">计时</string>
     <string name="workout_counted">计数</string>

@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "exercises": [
     { "name": "平板杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "description": "仰卧平板凳，握距略宽于肩，下放至胸部中段后推起", "defaultWeightKg": 40 },
     { "name": "上斜杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "description": "上斜凳约 30-45 度，重点刺激胸大肌上部", "defaultWeightKg": 30 },
@@ -14,6 +14,7 @@
 
     { "name": "引体向上", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "BODYWEIGHT", "description": "正握宽距悬垂，拉至下巴过杠，背部主导发力" },
     { "name": "反握引体向上", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "BODYWEIGHT", "description": "反握窄距，肱二头肌参与更多" },
+    { "name": "器械辅助引体向上", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "description": "跪于器械跪垫，配重片提供向上助力，宽握横杆拉至下巴过杠；重量即助力值，越大越省力", "defaultWeightKg": 40 },
     { "name": "高位下拉", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "description": "坐姿宽握横杆下拉至锁骨位置，肩胛下沉", "defaultWeightKg": 35 },
     { "name": "杠铃划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "BARBELL", "description": "俯身约 45 度，杠铃拉向腹部，背部保持平直", "defaultWeightKg": 30 },
     { "name": "单臂哑铃划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "DUMBBELL", "description": "单膝单手撑凳，另一侧哑铃拉向髋部", "defaultWeightKg": 14 },
