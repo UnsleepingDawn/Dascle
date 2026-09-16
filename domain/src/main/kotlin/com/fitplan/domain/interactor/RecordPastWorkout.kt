@@ -1,6 +1,7 @@
 package com.fitplan.domain.interactor
 
 import com.fitplan.domain.model.RoutineExercise
+import com.fitplan.domain.model.RoutineItem
 import com.fitplan.domain.model.WorkoutSetDraft
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.WorkoutRepository
@@ -32,7 +33,13 @@ class RecordPastWorkout(
         if (workoutRepository.getSessionsBetween(dayStart, dayEnd).isNotEmpty()) return
 
         val routine = routineRepository.getById(routineId) ?: return
-        val exercises = routineRepository.getExercises(routineId)
+        val exercises = routineRepository.getItems(routineId).flatMap { item ->
+            when (item) {
+                is RoutineItem.Exercise -> listOf(item.value)
+                // 动作组按「做其中 x 个」的约定，只补记排在前面的 x 个动作。
+                is RoutineItem.Group -> item.value.exercises.take(item.value.maxPicks)
+            }
+        }
         workoutRepository.insertFinishedSession(
             routineId = routine.id,
             name = routine.name,

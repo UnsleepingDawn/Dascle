@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitplan.domain.interactor.UpdateExerciseProgression
 import com.fitplan.domain.model.RoutineExercise
+import com.fitplan.domain.model.RoutineItem
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
@@ -28,8 +29,9 @@ class RoutineEditScreenModel(
     private val _routineName = MutableStateFlow("")
     val routineName: StateFlow<String> = _routineName.asStateFlow()
 
-    private val _exercises = MutableStateFlow<List<RoutineExercise>>(emptyList())
-    val exercises: StateFlow<List<RoutineExercise>> = _exercises.asStateFlow()
+    /** 顶层编排：单独动作与动作组按共用序号交错排列，组内已含动作。 */
+    private val _items = MutableStateFlow<List<RoutineItem>>(emptyList())
+    val items: StateFlow<List<RoutineItem>> = _items.asStateFlow()
 
     private var routineId: Long? = null
 
@@ -39,11 +41,35 @@ class RoutineEditScreenModel(
         viewModelScope.launch { refresh() }
     }
 
-    /** 拖拽结束后按新顺序回写 `position`。 */
-    fun reorder(orderedIds: List<Long>) {
+    /** 新增一个空的动作组，放在计划末尾；之后往里加动作、设「做其中 x 个」。 */
+    fun addGroup() {
         viewModelScope.launch {
             val id = routineId ?: return@launch
-            routineRepository.reorderExercises(id, orderedIds)
+            routineRepository.addGroup(id)
+            refresh()
+        }
+    }
+
+    /** 设「做其中 x 个」，取值范围由 repository 按组内动作数收敛。 */
+    fun updateGroupMaxPicks(groupId: Long, maxPicks: Int) {
+        viewModelScope.launch {
+            routineRepository.updateGroupMaxPicks(groupId, maxPicks)
+            refresh()
+        }
+    }
+
+    fun removeGroup(groupId: Long) {
+        viewModelScope.launch {
+            routineRepository.removeGroup(groupId)
+            refresh()
+        }
+    }
+
+    /** 拖拽结束后按新顺序回写 `position`（动作与动作组共用一套序号）。 */
+    fun reorder(orderedItems: List<RoutineItem>) {
+        viewModelScope.launch {
+            val id = routineId ?: return@launch
+            routineRepository.reorderItems(id, orderedItems)
             refresh()
         }
     }
@@ -57,7 +83,7 @@ class RoutineEditScreenModel(
         targetSeconds: Int?,
     ) {
         viewModelScope.launch {
-            val previous = _exercises.value.firstOrNull { it.id == id }
+            val previous = findExercise(id)
             routineRepository.updateExerciseTargets(
                 id = id,
                 targetSets = targetSets,
@@ -87,11 +113,22 @@ class RoutineEditScreenModel(
         }
     }
 
+    private fun findExercise(id: Long): RoutineExercise? = _items.value
+        .flatMap { it.exercises }
+        .firstOrNull { it.id == id }
+
     private suspend fun refresh() {
         val id = routineId ?: return
         _routineName.value = routineRepository.getById(id)?.name.orEmpty()
-        _exercises.value = routineRepository.getExercises(id)
+        _items.value = routineRepository.getItems(id)
         // 编排（增删动作等）会改变今日计划在组件上的动作数，这里统一兜住。
         widgetManager.updateTodayWidget()
     }
 }
+
+/** 顶层项在列表 / 拖拽里的唯一 key，动作与动作组会重 id，必须带前缀。 */
+internal val RoutineItem.listKey: String
+    get() = when (this) {
+        is RoutineItem.Exercise -> "e${value.id}"
+        is RoutineItem.Group -> "g${value.id}"
+    }

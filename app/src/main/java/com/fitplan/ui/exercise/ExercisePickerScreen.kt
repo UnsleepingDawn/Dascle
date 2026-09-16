@@ -13,11 +13,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -25,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,9 +46,15 @@ import com.fitplan.presentation.util.Screen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
 
-/** 从动作库里挑一个动作加进 [routineId] 对应的计划，选中后自动返回。 */
+/**
+ * 从动作库里挑动作加进 [routineId] 对应的计划。
+ *
+ * [groupId] 为空时是「单独排一个动作」：点一个加一个并自动返回；
+ * 非空时是「往动作组里加动作」：可多选，点底部「完成」一次性加入。
+ */
 class ExercisePickerScreen(
     private val routineId: Long,
+    private val groupId: Long? = null,
 ) : Screen() {
 
     @Composable
@@ -54,8 +65,12 @@ class ExercisePickerScreen(
         val exercises by screenModel.exercises.collectAsState()
         val muscleFilter by screenModel.muscleFilter.collectAsState()
         val equipmentFilter by screenModel.equipmentFilter.collectAsState()
+        val selectedIds by screenModel.selectedIds.collectAsState()
+        val allAdded by screenModel.allAdded.collectAsState()
 
-        LaunchedEffect(Unit) { screenModel.load() }
+        LaunchedEffect(routineId) { screenModel.load(routineId) }
+
+        val pickingForGroup = groupId != null
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -71,6 +86,29 @@ class ExercisePickerScreen(
                     },
                     scrollBehavior = scrollBehavior,
                 )
+            },
+            bottomBar = {
+                if (pickingForGroup) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    screenModel.addSelectedToGroup(groupId)
+                                    navigator.pop()
+                                }
+                            },
+                            enabled = selectedIds.isNotEmpty(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(MaterialTheme.padding.medium),
+                        ) {
+                            Text(text = stringResource(R.string.exercise_picker_done, selectedIds.size))
+                        }
+                    }
+                }
             },
         ) { contentPadding ->
             Column(modifier = Modifier.padding(contentPadding)) {
@@ -104,16 +142,30 @@ class ExercisePickerScreen(
                 }
 
                 if (exercises.isEmpty()) {
-                    EmptyScreen(message = stringResource(R.string.exercise_picker_empty))
+                    EmptyScreen(
+                        message = stringResource(
+                            if (allAdded) {
+                                R.string.exercise_picker_all_added
+                            } else {
+                                R.string.exercise_picker_empty
+                            },
+                        ),
+                    )
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(exercises, key = { it.id }) { exercise ->
                             ExerciseListItem(
                                 exercise = exercise,
+                                selected = exercise.id in selectedIds,
+                                showSelection = pickingForGroup,
                                 onClick = {
-                                    scope.launch {
-                                        screenModel.addToRoutine(routineId, exercise.id)
-                                        navigator.pop()
+                                    if (pickingForGroup) {
+                                        screenModel.toggleSelect(exercise.id)
+                                    } else {
+                                        scope.launch {
+                                            screenModel.addToRoutine(routineId, exercise.id)
+                                            navigator.pop()
+                                        }
                                     }
                                 },
                             )
@@ -142,30 +194,49 @@ private fun FilterRow(content: @Composable () -> Unit) {
 @Composable
 private fun ExerciseListItem(
     exercise: Exercise,
+    selected: Boolean,
+    showSelection: Boolean,
     onClick: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = exercise.name,
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Text(
-            text = "${muscleLabels(exercise.muscleGroups)} · ${exercise.equipment.label()}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (exercise.description.isNotBlank()) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = exercise.description,
+                text = exercise.name,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = "${muscleLabels(exercise.muscleGroups)} · ${exercise.equipment.label()}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+            )
+            if (exercise.description.isNotBlank()) {
+                Text(
+                    text = exercise.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (showSelection) {
+            Icon(
+                imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+                contentDescription = stringResource(
+                    if (selected) R.string.exercise_picker_selected else R.string.exercise_picker_unselected,
+                ),
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.padding(start = MaterialTheme.padding.small),
             )
         }
     }

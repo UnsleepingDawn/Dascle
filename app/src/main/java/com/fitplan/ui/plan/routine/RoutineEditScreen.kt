@@ -17,13 +17,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -43,6 +46,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
 import com.fitplan.domain.model.RoutineExercise
+import com.fitplan.domain.model.RoutineGroup
+import com.fitplan.domain.model.RoutineItem
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
@@ -54,7 +59,11 @@ import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-/** 编辑某个计划里的动作编排：增删动作、拖拽排序、设置目标组数/次数/组间休息。 */
+/**
+ * 编辑某个计划里的编排：增删动作与动作组、拖拽排序、设置目标组数/次数/组间休息。
+ *
+ * 动作组是一组可替换的动作（如「三个推类动作里挑两个做」），训练时从组里挑最多 x 个来练。
+ */
 class RoutineEditScreen(
     private val routineId: Long,
 ) : Screen() {
@@ -64,7 +73,7 @@ class RoutineEditScreen(
         val navigator = LocalNavigator.currentOrThrow
         val screenModel = metroViewModel<RoutineEditScreenModel>()
         val routineName by screenModel.routineName.collectAsState()
-        val exercises by screenModel.exercises.collectAsState()
+        val items by screenModel.items.collectAsState()
 
         LaunchedEffect(routineId) { screenModel.load(routineId) }
 
@@ -86,25 +95,46 @@ class RoutineEditScreen(
                 )
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = { navigator.push(ExercisePickerScreen(routineId)) }) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.routine_edit_add_exercise),
+                // 两个入口：先加一个空的动作组，或者直接把某个动作排到计划里。
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                ) {
+                    ExtendedFloatingActionButton(
+                        onClick = screenModel::addGroup,
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = null,
+                            )
+                        },
+                        text = { Text(text = stringResource(R.string.routine_edit_add_group)) },
                     )
+                    FloatingActionButton(onClick = { navigator.push(ExercisePickerScreen(routineId)) }) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.routine_edit_add_exercise),
+                        )
+                    }
                 }
             },
         ) { contentPadding ->
-            if (exercises.isEmpty()) {
+            if (items.isEmpty()) {
                 EmptyScreen(
                     message = stringResource(R.string.routine_edit_empty),
                     modifier = Modifier.padding(contentPadding),
                 )
             } else {
-                RoutineExerciseList(
-                    exercises = exercises,
+                RoutineItemList(
+                    items = items,
                     contentPadding = contentPadding,
                     onClickEdit = { editTarget = it },
-                    onClickRemove = { screenModel.removeExercise(it.id) },
+                    onClickRemoveExercise = { screenModel.removeExercise(it) },
+                    onClickRemoveGroup = screenModel::removeGroup,
+                    onChangeGroupPicks = screenModel::updateGroupMaxPicks,
+                    onClickAddExerciseToGroup = { groupId ->
+                        navigator.push(ExercisePickerScreen(routineId, groupId = groupId))
+                    },
                     onChangeOrder = screenModel::reorder,
                 )
             }
@@ -124,25 +154,28 @@ class RoutineEditScreen(
 }
 
 @Composable
-private fun RoutineExerciseList(
-    exercises: List<RoutineExercise>,
+private fun RoutineItemList(
+    items: List<RoutineItem>,
     contentPadding: PaddingValues,
     onClickEdit: (RoutineExercise) -> Unit,
-    onClickRemove: (RoutineExercise) -> Unit,
-    onChangeOrder: (List<Long>) -> Unit,
+    onClickRemoveExercise: (Long) -> Unit,
+    onClickRemoveGroup: (Long) -> Unit,
+    onChangeGroupPicks: (Long, Int) -> Unit,
+    onClickAddExerciseToGroup: (Long) -> Unit,
+    onChangeOrder: (List<RoutineItem>) -> Unit,
 ) {
     // 拖拽过程中先改本地列表，松手后再按新顺序回写数据库。
-    val exercisesState = remember { exercises.toMutableStateList() }
+    val itemsState = remember { items.toMutableStateList() }
     val lazyListState = rememberLazyListState()
     val reorderableState = rememberReorderableLazyListState(lazyListState, contentPadding) { from, to ->
-        exercisesState.add(to.index, exercisesState.removeAt(from.index))
-        onChangeOrder(exercisesState.map { it.id })
+        itemsState.add(to.index, itemsState.removeAt(from.index))
+        onChangeOrder(itemsState.toList())
     }
 
-    LaunchedEffect(exercises) {
+    LaunchedEffect(items) {
         if (!reorderableState.isAnyItemDragging) {
-            exercisesState.clear()
-            exercisesState.addAll(exercises)
+            itemsState.clear()
+            itemsState.addAll(items)
         }
     }
 
@@ -152,14 +185,26 @@ private fun RoutineExerciseList(
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
     ) {
-        items(exercisesState, key = { it.id }) { exercise ->
-            ReorderableItem(reorderableState, exercise.id) {
-                RoutineExerciseCard(
-                    exercise = exercise,
-                    modifier = Modifier.animateItem(),
-                    onClickEdit = { onClickEdit(exercise) },
-                    onClickRemove = { onClickRemove(exercise) },
-                )
+        items(itemsState, key = { it.listKey }) { item ->
+            ReorderableItem(reorderableState, item.listKey) {
+                when (item) {
+                    is RoutineItem.Exercise -> RoutineExerciseCard(
+                        exercise = item.value,
+                        modifier = Modifier.animateItem(),
+                        onClickEdit = { onClickEdit(item.value) },
+                        onClickRemove = { onClickRemoveExercise(item.value.id) },
+                    )
+
+                    is RoutineItem.Group -> RoutineGroupCard(
+                        group = item.value,
+                        modifier = Modifier.animateItem(),
+                        onClickEditExercise = onClickEdit,
+                        onClickRemoveExercise = onClickRemoveExercise,
+                        onClickRemoveGroup = { onClickRemoveGroup(item.value.id) },
+                        onChangePicks = { picks -> onChangeGroupPicks(item.value.id, picks) },
+                        onClickAddExercise = { onClickAddExerciseToGroup(item.value.id) },
+                    )
+                }
             }
         }
     }
@@ -195,6 +240,177 @@ private fun ReorderableCollectionItemScope.RoutineExerciseCard(
                 Text(
                     text = exercise.exerciseName,
                     style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = exercise.targetText() + " · " +
+                        stringResource(R.string.routine_edit_rest, exercise.restSeconds),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onClickEdit) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = stringResource(R.string.routine_edit_edit_target),
+                )
+            }
+            IconButton(onClick = onClickRemove) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.routine_edit_remove_exercise),
+                )
+            }
+        }
+    }
+}
+
+/** 动作组卡片：组内动作、以及「做其中 x 个」都在卡片里直接管，不用进二级页面。 */
+@Composable
+private fun ReorderableCollectionItemScope.RoutineGroupCard(
+    group: RoutineGroup,
+    modifier: Modifier = Modifier,
+    onClickEditExercise: (RoutineExercise) -> Unit,
+    onClickRemoveExercise: (Long) -> Unit,
+    onClickRemoveGroup: () -> Unit,
+    onChangePicks: (Int) -> Unit,
+    onClickAddExercise: () -> Unit,
+) {
+    ElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.medium),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.padding.medium),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.DragHandle,
+                    contentDescription = stringResource(R.string.routine_edit_drag_handle),
+                    modifier = Modifier
+                        .padding(end = MaterialTheme.padding.small)
+                        .draggableHandle(),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.routine_edit_group_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.routine_edit_group_member_count, group.exercises.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onClickRemoveGroup) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.routine_edit_remove_group),
+                    )
+                }
+            }
+
+            GroupPicksRow(
+                picks = group.maxPicks,
+                memberCount = group.exercises.size,
+                onChangePicks = onChangePicks,
+            )
+
+            if (group.exercises.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.routine_edit_group_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                group.exercises.forEach { exercise ->
+                    GroupExerciseRow(
+                        exercise = exercise,
+                        onClickEdit = { onClickEditExercise(exercise) },
+                        onClickRemove = { onClickRemoveExercise(exercise.id) },
+                    )
+                }
+            }
+
+            TextButton(onClick = onClickAddExercise) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+                )
+                Text(text = stringResource(R.string.routine_edit_group_add_exercise))
+            }
+        }
+    }
+}
+
+/** 「做其中 x 个」：读数配一对加减按钮，范围是 1..组内动作数。 */
+@Composable
+private fun GroupPicksRow(
+    picks: Int,
+    memberCount: Int,
+    onChangePicks: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.routine_edit_group_picks_label),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(
+            onClick = { onChangePicks(picks - 1) },
+            enabled = picks > 1,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Remove,
+                contentDescription = stringResource(R.string.routine_edit_group_picks_decrease),
+            )
+        }
+        Text(
+            text = picks.toString(),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        IconButton(
+            onClick = { onChangePicks(picks + 1) },
+            enabled = picks < memberCount,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(R.string.routine_edit_group_picks_increase),
+            )
+        }
+    }
+}
+
+/** 组内动作：目标值与组间休息照旧可单独编辑，只是排在组卡片内部。 */
+@Composable
+private fun GroupExerciseRow(
+    exercise: RoutineExercise,
+    onClickEdit: () -> Unit,
+    onClickRemove: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = MaterialTheme.padding.medium, top = MaterialTheme.padding.small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = exercise.exerciseName,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
                     text = exercise.targetText() + " · " +

@@ -1,0 +1,15 @@
+-- 动作组：一个计划里可以把多个动作编成一组，训练时从中挑最多 max_picks 个动作来练。
+CREATE TABLE routine_group (
+    id         INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    routine_id INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
+    position   INTEGER NOT NULL,
+    max_picks  INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX routine_group_routine_id ON routine_group(routine_id);
+
+-- 动作所属的动作组；为空表示这个动作在计划里单独排列，不参与组内挑选。
+-- 组被删除时组内动作跟着一起删（ON DELETE CASCADE），不会留下孤儿行。
+ALTER TABLE routine_exercise ADD COLUMN group_id INTEGER REFERENCES routine_group(id) ON DELETE CASCADE;
+
+CREATE INDEX routine_exercise_group_id ON routine_exercise(group_id);

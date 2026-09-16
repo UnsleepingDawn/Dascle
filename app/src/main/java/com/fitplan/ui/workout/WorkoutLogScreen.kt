@@ -63,6 +63,7 @@ class WorkoutLogScreen(
         val phase by screenModel.phase.collectAsState()
         val sessionName by screenModel.sessionName.collectAsState()
         val exercises by screenModel.exercises.collectAsState()
+        val items by screenModel.items.collectAsState()
         val rest by screenModel.rest.collectAsState()
         val summary by screenModel.summary.collectAsState()
         val restFinishedTick by screenModel.restFinishedTick.collectAsState()
@@ -90,6 +91,32 @@ class WorkoutLogScreen(
 
         val freeName = stringResource(R.string.workout_free)
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
+
+        // 一张动作卡：单独排的动作直接用它，动作组里挑中的动作作为子卡（nested）用它。
+        val logExerciseCard: @Composable (LogExercise, Boolean) -> Unit = { exercise, nested ->
+            LogExerciseCard(
+                exercise = exercise,
+                readOnly = readOnly,
+                editableCompletedSets = editing,
+                nested = nested,
+                onWeightChange = { index, value ->
+                    screenModel.updateWeight(exercise.exerciseId, index, value)
+                },
+                onRepsChange = { index, value ->
+                    screenModel.updateReps(exercise.exerciseId, index, value)
+                },
+                onSecondsChange = { index, value ->
+                    screenModel.updateSeconds(exercise.exerciseId, index, value)
+                },
+                onToggleCompleted = { index ->
+                    screenModel.toggleCompleted(exercise.exerciseId, index)
+                },
+                onAddSet = { screenModel.addSetRow(exercise.exerciseId) },
+                onRemoveSet = { screenModel.removeSetRow(exercise.exerciseId) },
+                onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
+            )
+        }
+        val exercisesById = remember(exercises) { exercises.associateBy { it.exerciseId } }
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -173,13 +200,17 @@ class WorkoutLogScreen(
             },
         ) { contentPadding ->
             if (phase == WorkoutPhase.NOT_STARTED) {
-                if (exercises.isEmpty()) {
+                if (items.isEmpty()) {
                     EmptyScreen(
                         message = stringResource(R.string.workout_plan_empty),
                         modifier = Modifier.padding(contentPadding),
                     )
                 } else {
-                    WorkoutPlanList(exercises = exercises, contentPadding = contentPadding)
+                    WorkoutPlanList(
+                        items = items,
+                        exercises = exercises,
+                        contentPadding = contentPadding,
+                    )
                 }
             } else {
                 LazyColumn(
@@ -191,27 +222,27 @@ class WorkoutLogScreen(
                     if (readOnly && currentSummary != null) {
                         item { WorkoutSummaryCard(summary = currentSummary) }
                     }
-                    items(exercises, key = { it.exerciseId }) { exercise ->
-                        LogExerciseCard(
-                            exercise = exercise,
-                            readOnly = readOnly,
-                            editableCompletedSets = editing,
-                            onWeightChange = { index, value ->
-                                screenModel.updateWeight(exercise.exerciseId, index, value)
-                            },
-                            onRepsChange = { index, value ->
-                                screenModel.updateReps(exercise.exerciseId, index, value)
-                            },
-                            onSecondsChange = { index, value ->
-                                screenModel.updateSeconds(exercise.exerciseId, index, value)
-                            },
-                            onToggleCompleted = { index ->
-                                screenModel.toggleCompleted(exercise.exerciseId, index)
-                            },
-                            onAddSet = { screenModel.addSetRow(exercise.exerciseId) },
-                            onRemoveSet = { screenModel.removeSetRow(exercise.exerciseId) },
-                            onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
-                        )
+                    items(items, key = { it.key }) { item ->
+                        when (item) {
+                            is LogItem.Exercise -> {
+                                val exercise = exercisesById[item.exerciseId]
+                                if (exercise != null) logExerciseCard(exercise, false)
+                            }
+
+                            // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
+                            is LogItem.Group -> LogGroupCard(
+                                group = item,
+                                exercises = exercises,
+                                readOnly = readOnly,
+                                onTogglePick = { exerciseId ->
+                                    if (exerciseId in item.pickedIds) {
+                                        screenModel.unpickGroupExercise(item.groupId, exerciseId)
+                                    } else {
+                                        screenModel.pickGroupExercise(item.groupId, exerciseId)
+                                    }
+                                },
+                            ) { exercise -> logExerciseCard(exercise, true) }
+                        }
                     }
                 }
             }

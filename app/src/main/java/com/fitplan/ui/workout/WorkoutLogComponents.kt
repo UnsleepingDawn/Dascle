@@ -55,10 +55,13 @@ import kotlin.time.Instant
 /** 训练还没开始时的计划预览列表：只展示动作与目标，不能录入。 */
 @Composable
 internal fun WorkoutPlanList(
+    items: List<LogItem>,
     exercises: List<LogExercise>,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val byId = remember(exercises) { exercises.associateBy { it.exerciseId } }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -72,17 +75,79 @@ internal fun WorkoutPlanList(
                 modifier = Modifier.padding(horizontal = MaterialTheme.padding.medium),
             )
         }
-        items(exercises, key = { it.exerciseId }) { exercise ->
-            ElevatedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MaterialTheme.padding.medium),
-                shape = MaterialTheme.shapes.extraLarge,
-            ) {
-                Column(modifier = Modifier.padding(MaterialTheme.padding.medium)) {
+        items(items, key = { it.key }) { item ->
+            when (item) {
+                is LogItem.Exercise -> {
+                    val exercise = byId[item.exerciseId]
+                    if (exercise != null) PlanExerciseCard(exercise)
+                }
+
+                // 动作组：预览里也把组内动作列出来，并说明会从里面挑几个练。
+                is LogItem.Group -> PlanGroupCard(
+                    group = item,
+                    members = item.memberIds.mapNotNull(byId::get),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanExerciseCard(exercise: LogExercise) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.medium),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Column(modifier = Modifier.padding(MaterialTheme.padding.medium)) {
+            Text(
+                text = exercise.name,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = exercise.targetHint(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlanGroupCard(
+    group: LogItem.Group,
+    members: List<LogExercise>,
+) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.medium),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.padding.medium),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.workout_group_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = stringResource(R.string.workout_group_picks, group.maxPicks),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            members.forEach { exercise ->
+                Column {
                     Text(
                         text = exercise.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                     )
                     Text(
                         text = exercise.targetHint(),
@@ -91,6 +156,82 @@ internal fun WorkoutPlanList(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * 记录页里的一个动作组卡：先在芯片行里挑最多「做其中 x 个」个动作，
+ * 挑中的动作在卡片内以子卡展开，记录能力与单独排的动作完全一致。
+ *
+ * 已经练过（有已完成组）的动作不给取消挑选，免得用户以为记录也跟着没了。
+ */
+@Composable
+internal fun LogGroupCard(
+    group: LogItem.Group,
+    exercises: List<LogExercise>,
+    readOnly: Boolean,
+    onTogglePick: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    exerciseCard: @Composable (LogExercise) -> Unit,
+) {
+    val byId = remember(exercises) { exercises.associateBy { it.exerciseId } }
+    val picked = group.pickedIds.mapNotNull(byId::get)
+
+    ElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.medium),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.padding.medium),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.workout_group_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = stringResource(R.string.workout_group_picked, group.pickedIds.size, group.maxPicks),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                group.memberIds.forEach { exerciseId ->
+                    val exercise = byId[exerciseId] ?: return@forEach
+                    val selected = exerciseId in group.pickedIds
+                    val alreadyTrained = exercise.completedSets > 0
+                    FilterChip(
+                        selected = selected,
+                        enabled = !readOnly &&
+                            (if (selected) !alreadyTrained else group.canPickMore),
+                        onClick = { onTogglePick(exerciseId) },
+                        label = { Text(text = exercise.name) },
+                    )
+                }
+            }
+
+            if (picked.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.workout_group_pick_hint, group.maxPicks),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            picked.forEach { exercise -> exerciseCard(exercise) }
         }
     }
 }
@@ -109,12 +250,14 @@ internal fun LogExerciseCard(
     onRemoveSet: () -> Unit,
     onToggleSkipped: () -> Unit,
     modifier: Modifier = Modifier,
+    /** true 表示这是动作组卡里的子卡：少一层外边距、用更紧凑的圆角。 */
+    nested: Boolean = false,
 ) {
     ElevatedCard(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+            .padding(horizontal = if (nested) 0.dp else MaterialTheme.padding.medium),
+        shape = if (nested) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier

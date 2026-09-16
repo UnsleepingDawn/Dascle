@@ -7,10 +7,12 @@ CREATE TABLE routine_exercise (
     target_reps    INTEGER NOT NULL DEFAULT 10,
     rest_seconds   INTEGER NOT NULL DEFAULT 90,
     target_weight  REAL,
-    target_seconds INTEGER
+    target_seconds INTEGER,
+    group_id       INTEGER REFERENCES routine_group(id) ON DELETE CASCADE
 );
 
 CREATE INDEX routine_exercise_routine_id ON routine_exercise(routine_id);
+CREATE INDEX routine_exercise_group_id ON routine_exercise(group_id);
 
 selectByRoutineId:
 SELECT
@@ -23,6 +25,7 @@ SELECT
     routine_exercise.rest_seconds,
     routine_exercise.target_weight,
     routine_exercise.target_seconds,
+    routine_exercise.group_id,
     exercise.name AS exercise_name,
     exercise.muscle_group AS muscle_group,
     exercise.equipment AS equipment,
@@ -33,16 +36,36 @@ JOIN exercise ON exercise.id = routine_exercise.exercise_id
 WHERE routine_exercise.routine_id = ?
 ORDER BY routine_exercise.position;
 
+-- 计划里单独排列的动作（不属于任何动作组）。
+-- 顶层顺序与 routine_group.position 共用一套序号，两张表合并后才是在编排页看到的顺序。
 selectMaxPosition:
 SELECT coalesce(max(position), -1)
 FROM routine_exercise
-WHERE routine_id = ?;
+WHERE routine_id = ? AND group_id IS NULL;
+
+-- 某个动作组内部的动作顺序，只在组内有意义。
+selectMaxPositionInGroup:
+SELECT coalesce(max(position), -1)
+FROM routine_exercise
+WHERE group_id = ?;
+
+countByGroupId:
+SELECT count(*)
+FROM routine_exercise
+WHERE group_id = ?;
+
+-- 删动作前先看它属不属于某个动作组，好在那之后把组的「做其中 x 个」收敛回组内动作数。
+selectGroupIdById:
+SELECT group_id
+FROM routine_exercise
+WHERE id = ?;
 
 insert:
 INSERT INTO routine_exercise(
-    routine_id, exercise_id, position, target_sets, target_reps, rest_seconds, target_weight, target_seconds
+    routine_id, exercise_id, position, group_id,
+    target_sets, target_reps, rest_seconds, target_weight, target_seconds
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateTargets:
 UPDATE routine_exercise
@@ -84,6 +107,12 @@ WHERE exercise_id = ?;
 updatePosition:
 UPDATE routine_exercise
 SET position = ?
+WHERE id = ?;
+
+-- 把动作挪进 / 挪出动作组（挪进时 position 会另按组内序号重写）。
+updateGroupId:
+UPDATE routine_exercise
+SET group_id = ?
 WHERE id = ?;
 
 deleteById:

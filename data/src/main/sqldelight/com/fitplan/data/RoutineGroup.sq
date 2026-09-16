@@ -1,0 +1,42 @@
+CREATE TABLE routine_group (
+    id         INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    routine_id INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
+    position   INTEGER NOT NULL,
+    max_picks  INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX routine_group_routine_id ON routine_group(routine_id);
+
+selectByRoutineId:
+SELECT *
+FROM routine_group
+WHERE routine_id = ?
+ORDER BY position;
+
+selectById:
+SELECT *
+FROM routine_group
+WHERE id = ?;
+
+selectMaxPosition:
+SELECT coalesce(max(position), -1)
+FROM routine_group
+WHERE routine_id = ?;
+
+insert:
+INSERT INTO routine_group(routine_id, position, max_picks)
+VALUES (?, ?, ?);
+
+updateMaxPicks:
+UPDATE routine_group
+SET max_picks = ?
+WHERE id = ?;
+
+updatePosition:
+UPDATE routine_group
+SET position = ?
+WHERE id = ?;
+
+deleteById:
+DELETE FROM routine_group
+WHERE id = ?;

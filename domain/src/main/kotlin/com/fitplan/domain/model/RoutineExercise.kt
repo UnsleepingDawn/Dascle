@@ -22,6 +22,8 @@ data class RoutineExercise(
     val targetWeight: Double? = null,
     /** 默认时长（秒）；只在 [ExerciseMetric.DURATION] 下有意义。 */
     val targetSeconds: Int? = null,
+    /** 所属的动作组 id；为 null 表示这个动作在计划里单独排列，不参与组内挑选。 */
+    val groupId: Long? = null,
 ) {
     /** 该动作涉及的全部部位，主部位在前、次部位去重在后。 */
     val muscleGroups: List<MuscleGroup>

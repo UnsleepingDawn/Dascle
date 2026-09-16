@@ -10,6 +10,7 @@ import com.fitplan.domain.model.ExerciseProgressHint
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
+import com.fitplan.domain.model.RoutineGroup
 import com.fitplan.domain.model.ScheduleEntry
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
@@ -21,6 +22,7 @@ import com.fitplan.data.Exercise as ExerciseRow
 import com.fitplan.data.Exercise_progress_hint as ExerciseProgressHintRow
 import com.fitplan.data.Exercise_secondary_muscle as ExerciseSecondaryMuscleRow
 import com.fitplan.data.Routine as RoutineRow
+import com.fitplan.data.Routine_group as RoutineGroupRow
 import com.fitplan.data.Schedule_entry as ScheduleEntryRow
 import com.fitplan.data.SelectAll as ScheduleEntryWithRoutineRow
 import com.fitplan.data.SelectByRoutineId as RoutineExerciseRow
@@ -114,6 +116,14 @@ internal fun RoutineExerciseRow.toDomain(): RoutineExercise = RoutineExercise(
     loadMode = load_mode.toExerciseLoadMode(),
     targetWeight = target_weight,
     targetSeconds = target_seconds?.toInt(),
+    groupId = group_id,
+)
+
+internal fun RoutineGroupRow.toDomain(): RoutineGroup = RoutineGroup(
+    id = id,
+    routineId = routine_id,
+    position = position.toInt(),
+    maxPicks = max_picks.toInt(),
 )
 
 private fun scheduleEntry(

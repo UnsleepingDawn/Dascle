@@ -8,6 +8,7 @@ import com.fitplan.domain.model.ExerciseLoadMode
 import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.ExerciseProgressHint
 import com.fitplan.domain.model.RoutineExercise
+import com.fitplan.domain.model.RoutineItem
 import com.fitplan.domain.model.WorkoutSet
 import com.fitplan.domain.repository.ExerciseProgressHintRepository
 import com.fitplan.domain.repository.ExerciseRepository
@@ -88,6 +89,34 @@ data class LogExercise(
 
     /** 达标与提示用的时长基准；计划与动作库都没标时为空，此时不提示加时间。 */
     val secondsBaseline: Int? get() = targetSeconds ?: defaultDurationSeconds
+}
+
+/**
+ * 记录页列表的一项：单独排的动作，或者一个动作组。
+ *
+ * 动作组只负责「挑了哪几个动作来练」，动作自身的录入状态仍然统一放在 [LogExercise] 里，
+ * 因此组内动作拥有和单独动作完全一致的记录能力。
+ */
+sealed interface LogItem {
+
+    /** 列表 key；动作与动作组会重 id，必须带前缀。 */
+    val key: String
+
+    data class Exercise(val exerciseId: Long) : LogItem {
+        override val key: String get() = "e$exerciseId"
+    }
+
+    data class Group(
+        val groupId: Long,
+        /** 「做其中 x 个」，即最多能挑几个。 */
+        val maxPicks: Int,
+        val memberIds: List<Long>,
+        val pickedIds: List<Long>,
+    ) : LogItem {
+        override val key: String get() = "g$groupId"
+
+        val canPickMore: Boolean get() = pickedIds.size < maxPicks
+    }
 }
 
 /** 组间休息倒计时；[remainingSeconds] 为 0 表示刚刚结束。 */
@@ -179,6 +208,10 @@ class WorkoutLogScreenModel(
     private val _exercises = MutableStateFlow<List<LogExercise>>(emptyList())
     val exercises: StateFlow<List<LogExercise>> = _exercises.asStateFlow()
 
+    /** 列表结构：单独动作与动作组（组内含已挑中的子动作）交错排列。 */
+    private val _items = MutableStateFlow<List<LogItem>>(emptyList())
+    val items: StateFlow<List<LogItem>> = _items.asStateFlow()
+
     private val _rest = MutableStateFlow<RestState?>(null)
     val rest: StateFlow<RestState?> = _rest.asStateFlow()
 
@@ -250,10 +283,9 @@ class WorkoutLogScreenModel(
                 _finishedAt.value = null
                 _summary.value = null
                 _sessionName.value = routineId?.let { routineRepository.getById(it)?.name }.orEmpty()
-                _exercises.value = routineId
-                    ?.let { routineRepository.getExercises(it) }
-                    .orEmpty()
-                    .map { it.toLogExercise() }
+                val items = routineId?.let { routineRepository.getItems(it) }.orEmpty()
+                _items.value = items.map { it.toLogItem(pickedIds = emptySet()) }
+                _exercises.value = items.flatMap { it.exercises }.map { it.toLogExercise() }
             }
         }
     }
@@ -297,6 +329,38 @@ class WorkoutLogScreenModel(
 
     fun toggleSkipped(exerciseId: Long) {
         mutate(exerciseId) { it.copy(skipped = !it.skipped) }
+    }
+
+    /**
+     * 从动作组里挑一个动作来练；已经挑满「做其中 x 个」时不再接受新的。
+     * 挑中后组卡片内会出现这个动作的子卡，能像单独动作一样录入。
+     */
+    fun pickGroupExercise(groupId: Long, exerciseId: Long) {
+        _items.value = _items.value.map { item ->
+            if (item !is LogItem.Group || item.groupId != groupId) {
+                item
+            } else if (exerciseId in item.pickedIds || !item.canPickMore) {
+                item
+            } else {
+                item.copy(pickedIds = item.pickedIds + exerciseId)
+            }
+        }
+    }
+
+    /**
+     * 取消挑中的动作，只收起子卡、不删记录；
+     * 已经练过的动作不给取消，免得用户以为记录也跟着没了。
+     */
+    fun unpickGroupExercise(groupId: Long, exerciseId: Long) {
+        val completed = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.completedSets ?: 0
+        if (completed > 0) return
+        _items.value = _items.value.map { item ->
+            if (item is LogItem.Group && item.groupId == groupId) {
+                item.copy(pickedIds = item.pickedIds - exerciseId)
+            } else {
+                item
+            }
+        }
     }
 
     fun addSetRow(exerciseId: Long) {
@@ -561,6 +625,7 @@ class WorkoutLogScreenModel(
                 description = exercise.description,
             )
             _exercises.value = _exercises.value + extra.copy(sets = List(extra.targetSets) { emptyEntry(extra) })
+            _items.value = _items.value + LogItem.Exercise(exerciseId)
         }
     }
 
@@ -630,9 +695,12 @@ class WorkoutLogScreenModel(
     private suspend fun loadSession(id: Long) {
         val session = workoutRepository.getSession(id) ?: return
         val sets = workoutRepository.getSets(id)
-        val plan = session.routineId?.let { routineRepository.getExercises(it) }.orEmpty()
+        val items = session.routineId?.let { routineRepository.getItems(it) }.orEmpty()
+        val plan = items.flatMap { it.exercises }
         val planByExercise = plan.associateBy { it.exerciseId }
-        val exerciseIds = (plan.map { it.exerciseId } + sets.map { it.exerciseId }).distinct()
+        val plannedExerciseIds = plan.map { it.exerciseId }
+        val recordedExerciseIds = sets.map { it.exerciseId }.distinct()
+        val exerciseIds = (plannedExerciseIds + recordedExerciseIds).distinct()
         val exercisesById = exerciseRepository.getByIds(exerciseIds).associateBy { it.id }
 
         sessionId = session.id
@@ -645,6 +713,14 @@ class WorkoutLogScreenModel(
                 completedSets = sets.count { it.completed },
                 durationSeconds = (finishedAt - session.startedAt).inWholeSeconds,
             )
+        }
+        // 组里挑过哪些动作：本次已经有记录的就算挑过，进程被杀重进后也能还原；
+        // 只是挑了还没开练的动作会退回未挑状态。
+        val recordedIds = recordedExerciseIds.toSet()
+        _items.value = buildList {
+            items.forEach { add(it.toLogItem(pickedIds = recordedIds)) }
+            // 记录里出现、但计划编排里已经找不到的动作（计划外动作，或计划改过之后被移除的动作）。
+            recordedExerciseIds.filterNot { it in plannedExerciseIds }.forEach { add(LogItem.Exercise(it)) }
         }
         _exercises.value = exerciseIds.map { exerciseId ->
             val routineExercise = planByExercise[exerciseId]
@@ -743,6 +819,21 @@ private fun RoutineExercise.toLogExercise(): LogExercise {
         targetSeconds = targetSeconds,
     )
     return exercise.copy(sets = List(targetSets) { emptyEntry(exercise) })
+}
+
+/**
+ * 计划编排的一项转成记录页列表项；[pickedIds] 是本次已经挑中的动作 id，只有动作组用得上。
+ * 组内动作的先后由计划决定，所以挑中的顺序不会打乱组内顺序。
+ */
+private fun RoutineItem.toLogItem(pickedIds: Set<Long>): LogItem = when (this) {
+    is RoutineItem.Exercise -> LogItem.Exercise(value.exerciseId)
+
+    is RoutineItem.Group -> LogItem.Group(
+        groupId = value.id,
+        maxPicks = value.maxPicks,
+        memberIds = value.exercises.map { it.exerciseId },
+        pickedIds = value.exercises.map { it.exerciseId }.filter { it in pickedIds },
+    )
 }
 
 /**

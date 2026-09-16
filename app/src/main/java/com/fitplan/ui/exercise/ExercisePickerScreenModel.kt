@@ -36,11 +36,25 @@ class ExercisePickerScreenModel(
     private val _equipmentFilter = MutableStateFlow<Equipment?>(null)
     val equipmentFilter: StateFlow<Equipment?> = _equipmentFilter.asStateFlow()
 
+    /** 往动作组里加动作时的多选结果（按动作库顺序即点击顺序）。 */
+    private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
+
+    /** true 表示动作库里已经没有可加的动作了：计划的每个动作都排过了。 */
+    private val _allAdded = MutableStateFlow(false)
+    val allAdded: StateFlow<Boolean> = _allAdded.asStateFlow()
+
     private var allExercises: List<Exercise> = emptyList()
 
-    fun load() {
+    /**
+     * 读动作库，并排除这个计划里已经排过的动作：同一个动作在计划里只出现一次，
+     * 否则记录页会把它当成两个动作分别记录。
+     */
+    fun load(routineId: Long) {
         viewModelScope.launch {
-            allExercises = exerciseRepository.getAll()
+            val existingIds = routineRepository.getExercises(routineId).map { it.exerciseId }.toSet()
+            allExercises = exerciseRepository.getAll().filterNot { it.id in existingIds }
+            _allAdded.value = allExercises.isEmpty()
             applyFilter()
         }
     }
@@ -55,25 +69,51 @@ class ExercisePickerScreenModel(
         applyFilter()
     }
 
+    /** 组模式：勾选 / 取消勾选一个动作。 */
+    fun toggleSelect(exerciseId: Long) {
+        _selectedIds.value = _selectedIds.value.let { current ->
+            if (exerciseId in current) current - exerciseId else current + exerciseId
+        }
+    }
+
     /**
-     * 把动作加进计划的末尾：目标值取默认的 3 组 × 10 次、休息 90 秒，
+     * 把动作单独加进计划的末尾：目标值取默认的 3 组 × 10 次、休息 90 秒，
      * 并按动作类型带上动作库的默认重量（辅助类为辅助重量）或默认时长。
      */
     suspend fun addToRoutine(routineId: Long, exerciseId: Long) {
-        val exercise = allExercises.firstOrNull { it.id == exerciseId }
-            ?: exerciseRepository.getById(exerciseId)
-            ?: return
+        val exercise = findExercise(exerciseId) ?: return
+        val targets = exercise.defaultTargets()
         routineRepository.addExercise(
             routineId = routineId,
             exerciseId = exerciseId,
-            targetSets = DEFAULT_TARGET_SETS,
-            targetReps = exercise.repsOrDefault,
-            restSeconds = DEFAULT_REST_SECONDS,
-            // 纯自重动作不预填重量；计时动作用动作库的默认时长。
-            targetWeight = if (exercise.showsWeight) exercise.defaultWeight else null,
-            targetSeconds = if (exercise.isTimed) exercise.defaultDurationSeconds else null,
+            targetSets = targets.sets,
+            targetReps = targets.reps,
+            restSeconds = targets.restSeconds,
+            targetWeight = targets.weight,
+            targetSeconds = targets.seconds,
         )
     }
+
+    /** 组模式：把勾选的动作依次追加到动作组末尾，动作组里的顺序就是加入顺序。 */
+    suspend fun addSelectedToGroup(groupId: Long) {
+        val selected = _selectedIds.value
+        allExercises.filter { it.id in selected }.forEach { exercise ->
+            val targets = exercise.defaultTargets()
+            routineRepository.addExerciseToGroup(
+                groupId = groupId,
+                exerciseId = exercise.id,
+                targetSets = targets.sets,
+                targetReps = targets.reps,
+                restSeconds = targets.restSeconds,
+                targetWeight = targets.weight,
+                targetSeconds = targets.seconds,
+            )
+        }
+        _selectedIds.value = emptySet()
+    }
+
+    private suspend fun findExercise(exerciseId: Long): Exercise? =
+        allExercises.firstOrNull { it.id == exerciseId } ?: exerciseRepository.getById(exerciseId)
 
     private fun applyFilter() {
         _exercises.value = allExercises
@@ -81,10 +121,26 @@ class ExercisePickerScreenModel(
             .filter { _equipmentFilter.value == null || it.equipment == _equipmentFilter.value }
             .sortedWith(compareBy({ it.muscleGroup.ordinal }, { it.name }))
     }
-
-    private companion object {
-        const val DEFAULT_TARGET_SETS = 3
-        const val DEFAULT_TARGET_REPS = 10
-        const val DEFAULT_REST_SECONDS = 90
-    }
 }
+
+/** 加入计划 / 动作组时的目标值：次数取动作库默认次数，重量与时长按动作类型预填。 */
+private data class RoutineTargets(
+    val sets: Int,
+    val reps: Int,
+    val restSeconds: Int,
+    val weight: Double?,
+    val seconds: Int?,
+)
+
+/** 新排进计划的动作默认 3 组、休息 90 秒。 */
+private fun Exercise.defaultTargets(): RoutineTargets = RoutineTargets(
+    sets = DEFAULT_TARGET_SETS,
+    reps = repsOrDefault,
+    restSeconds = DEFAULT_REST_SECONDS,
+    // 纯自重动作不预填重量；计时动作用动作库的默认时长。
+    weight = if (showsWeight) defaultWeight else null,
+    seconds = if (isTimed) defaultDurationSeconds else null,
+)
+
+private const val DEFAULT_TARGET_SETS = 3
+private const val DEFAULT_REST_SECONDS = 90
