@@ -69,7 +69,8 @@ data class CalendarDay(
  * - 今天及以后：按当天的排期推算要练的计划与肌群；今天已经开练的也算进来；
  * - 今天以前：用已结束训练的实际组数，算出当天练到的肌群。
  *
- * [CalendarDay.planned] 无论哪天都来自排期，但只有今天及以后才拿它渲染「当天计划」；
+ * [CalendarDay.planned] 无论哪天都来自排期，只有「今天及以后、且还没开练」的日子才拿它渲染
+ * 「当天计划」；今天开练后（练完或中途退出都算）与过去的日子都只渲染 [CalendarDay.actualSessions]。
  * 给过去的日子加计划走 [RecordPastWorkout] 补记成实际训练，所以过去某天只会给出
  * [CalendarDay.actualSessions]。
  */

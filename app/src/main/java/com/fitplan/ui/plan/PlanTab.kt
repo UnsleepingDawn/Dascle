@@ -487,26 +487,30 @@ private fun DayDetailSheet(
                     if (day.isRestDay) {
                         RestDayRow(onRemove = { onRemoveRest(day.date) })
                     }
-                } else {
-                    if (day.actualSessions.isNotEmpty()) {
-                        SectionTitle(text = stringResource(R.string.calendar_day_actual))
-                        day.actualSessions.forEach { session ->
-                            ActualSessionRow(
-                                session = session,
-                                onEdit = { onEditSession(session.sessionId) },
-                                onDelete = { onDeleteSession(session) },
-                            )
-                        }
+                } else if (day.actualSessions.isNotEmpty()) {
+                    // 今天已经开练（练完或中途退出都算）就只呈现这一次训练：计划已经落在这次训练上，
+                    // 再列一遍「当天计划」只会与上面重复。
+                    SectionTitle(text = stringResource(R.string.calendar_day_actual))
+                    day.actualSessions.forEach { session ->
+                        ActualSessionRow(
+                            session = session,
+                            onEdit = { onEditSession(session.sessionId) },
+                            onDelete = { onDeleteSession(session) },
+                        )
                     }
-
+                    // 休息标记是那一天的事实，仍留在这里（带取消入口）；正常开练时会撤掉休息日，
+                    // 走到这里的很少，但不至于让标记没法撤。
+                    if (day.isRestDay) {
+                        RestDayRow(onRemove = { onRemoveRest(day.date) })
+                    }
+                } else {
+                    // 今天还没练：只列「当天计划」，没有排期也没有休息标记时补一句空态。
                     SectionTitle(text = stringResource(R.string.calendar_day_plan))
                     if (day.isRestDay) {
                         RestDayRow(onRemove = { onRemoveRest(day.date) })
                     }
                     if (day.planned.isEmpty()) {
-                        // 今天已经开练却没排期（休息日的「临时方案」）时不再补一句空态，
-                        // 上面「实际训练」那段已经说清楚这一天练了什么。
-                        if (!day.isRestDay && day.actualSessions.isEmpty()) {
+                        if (!day.isRestDay) {
                             Text(
                                 text = stringResource(R.string.calendar_day_empty),
                                 style = MaterialTheme.typography.bodySmall,
