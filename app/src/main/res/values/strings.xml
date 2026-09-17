@@ -60,15 +60,16 @@
 
     <!-- 计划 -->
     <string name="plan_title">设置单日方案</string>
-    <string name="plan_empty">还没有训练计划\n点右下角按钮新建一个计划</string>
-    <string name="plan_new">新建计划</string>
-    <string name="plan_rename">重命名计划</string>
+    <string name="plan_empty">还没有可以被编排的单日方案！\n新建一个，然后在里面添加你的动作！</string>
+    <string name="plan_new">新增单日方案</string>
+    <string name="plan_rename">编辑名称</string>
     <string name="plan_delete">删除计划</string>
     <string name="plan_delete_confirm">「%1$s」及其动作编排、日程安排都会一并删除。</string>
     <string name="plan_schedule">日程</string>
+    <string name="plan_action_schedule">安排动作</string>
+    <string name="plan_action_rename">编辑名称</string>
     <string name="plan_exercise_count">%1$d 个动作</string>
-    <string name="plan_note_empty">暂无备注</string>
-    <string name="field_routine_name">计划名称</string>
+    <string name="field_routine_name">名称</string>
     <string name="field_routine_note">备注（可选）</string>
 
     <!-- 编排多日循环 -->
