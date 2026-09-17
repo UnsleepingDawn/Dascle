@@ -2,6 +2,9 @@ package com.fitplan.ui.workout
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.app.data.DataRevision
+import com.fitplan.domain.interactor.ClearRestDay
+import com.fitplan.domain.interactor.RestoreRestDay
 import com.fitplan.domain.interactor.UpdateExerciseProgression
 import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.ExerciseLoadMode
@@ -27,6 +30,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -213,8 +219,11 @@ class WorkoutLogScreenModel(
     private val exerciseRepository: ExerciseRepository,
     private val hintRepository: ExerciseProgressHintRepository,
     private val updateProgress: UpdateExerciseProgression,
+    private val clearRestDay: ClearRestDay,
+    private val restoreRestDay: RestoreRestDay,
     private val widgetManager: WidgetManager,
     private val restNotifier: RestNotifier,
+    private val dataRevision: DataRevision,
 ) : ViewModel() {
 
     private val _phase = MutableStateFlow(WorkoutPhase.NOT_STARTED)
@@ -344,6 +353,10 @@ class WorkoutLogScreenModel(
                 name = _sessionName.value.ifBlank { fallbackName },
                 startedAt = Clock.System.now(),
             )
+            // 今天开练了，今天就不再是休息日（休息日的「临时方案」走到这里把标记撤掉；
+            // 有排期的日子本来就不该有休息标记，这里删的是空集）。
+            clearRestDay(today())
+            dataRevision.bump()
             loadSession(id)
             widgetManager.updateTodayWidget()
         }
@@ -745,6 +758,10 @@ class WorkoutLogScreenModel(
         viewModelScope.launch {
             skipRest()
             currentSessionId?.let { workoutRepository.deleteSession(it) }
+            // 删完今天可能就什么都没剩了（休息日的「临时方案」放弃），这时把今天还原成休息日；
+            // 今天还有排期或还有别的训练时，RestoreRestDay 自己会跳过。
+            restoreRestDay(today())
+            dataRevision.bump()
             widgetManager.updateTodayWidget()
             _exitTick.value += 1
         }
@@ -907,6 +924,9 @@ class WorkoutLogScreenModel(
             )
         }
     }
+
+    private fun today(): LocalDate =
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
 
     private companion object {
         const val REST_TICK_MILLIS = 1_000L

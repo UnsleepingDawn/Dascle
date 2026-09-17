@@ -34,6 +34,14 @@ interface ScheduleRepository {
     suspend fun deleteRestDay(date: LocalDate)
 
     /**
+     * 只补一条休息日标记、不动这一天的排期。
+     *
+     * 与 [setRestDay] 的区别：那个是「把某天改成休息日」（会撤掉这一天的排期），这个只用于把标记
+     * 还原回去——放弃一次临时训练时若用 [setRestDay]，会把用户中途给今天排的计划一起抹掉。
+     */
+    suspend fun addRestDay(date: LocalDate)
+
+    /**
      * 把编排批量铺到日历上：先清掉 `[start, endExclusive)` 内已有的排期与休息日，
      * 再按 [routineDates] / [restDates] 把这些天写成训练日或休息日。
      *

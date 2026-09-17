@@ -146,7 +146,7 @@ object TodayTab : Tab {
                         interactive = unfinished == null && finishedSession == null,
                         upcomingPlan = upcomingPlan,
                         onUseUpcoming = screenModel::useUpcomingPlan,
-                        onStartFreeWorkout = { navigator.push(WorkoutLogScreen()) },
+                        onStartFreeWorkout = { navigator.push(WorkoutLogScreen(tempPlan = true)) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),

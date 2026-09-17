@@ -60,6 +60,11 @@ class ScheduleRepositoryImpl(
         restQueries.deleteByDate(date = date.toDbValue())
     }
 
+    override suspend fun addRestDay(date: LocalDate) {
+        // 只补标记：这里的 insert 是 INSERT OR IGNORE，已标过时也不会出错（用不上 setRestDay 的删排期）。
+        restQueries.insert(date = date.toDbValue())
+    }
+
     override suspend fun applyComposePlan(
         start: LocalDate,
         endExclusive: LocalDate,

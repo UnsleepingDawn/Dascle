@@ -504,7 +504,9 @@ private fun DayDetailSheet(
                         RestDayRow(onRemove = { onRemoveRest(day.date) })
                     }
                     if (day.planned.isEmpty()) {
-                        if (!day.isRestDay) {
+                        // 今天已经开练却没排期（休息日的「临时方案」）时不再补一句空态，
+                        // 上面「实际训练」那段已经说清楚这一天练了什么。
+                        if (!day.isRestDay && day.actualSessions.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.calendar_day_empty),
                                 style = MaterialTheme.typography.bodySmall,

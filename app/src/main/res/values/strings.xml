@@ -37,6 +37,7 @@
     <string name="today_rest_go">开练！</string>
     <string name="today_rest_use_upcoming">使用明天的方案</string>
     <string name="today_rest_start_free">临时加一个方案</string>
+    <string name="today_rest_temp_plan">临时方案</string>
     <string name="today_rest_upcoming_title">使用明天的方案</string>
     <string name="today_rest_upcoming_message">把「%1$s」（%2$s）挪到今天开练，之后的计划与休息日整体提前 %3$d 天。</string>
     <string name="today_rest_no_upcoming">之后还没有安排训练，先用「临时加一个方案」开练吧</string>

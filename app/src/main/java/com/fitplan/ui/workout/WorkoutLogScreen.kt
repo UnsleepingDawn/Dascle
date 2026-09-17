@@ -54,6 +54,14 @@ class WorkoutLogScreen(
     private val editing: Boolean = false,
     /** true 表示把这次已结束的训练重新置为进行中（「计划外训练」入口），新加内容追加到同一次训练。 */
     private val reopen: Boolean = false,
+    /**
+     * true 表示这是休息日「临时加一个方案」开出来的训练，只影响这场训练的名字（叫「临时方案」）。
+     *
+     * 撤掉 / 还原今天的休息日标记不靠这个参数：开始训练时一律 `ClearRestDay`，放弃时由
+     * `RestoreRestDay` 自己判断今天还剩不剩训练——中途退出再点「继续训练」进来时这个标记早就丢了，
+     * 只有库里的事实靠得住。
+     */
+    private val tempPlan: Boolean = false,
 ) : Screen() {
 
     @Composable
@@ -94,7 +102,9 @@ class WorkoutLogScreen(
         // 非空表示「减一组」减到最后一组，正在问要不要直接跳过这个动作。
         var lastSetSkipId by remember { mutableStateOf<Long?>(null) }
 
-        val freeName = stringResource(R.string.workout_free)
+        val freeName = stringResource(
+            if (tempPlan) R.string.today_rest_temp_plan else R.string.workout_free,
+        )
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
 
         // 一张动作卡：单独排的动作直接用它，动作组里挑中的动作作为子卡（nested）用它。
