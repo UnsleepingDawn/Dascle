@@ -461,7 +461,7 @@ private fun RestDayBlock(
                         modifier = Modifier
                             .size(56.dp)
                             .clickable(enabled = interactive) { stage = 1 },
-                        tint = RestDayIconColor,
+                        tint = RestDayAccentColor,
                     )
                     Text(
                         text = stringResource(R.string.today_rest_title),
@@ -484,7 +484,7 @@ private fun RestDayBlock(
                         2 -> MaterialTheme.typography.headlineLarge
                         else -> MaterialTheme.typography.displayMedium
                     },
-                    color = MaterialTheme.colorScheme.tertiary,
+                    color = RestDayAccentColor,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .clickable(enabled = interactive && current < REST_LAST_STAGE) { stage = current + 1 }
@@ -584,5 +584,5 @@ private const val REST_LAST_STAGE = 3
 /** 休息页每档之间的淡入淡出时长（毫秒）。 */
 private const val REST_STAGE_ANIM_MILLIS = 220
 
-/** 休息页小人图标的颜色：深蓝色，不跟随主题的 tertiary（绿／粉／灰）。 */
-private val RestDayIconColor = Color(0xFF1565C0)
+/** 休息页的小人图标与「开练！」文字的颜色：深蓝色，不跟随主题的 tertiary（绿／粉／灰）。 */
+private val RestDayAccentColor = Color(0xFF1565C0)
