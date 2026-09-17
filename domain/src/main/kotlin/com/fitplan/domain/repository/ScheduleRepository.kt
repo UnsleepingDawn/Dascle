@@ -59,6 +59,15 @@ interface ScheduleRepository {
         missedRoutines: Map<LocalDate, List<Long>>,
     )
 
+    /**
+     * 整体提前：把 [from] 及以后的排期与休息日往前搬 `from - start` 天，
+     * 并清掉 `[start, from)` 这一段原本的内容（含休息日）。
+     *
+     * 结果是 [from] 那天的安排落到 [start]（今天），它原本的位置正好留给明天，练 / 休节奏连续衔接。
+     * 整批放在一个事务里，中途出错不会留下挪了一半的日历。
+     */
+    suspend fun advanceScheduleTo(start: LocalDate, from: LocalDate)
+
     /** 跳过漏练：清掉 [dates] 这些天的排期；休息日与今天的安排都不动。 */
     suspend fun deletePlansOn(dates: Collection<LocalDate>)
 }

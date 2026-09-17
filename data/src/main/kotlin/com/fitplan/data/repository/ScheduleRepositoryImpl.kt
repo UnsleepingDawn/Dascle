@@ -148,6 +148,34 @@ class ScheduleRepositoryImpl(
         }
     }
 
+    override suspend fun advanceScheduleTo(start: LocalDate, from: LocalDate) {
+        val offset = from.toEpochDays() - start.toEpochDays()
+        if (offset <= 0) return
+
+        database.transactionWithResult {
+            // 1. 先把「from 及以后」的排期与休息日读出来，enabled 原样保留。
+            val upcoming = queries.selectOnceFrom(specific_date = from.toDbValue()).awaitAsList()
+            val upcomingRest = restQueries.selectFrom(date = from.toDbValue()).awaitAsList()
+
+            // 2. 从今天起整段清掉：今天的休息日、今天到 from 之间的空档与休息日都不再保留，
+            //    腾出来的位置正好由搬过来的安排补上。
+            queries.deleteOnceFrom(specific_date = start.toDbValue())
+            restQueries.deleteFrom(date = start.toDbValue())
+
+            // 3. 整体前移 offset 天：from 那天的安排落到今天，练 / 休节奏连续衔接。
+            upcoming.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = requireNotNull(entry.specific_date) - offset,
+                    enabled = entry.enabled,
+                )
+            }
+            upcomingRest.forEach { day ->
+                restQueries.insert(date = day - offset)
+            }
+        }
+    }
+
     override suspend fun deletePlansOn(dates: Collection<LocalDate>) {
         database.transactionWithResult {
             dates.forEach { date ->

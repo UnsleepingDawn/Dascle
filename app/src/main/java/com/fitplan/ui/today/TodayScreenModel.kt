@@ -5,10 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.GetScheduledRoutinesForDate
 import com.fitplan.domain.interactor.GetTodayWorkoutSession
+import com.fitplan.domain.interactor.GetUpcomingTrainingPlan
 import com.fitplan.domain.interactor.IsRestDay
 import com.fitplan.domain.interactor.ScheduledRoutine
+import com.fitplan.domain.interactor.UpcomingTrainingPlan
+import com.fitplan.domain.interactor.UseUpcomingTrainingPlanForToday
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.repository.WorkoutRepository
+import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -31,8 +35,11 @@ class TodayScreenModel(
     private val getScheduledRoutinesForDate: GetScheduledRoutinesForDate,
     private val getTodayWorkoutSession: GetTodayWorkoutSession,
     private val isRestDay: IsRestDay,
+    private val getUpcomingTrainingPlan: GetUpcomingTrainingPlan,
+    private val useUpcomingTrainingPlanForToday: UseUpcomingTrainingPlanForToday,
     private val workoutRepository: WorkoutRepository,
-    dataRevision: DataRevision,
+    private val widgetManager: WidgetManager,
+    private val dataRevision: DataRevision,
 ) : ViewModel() {
 
     init {
@@ -67,6 +74,17 @@ class TodayScreenModel(
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
 
+    /**
+     * 今天之后最近的一次训练安排，休息日的「使用明天的方案」用它。
+     * 之后完全没有排期时为 null，那个入口只能置灰。
+     */
+    private val _upcomingPlan = MutableStateFlow<UpcomingTrainingPlan?>(null)
+    val upcomingPlan: StateFlow<UpcomingTrainingPlan?> = _upcomingPlan.asStateFlow()
+
+    /** 改完排期后要直接开练的计划 id；界面消费完调 [consumeStartRequest] 清掉，避免返回时又跳一次。 */
+    private val _startRoutineRequest = MutableStateFlow<Long?>(null)
+    val startRoutineRequest: StateFlow<Long?> = _startRoutineRequest.asStateFlow()
+
     fun refresh() {
         viewModelScope.launch {
             val date = today()
@@ -75,8 +93,29 @@ class TodayScreenModel(
             _routines.value = getScheduledRoutinesForDate(date)
             _unfinished.value = workoutRepository.getUnfinishedSessions().maxByOrNull { it.startedAt }
             _todaySession.value = getTodayWorkoutSession()
+            _upcomingPlan.value = getUpcomingTrainingPlan(date)
             _loaded.value = true
         }
+    }
+
+    /**
+     * 休息日改用之后最近一次训练的安排：把那天的计划挪到今天，之后的排期与休息日整体提前，
+     * 然后请界面直接进训练记录页开练。
+     */
+    fun useUpcomingPlan() {
+        val plan = _upcomingPlan.value ?: return
+        viewModelScope.launch {
+            val routineId = useUpcomingTrainingPlanForToday(plan)
+            refresh()
+            // 日历页可能已经取过数，改完排期要让它跟着重算。
+            dataRevision.bump()
+            widgetManager.updateTodayWidget()
+            _startRoutineRequest.value = routineId
+        }
+    }
+
+    fun consumeStartRequest() {
+        _startRoutineRequest.value = null
     }
 
     private fun today(): LocalDate =
