@@ -28,8 +28,8 @@
     <string name="today_empty">今天没有训练安排\n去「计划」页给训练计划排个日程吧</string>
     <string name="today_exercise_count">%1$d 个动作</string>
     <string name="today_start_workout">开始训练</string>
-    <string name="today_extra_title">计划外训练</string>
-    <string name="today_start_extra">开始训练（计划外）</string>
+    <string name="today_extra_title">还想练？</string>
+    <string name="today_start_extra">再来！</string>
     <string name="today_rest_title">今天休息</string>
     <string name="today_rest_tap_hint">今天还能练，点一下</string>
     <string name="today_rest_ask_one">不想休息？</string>

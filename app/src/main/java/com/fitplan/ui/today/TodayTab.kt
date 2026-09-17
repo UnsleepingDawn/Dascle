@@ -61,6 +61,7 @@ import com.fitplan.presentation.util.Tab
 import com.fitplan.ui.plan.routine.targetText
 import com.fitplan.ui.workout.WorkoutLogScreen
 import com.fitplan.ui.workout.toClockText
+import com.fitplan.ui.workout.toWeightText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.datetime.isoDayNumber
 
@@ -82,6 +83,7 @@ object TodayTab : Tab {
         val restDay by screenModel.restDay.collectAsState()
         val unfinished by screenModel.unfinished.collectAsState()
         val todaySession by screenModel.todaySession.collectAsState()
+        val todaySessionExercises by screenModel.todaySessionExercises.collectAsState()
         val loaded by screenModel.loaded.collectAsState()
         val upcomingPlan by screenModel.upcomingPlan.collectAsState()
         val startRoutineRequest by screenModel.startRoutineRequest.collectAsState()
@@ -98,7 +100,7 @@ object TodayTab : Tab {
 
         val weekdayNames = stringArrayResource(R.array.weekday_names)
 
-        // 今天的训练已经做完：计划卡片的「开始训练」置灰，下方改给一张「计划外训练」卡片。
+        // 今天的训练已经做完：计划卡片的「开始训练」置灰，下方改给一张「还想练？」卡片。
         val finishedSession = todaySession?.takeIf { it.isFinished }
 
         // 鼓励语每次进今日页随机取一条，取完就固定，不跟着列表滚动换句子。
@@ -109,6 +111,14 @@ object TodayTab : Tab {
         val standaloneUnfinished = unfinished?.takeIf { session ->
             routines.none { it.routine.id == session.routineId }
         }
+
+        // 今天这次已结束的训练没有对应的计划卡片（休息日「临时加一个方案」这类计划外训练）时，
+        // 页面原本只剩鼓励语，看不到今天到底练了什么，这里补一张总结卡片放在鼓励语上面。
+        // 练完的动作一条都没记录（组数全没勾）时不给空卡片。
+        val standaloneFinished = finishedSession?.takeIf { session ->
+            routines.none { it.routine.id == session.routineId }
+        }
+        val showSessionCard = standaloneFinished != null && todaySessionExercises.isNotEmpty()
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -135,7 +145,7 @@ object TodayTab : Tab {
             when {
                 !loaded -> Unit
 
-                // 今天被编排成休息日：整页换成休息页，「计划外训练」之类的入口一个都不给。
+                // 今天被编排成休息日：整页换成休息页，「还想练？」之类的入口一个都不给。
                 restDay -> Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -162,8 +172,15 @@ object TodayTab : Tab {
                     }
 
                     // 休息日之前已经练完过一场（例如事后把今天改成了休息日）：别让今日页退成一片
-                    // 「今天休息」，把鼓励语与「计划外训练」的入口照常摆出来。
+                    // 「今天休息」，把训练总结、鼓励语与「还想练？」的入口照常摆出来。
                     finishedSession?.let { session ->
+                        if (showSessionCard) {
+                            TodaySessionCard(
+                                name = session.name,
+                                exercises = todaySessionExercises,
+                                modifier = Modifier.padding(bottom = MaterialTheme.padding.small),
+                            )
+                        }
                         Text(
                             text = encouragement,
                             style = MaterialTheme.typography.bodyMedium,
@@ -215,6 +232,14 @@ object TodayTab : Tab {
                         }
 
                         if (finishedSession != null) {
+                            if (showSessionCard) {
+                                item(key = "session") {
+                                    TodaySessionCard(
+                                        name = finishedSession.name,
+                                        exercises = todaySessionExercises,
+                                    )
+                                }
+                            }
                             item(key = "encouragement") {
                                 Text(
                                     text = encouragement,
@@ -322,7 +347,80 @@ private fun ScheduledRoutineCard(
 }
 
 /**
- * 今天练完之后才出现的「计划外训练」卡片：与计划卡片同规格，但只给一个入口，
+ * 今天这场训练没有对应的计划卡片（休息日「临时加一个方案」这类计划外训练的入口是「开始训练」，
+ * 练完之后原先只在页面上留一句鼓励语）时，在鼓励语上面补一张总结卡片，
+ * 让用户看得到今天到底练了什么：方案名 + 动作数 + 每个动作的实际训练量。
+ *
+ * 版式与计划卡片同规格，但只展示、不给入口。
+ */
+@Composable
+private fun TodaySessionCard(
+    name: String,
+    exercises: List<TodaySessionExercise>,
+    modifier: Modifier = Modifier,
+) {
+    ElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.medium),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.padding.medium),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+        ) {
+            Text(
+                text = name.ifBlank { stringResource(R.string.workout_free) },
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.today_exercise_count, exercises.size),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            exercises.forEach { exercise ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = exercise.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = exercise.volumeText(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 总结卡片里一个动作的实际训练量，写法与计划卡片的 `targetText()` 一致：组数 × 次数 · 重量。 */
+@Composable
+private fun TodaySessionExercise.volumeText(): String {
+    val base = if (isTimed) {
+        stringResource(R.string.routine_edit_targets_timed, completedSets, seconds ?: 0)
+    } else {
+        stringResource(R.string.routine_edit_targets, completedSets, reps ?: 0)
+    }
+    val weightText = weight
+        ?.takeIf { showsWeight }
+        ?.let { value ->
+            if (weightIsAssistance) {
+                stringResource(R.string.weight_kg_assist, value.toWeightText())
+            } else {
+                stringResource(R.string.weight_kg, value.toWeightText())
+            }
+        }
+    return listOfNotNull(base, weightText).joinToString(" · ")
+}
+
+/**
+ * 今天练完之后才出现的「还想练？」卡片：与计划卡片同规格，但只给一个入口，
  * 点进去把今天的训练重新变成进行中，往里加的动作都追加到同一次训练上。
  */
 @Composable

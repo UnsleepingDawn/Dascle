@@ -52,7 +52,7 @@ class WorkoutLogScreen(
     private val routineId: Long? = null,
     /** true 表示编辑一次已经结束的训练：输入框解锁、可增删组，改动即时落库。 */
     private val editing: Boolean = false,
-    /** true 表示把这次已结束的训练重新置为进行中（「计划外训练」入口），新加内容追加到同一次训练。 */
+    /** true 表示把这次已结束的训练重新置为进行中（今日页「还想练？」入口），新加内容追加到同一次训练。 */
     private val reopen: Boolean = false,
     /**
      * true 表示这是休息日「临时加一个方案」开出来的训练，只影响这场训练的名字（叫「临时方案」）。

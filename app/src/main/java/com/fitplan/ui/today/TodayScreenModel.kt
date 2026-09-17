@@ -11,6 +11,7 @@ import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
 import com.fitplan.domain.interactor.UseUpcomingTrainingPlanForToday
 import com.fitplan.domain.model.WorkoutSession
+import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.WorkoutRepository
 import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
@@ -28,6 +29,24 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
+/**
+ * 今日已结束训练里一个动作的实际训练量，供今日页的训练总结卡片使用。
+ *
+ * [reps] / [weight] / [seconds] 是这次训练里这个动作的「代表值」，由界面上同一条汇总文案
+ * 拼成「3 组 × 10 次 · 60kg」这样的摘要，不逐组罗列。
+ */
+data class TodaySessionExercise(
+    val exerciseId: Long,
+    val name: String,
+    val completedSets: Int,
+    val isTimed: Boolean,
+    val showsWeight: Boolean,
+    val weightIsAssistance: Boolean,
+    val reps: Int?,
+    val weight: Double?,
+    val seconds: Int?,
+)
+
 @Inject
 @ViewModelKey
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -38,6 +57,7 @@ class TodayScreenModel(
     private val getUpcomingTrainingPlan: GetUpcomingTrainingPlan,
     private val useUpcomingTrainingPlanForToday: UseUpcomingTrainingPlanForToday,
     private val workoutRepository: WorkoutRepository,
+    private val exerciseRepository: ExerciseRepository,
     private val widgetManager: WidgetManager,
     private val dataRevision: DataRevision,
 ) : ViewModel() {
@@ -66,10 +86,17 @@ class TodayScreenModel(
     /**
      * 今天开始的那次训练（结束与否都算）。
      * [WorkoutSession.isFinished] 为 true 表示今天的训练已经做完：计划卡片的「开始训练」置灰，
-     * 下方改给一张「计划外训练」卡片，往里加的动作仍然追加到这一次训练上。
+     * 下方改给一张「还想练？」卡片，往里加的动作仍然追加到这一次训练上。
      */
     private val _todaySession = MutableStateFlow<WorkoutSession?>(null)
     val todaySession: StateFlow<WorkoutSession?> = _todaySession.asStateFlow()
+
+    /**
+     * 今天这次已结束训练练了哪些动作、各自练了多少，供今日页在没有对应计划卡片时
+     * （休息日「临时加一个方案」这类计划外训练）补一张总结卡片；其余情况为空列表。
+     */
+    private val _todaySessionExercises = MutableStateFlow<List<TodaySessionExercise>>(emptyList())
+    val todaySessionExercises: StateFlow<List<TodaySessionExercise>> = _todaySessionExercises.asStateFlow()
 
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
@@ -93,9 +120,51 @@ class TodayScreenModel(
             _routines.value = getScheduledRoutinesForDate(date)
             _unfinished.value = workoutRepository.getUnfinishedSessions().maxByOrNull { it.startedAt }
             _todaySession.value = getTodayWorkoutSession()
+            _todaySessionExercises.value = _todaySession.value
+                ?.takeIf { it.isFinished }
+                ?.let { loadSessionExercises(it.id) }
+                .orEmpty()
             _upcomingPlan.value = getUpcomingTrainingPlan(date)
             _loaded.value = true
         }
+    }
+
+    /**
+     * 汇总一次已结束训练里各动作的实际训练量：动作名加上「完成了多少组、每组大致练什么」。
+     *
+     * 只统计已完成组（与日历「实际训练」、训练总结口径一致）；代表值取重量最大的那组
+     * （同重量取次数最多），计时动作取时间最长的一组，这样摘要稳定可预测，不受录入顺序影响。
+     * 动作按各自最小 `setIndex` 排，跟训练记录里的顺序一致；动作库里已经找不到的动作跳过。
+     */
+    private suspend fun loadSessionExercises(sessionId: Long): List<TodaySessionExercise> {
+        val setsByExercise = workoutRepository.getSets(sessionId)
+            .filter { it.completed }
+            .groupBy { it.exerciseId }
+        if (setsByExercise.isEmpty()) return emptyList()
+        val exercisesById = exerciseRepository.getByIds(setsByExercise.keys.toList()).associateBy { it.id }
+        return setsByExercise.entries
+            .sortedBy { (_, sets) -> sets.minOf { it.setIndex } }
+            .mapNotNull { (exerciseId, sets) ->
+                val exercise = exercisesById[exerciseId] ?: return@mapNotNull null
+                val representative = if (exercise.isTimed) {
+                    sets.maxBy { it.durationSeconds ?: 0 }
+                } else {
+                    sets.maxWithOrNull(
+                        compareBy({ it.weight ?: Double.NEGATIVE_INFINITY }, { it.reps ?: 0 }),
+                    ) ?: sets.first()
+                }
+                TodaySessionExercise(
+                    exerciseId = exercise.id,
+                    name = exercise.name,
+                    completedSets = sets.size,
+                    isTimed = exercise.isTimed,
+                    showsWeight = exercise.showsWeight,
+                    weightIsAssistance = exercise.weightIsAssistance,
+                    reps = representative.reps,
+                    weight = representative.weight,
+                    seconds = representative.durationSeconds,
+                )
+            }
     }
 
     /**
