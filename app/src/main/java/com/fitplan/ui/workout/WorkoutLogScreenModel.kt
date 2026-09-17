@@ -167,11 +167,36 @@ data class ProgressHint(
         }
 }
 
-/** 用户已经选了方向、正在填增量。 */
-data class ProgressIncreaseInput(
+/** 用户已经选了方向、正在填要把目标定到多少。 */
+data class ProgressTargetInput(
     val hint: ProgressHint,
     val kind: ProgressKind,
 )
+
+/**
+ * 用户填好了目标值、正在做最后确认；这时还没写库。
+ *
+ * [target] 是绝对值（kg / 次 / 秒），辅助类动作的重量表示助力值，比基准**小**才算更难。
+ */
+data class ProgressTargetConfirm(
+    val hint: ProgressHint,
+    val kind: ProgressKind,
+    val target: Double,
+)
+
+/** [target] 是不是比当前基准更难：外重要更重、辅助助力要更轻、次数 / 时长要更多。 */
+fun ProgressHint.isHarderTarget(kind: ProgressKind, target: Double?): Boolean {
+    if (target == null) return false
+    return when (kind) {
+        ProgressKind.WEIGHT -> {
+            val baseline = weightBaseline ?: return false
+            if (loadMode == ExerciseLoadMode.ASSISTED) target < baseline else target > baseline
+        }
+
+        ProgressKind.REPS -> repsBaseline?.let { target.toInt() > it } ?: false
+        ProgressKind.SECONDS -> secondsBaseline?.let { target.toInt() > it } ?: false
+    }
+}
 
 /**
  * 训练记录页：把 `workout_session` / `workout_set` 当作唯一事实来源——勾选一组就立刻落库；
@@ -233,9 +258,13 @@ class WorkoutLogScreenModel(
     private val _progressHint = MutableStateFlow<ProgressHint?>(null)
     val progressHint: StateFlow<ProgressHint?> = _progressHint.asStateFlow()
 
-    /** 非空表示用户选了方向，正在等他填要加多少。 */
-    private val _progressIncreaseInput = MutableStateFlow<ProgressIncreaseInput?>(null)
-    val progressIncreaseInput: StateFlow<ProgressIncreaseInput?> = _progressIncreaseInput.asStateFlow()
+    /** 非空表示用户选了方向，正在等他填「增加到多少」。 */
+    private val _progressTargetInput = MutableStateFlow<ProgressTargetInput?>(null)
+    val progressTargetInput: StateFlow<ProgressTargetInput?> = _progressTargetInput.asStateFlow()
+
+    /** 非空表示目标值已填好，正在等他最后确认一次；这一步还没写库。 */
+    private val _progressTargetConfirm = MutableStateFlow<ProgressTargetConfirm?>(null)
+    val progressTargetConfirm: StateFlow<ProgressTargetConfirm?> = _progressTargetConfirm.asStateFlow()
 
     /**
      * 这一场里已经处理过（点过任意一个按钮、或者点掉遮罩）的动作，处理过就不再重复弹；
@@ -270,7 +299,8 @@ class WorkoutLogScreenModel(
         // 换了一场训练就重新开始判定，上一场处理过的动作不影响这一场。
         handledHintExerciseIds.clear()
         _progressHint.value = null
-        _progressIncreaseInput.value = null
+        _progressTargetInput.value = null
+        _progressTargetConfirm.value = null
         viewModelScope.launch {
             if (sessionId != null) {
                 if (reopen && workoutRepository.getSession(sessionId)?.isFinished == true) {
@@ -441,17 +471,36 @@ class WorkoutLogScreenModel(
         _progressHint.value = null
     }
 
-    /** 选了某个方向（加重 / 加次数 / 加时间）：收起提示，改让用户填要加多少。 */
+    /** 选了某个方向（加重 / 加次数 / 加时间）：收起提示，改让用户填「增加到多少」。 */
     fun promptProgressIncrease(kind: ProgressKind) {
         val hint = _progressHint.value ?: return
         handledHintExerciseIds += hint.exerciseId
         _progressHint.value = null
-        _progressIncreaseInput.value = ProgressIncreaseInput(hint, kind)
+        _progressTargetInput.value = ProgressTargetInput(hint, kind)
     }
 
-    /** 关掉输入增量的弹窗：什么都不改，这一场也不再问这个动作。 */
-    fun dismissProgressIncreaseInput() {
-        _progressIncreaseInput.value = null
+    /** 关掉输入目标值的弹窗：什么都不改，这一场也不再问这个动作。 */
+    fun dismissProgressTargetInput() {
+        _progressTargetInput.value = null
+    }
+
+    /**
+     * 填好目标值后先校验一次：确实比当前基准更难才收起输入框，把值交给确认弹窗。
+     *
+     * 这一步**不写库**，用户还能在确认弹窗里点「取消」回到输入。
+     */
+    fun confirmProgressTarget(target: Double) {
+        val input = _progressTargetInput.value ?: return
+        if (!input.hint.isHarderTarget(input.kind, target)) return
+        _progressTargetInput.value = null
+        _progressTargetConfirm.value = ProgressTargetConfirm(input.hint, input.kind, target)
+    }
+
+    /** 确认弹窗点「取消」：回到填目标值的弹窗，让用户改数值。 */
+    fun dismissProgressTargetConfirm() {
+        val confirm = _progressTargetConfirm.value ?: return
+        _progressTargetConfirm.value = null
+        _progressTargetInput.value = ProgressTargetInput(confirm.hint, confirm.kind)
     }
 
     /**
@@ -470,24 +519,27 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 填入增量并确认：按 [ProgressIncreaseInput.kind] 把动作库的默认值与该动作在**所有**计划里的
-     * 目标值一起换成新值，今天还没勾选的行也跟着改，已经完成的记录保留当时的实际数值。
+     * 确认弹窗点「确定」：按 [ProgressTargetConfirm.kind] 把动作库的默认值与该动作在**所有**计划里的
+     * 目标值一起换成 [ProgressTargetConfirm.target]，今天还没勾选的行也跟着改，
+     * 已经完成的记录保留当时的实际数值。
      *
-     * 辅助类动作（器械辅助引体向上）的重量是助力，输入的增量表示**减少**多少辅助重量。
+     * 辅助类动作（器械辅助引体向上）的重量是助力，目标值比基准小才算更难。
      */
-    fun applyProgressIncrease(delta: Double) {
-        val input = _progressIncreaseInput.value ?: return
-        _progressIncreaseInput.value = null
-        val hint = input.hint
+    fun applyProgressTarget() {
+        val confirm = _progressTargetConfirm.value ?: return
+        _progressTargetConfirm.value = null
+        val hint = confirm.hint
+        val target = confirm.target
         viewModelScope.launch {
-            when (input.kind) {
+            when (confirm.kind) {
                 ProgressKind.WEIGHT -> {
                     val baseline = hint.weightBaseline ?: return@launch
                     val newWeight = if (hint.loadMode == ExerciseLoadMode.ASSISTED) {
-                        (baseline - delta).coerceAtLeast(0.0)
+                        target.coerceAtLeast(0.0)
                     } else {
-                        baseline + delta
+                        target
                     }
+                    if (!hint.isHarderTarget(ProgressKind.WEIGHT, newWeight)) return@launch
                     updateProgress.applyWeight(hint.exerciseId, newWeight)
                     mutate(hint.exerciseId) { exercise ->
                         exercise.copy(
@@ -505,7 +557,7 @@ class WorkoutLogScreenModel(
 
                 ProgressKind.REPS -> {
                     val baseline = hint.repsBaseline ?: return@launch
-                    val newReps = baseline + delta.toInt()
+                    val newReps = target.toInt()
                     if (newReps <= baseline) return@launch
                     updateProgress.applyReps(hint.exerciseId, newReps)
                     mutate(hint.exerciseId) { exercise ->
@@ -524,7 +576,7 @@ class WorkoutLogScreenModel(
 
                 ProgressKind.SECONDS -> {
                     val baseline = hint.secondsBaseline ?: return@launch
-                    val newSeconds = baseline + delta.toInt()
+                    val newSeconds = target.toInt()
                     if (newSeconds <= baseline) return@launch
                     updateProgress.applySeconds(hint.exerciseId, newSeconds)
                     mutate(hint.exerciseId) { exercise ->

@@ -74,35 +74,39 @@ internal fun ProgressHintDialog(
 }
 
 /**
- * 第二步：填要调整多少。确认后的新目标会同时写进动作库与所有计划编排，
- * 所以这里明确报一下当前目标与调整后的结果。
+ * 第二步：填要把目标定到多少。这里填的是**绝对值**（不是增量），
+ * 输入框留空、上方先报当前基准，「增加到」的语义更明确。
+ *
+ * 只有比当前基准更难（外部负重更重 / 辅助助力更轻 / 次数时长更多）才能点确定。
  */
 @Composable
-internal fun ProgressIncreaseDialog(
-    input: ProgressIncreaseInput,
+internal fun ProgressTargetDialog(
+    input: ProgressTargetInput,
     onConfirm: (Double) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val hint = input.hint
     val kind = input.kind
     var text by remember(input) { mutableStateOf("") }
-    val delta = text.toDoubleOrNull()?.takeIf { it > 0 }
+    val target = text.toDoubleOrNull()
+    val harder = hint.isHarderTarget(kind, target)
     val allowDecimal = kind == ProgressKind.WEIGHT
+    val assisted = kind == ProgressKind.WEIGHT && hint.loadMode == ExerciseLoadMode.ASSISTED
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.workout_progress_increase_title, hint.name)) },
+        title = { Text(text = stringResource(R.string.workout_progress_target_title, hint.name)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
                 Text(
                     text = stringResource(
-                        R.string.workout_progress_increase_message,
+                        R.string.workout_progress_target_message,
                         baselineText(hint = hint, kind = kind),
                     ),
                 )
-                if (kind == ProgressKind.WEIGHT && hint.loadMode == ExerciseLoadMode.ASSISTED) {
+                if (assisted) {
                     Text(
-                        text = stringResource(R.string.workout_progress_increase_note_assist),
+                        text = stringResource(R.string.workout_progress_target_note_assist),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -117,7 +121,16 @@ internal fun ProgressIncreaseDialog(
                         }
                     },
                     label = {
-                        Text(text = stringResource(R.string.workout_progress_increase_label, unitLabel(kind)))
+                        Text(
+                            text = stringResource(
+                                if (assisted) {
+                                    R.string.workout_progress_target_label_assist
+                                } else {
+                                    R.string.workout_progress_target_label
+                                },
+                                unitLabel(kind),
+                            ),
+                        )
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
@@ -125,11 +138,26 @@ internal fun ProgressIncreaseDialog(
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                delta?.let {
+                if (target != null && !harder) {
                     Text(
                         text = stringResource(
-                            R.string.workout_progress_increase_preview,
-                            afterText(hint = hint, kind = kind, delta = it),
+                            if (assisted) {
+                                R.string.workout_progress_target_too_easy_assist
+                            } else {
+                                R.string.workout_progress_target_too_easy
+                            },
+                            baselineText(hint = hint, kind = kind),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                if (harder && target != null) {
+                    Text(
+                        text = stringResource(
+                            R.string.workout_progress_target_preview,
+                            baselineText(hint = hint, kind = kind),
+                            targetText(hint = hint, kind = kind, target = target),
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -138,7 +166,49 @@ internal fun ProgressIncreaseDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { delta?.let(onConfirm) }, enabled = delta != null) {
+            TextButton(onClick = { target?.let(onConfirm) }, enabled = harder) {
+                Text(text = stringResource(R.string.action_ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+/**
+ * 第三步：最后确认一次。点「确定」才会真正写进动作库与所有计划编排，
+ * 所以这里把「从多少调整到多少」再报一遍。
+ */
+@Composable
+internal fun ProgressConfirmDialog(
+    confirm: ProgressTargetConfirm,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val hint = confirm.hint
+    val kind = confirm.kind
+    val assisted = kind == ProgressKind.WEIGHT && hint.loadMode == ExerciseLoadMode.ASSISTED
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.workout_progress_confirm_title, hint.name)) },
+        text = {
+            Text(
+                text = stringResource(
+                    if (assisted) {
+                        R.string.workout_progress_confirm_message_assist
+                    } else {
+                        R.string.workout_progress_confirm_message
+                    },
+                    baselineText(hint = hint, kind = kind),
+                    targetText(hint = hint, kind = kind, target = confirm.target),
+                ),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
                 Text(text = stringResource(R.string.action_ok))
             }
         },
@@ -187,23 +257,15 @@ private fun baselineText(hint: ProgressHint, kind: ProgressKind): String = when 
     ProgressKind.SECONDS -> "${hint.secondsBaseline} ${stringResource(R.string.unit_seconds)}"
 }
 
-/** 增量生效后的新目标（带单位）：辅助类动作是减少，外部重量与次数 / 时长都是增加。 */
+/** [target] 这个新目标（带单位）：辅助类动作的重量写成「辅助 40 kg」。 */
 @Composable
-private fun afterText(hint: ProgressHint, kind: ProgressKind, delta: Double): String = when (kind) {
-    ProgressKind.WEIGHT -> {
-        val baseline = hint.weightBaseline ?: 0.0
-        val value = if (hint.loadMode == ExerciseLoadMode.ASSISTED) {
-            (baseline - delta).coerceAtLeast(0.0)
-        } else {
-            baseline + delta
-        }
-        if (hint.loadMode == ExerciseLoadMode.ASSISTED) {
-            stringResource(R.string.weight_kg_assist, value.toWeightText())
-        } else {
-            stringResource(R.string.weight_kg, value.toWeightText())
-        }
+private fun targetText(hint: ProgressHint, kind: ProgressKind, target: Double): String = when (kind) {
+    ProgressKind.WEIGHT -> if (hint.loadMode == ExerciseLoadMode.ASSISTED) {
+        stringResource(R.string.weight_kg_assist, target.coerceAtLeast(0.0).toWeightText())
+    } else {
+        stringResource(R.string.weight_kg, target.toWeightText())
     }
 
-    ProgressKind.REPS -> "${(hint.repsBaseline ?: 0) + delta.toInt()} ${stringResource(R.string.unit_reps)}"
-    ProgressKind.SECONDS -> "${(hint.secondsBaseline ?: 0) + delta.toInt()} ${stringResource(R.string.unit_seconds)}"
+    ProgressKind.REPS -> "${target.toInt()} ${stringResource(R.string.unit_reps)}"
+    ProgressKind.SECONDS -> "${target.toInt()} ${stringResource(R.string.unit_seconds)}"
 }

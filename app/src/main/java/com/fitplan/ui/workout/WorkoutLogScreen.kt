@@ -70,7 +70,8 @@ class WorkoutLogScreen(
         val exitTick by screenModel.exitTick.collectAsState()
         val allExercises by screenModel.allExercises.collectAsState()
         val progressHint by screenModel.progressHint.collectAsState()
-        val progressIncreaseInput by screenModel.progressIncreaseInput.collectAsState()
+        val progressTargetInput by screenModel.progressTargetInput.collectAsState()
+        val progressTargetConfirm by screenModel.progressTargetConfirm.collectAsState()
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
         LaunchedEffect(sessionId, routineId, editing, reopen) {
@@ -280,7 +281,7 @@ class WorkoutLogScreen(
             )
         }
 
-        // 渐进提示：先问要不要提高目标，选了方向再让用户填增量。
+        // 渐进提示：先问要不要提高目标，选了方向填「增加到多少」，最后再确认一次才写库。
         progressHint?.let { hint ->
             ProgressHintDialog(
                 hint = hint,
@@ -291,11 +292,19 @@ class WorkoutLogScreen(
             )
         }
 
-        progressIncreaseInput?.let { input ->
-            ProgressIncreaseDialog(
+        progressTargetInput?.let { input ->
+            ProgressTargetDialog(
                 input = input,
-                onConfirm = screenModel::applyProgressIncrease,
-                onDismiss = screenModel::dismissProgressIncreaseInput,
+                onConfirm = screenModel::confirmProgressTarget,
+                onDismiss = screenModel::dismissProgressTargetInput,
+            )
+        }
+
+        progressTargetConfirm?.let { confirm ->
+            ProgressConfirmDialog(
+                confirm = confirm,
+                onConfirm = screenModel::applyProgressTarget,
+                onDismiss = screenModel::dismissProgressTargetConfirm,
             )
         }
     }
