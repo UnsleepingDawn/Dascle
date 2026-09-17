@@ -1,5 +1,6 @@
 package com.fitplan.domain.repository
 
+import com.fitplan.domain.model.WorkoutExerciseState
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
@@ -65,6 +66,16 @@ interface WorkoutRepository {
     suspend fun getSets(sessionId: Long): List<WorkoutSet>
 
     suspend fun getSetsOfExercise(sessionId: Long, exerciseId: Long): List<WorkoutSet>
+
+    /** 这次训练里各动作的临时状态（跳过 / 组行数 / 组内挑选），只返回真正动过的那些动作。 */
+    suspend fun getExerciseStates(sessionId: Long): List<WorkoutExerciseState>
+
+    suspend fun setExerciseSkipped(sessionId: Long, exerciseId: Long, skipped: Boolean)
+
+    /** [setCount] 为记录页当前展示的组行数；减到 0 也要落库，免得重进又被计划目标补回来。 */
+    suspend fun setExerciseSetCount(sessionId: Long, exerciseId: Long, setCount: Int)
+
+    suspend fun setExercisePicked(sessionId: Long, exerciseId: Long, picked: Boolean)
 
     suspend fun addSet(
         sessionId: Long,

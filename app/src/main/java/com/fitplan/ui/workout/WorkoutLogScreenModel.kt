@@ -174,8 +174,10 @@ data class ProgressIncreaseInput(
 )
 
 /**
- * 训练记录页：把 `workout_session` / `workout_set` 当作唯一事实来源——勾选一组就立刻落库，
- * 没勾选的行只存在于内存里，所以中途退出甚至杀进程都不会丢已经完成的记录。
+ * 训练记录页：把 `workout_session` / `workout_set` 当作唯一事实来源——勾选一组就立刻落库；
+ * 「跳过动作」「增删组后的组行数」「动作组里挑中了谁」这类没勾选的临时状态写进
+ * `workout_exercise_state`，所以中途退出甚至杀进程后重进，这些状态与已完成的记录都还在。
+ * 只有输入框里还没勾选的数值留在内存里。
  */
 @Inject
 @ViewModelKey
@@ -327,8 +329,11 @@ class WorkoutLogScreenModel(
         persistEditedSet(exerciseId, index)
     }
 
+    /** 跳过 / 恢复动作；这个状态会在本次训练里一直保留，退出重进也还在。 */
     fun toggleSkipped(exerciseId: Long) {
-        mutate(exerciseId) { it.copy(skipped = !it.skipped) }
+        val skipped = !(_exercises.value.firstOrNull { it.exerciseId == exerciseId }?.skipped ?: return)
+        mutate(exerciseId) { it.copy(skipped = skipped) }
+        persistState { sessionId -> workoutRepository.setExerciseSkipped(sessionId, exerciseId, skipped) }
     }
 
     /**
@@ -336,15 +341,16 @@ class WorkoutLogScreenModel(
      * 挑中后组卡片内会出现这个动作的子卡，能像单独动作一样录入。
      */
     fun pickGroupExercise(groupId: Long, exerciseId: Long) {
+        val group = _items.value.firstOrNull { it is LogItem.Group && it.groupId == groupId } as? LogItem.Group
+        if (group == null || exerciseId in group.pickedIds || !group.canPickMore) return
         _items.value = _items.value.map { item ->
-            if (item !is LogItem.Group || item.groupId != groupId) {
-                item
-            } else if (exerciseId in item.pickedIds || !item.canPickMore) {
-                item
-            } else {
+            if (item is LogItem.Group && item.groupId == groupId) {
                 item.copy(pickedIds = item.pickedIds + exerciseId)
+            } else {
+                item
             }
         }
+        persistState { sessionId -> workoutRepository.setExercisePicked(sessionId, exerciseId, true) }
     }
 
     /**
@@ -361,12 +367,14 @@ class WorkoutLogScreenModel(
                 item
             }
         }
+        persistState { sessionId -> workoutRepository.setExercisePicked(sessionId, exerciseId, false) }
     }
 
     fun addSetRow(exerciseId: Long) {
         mutate(exerciseId) { exercise ->
             exercise.copy(sets = exercise.sets + emptyEntry(exercise))
         }
+        persistSetCount(exerciseId)
     }
 
     /** 去掉最后一组；已经落库的那一组同时删掉。 */
@@ -374,6 +382,7 @@ class WorkoutLogScreenModel(
         val last = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets?.lastOrNull() ?: return
         mutate(exerciseId) { exercise -> exercise.copy(sets = exercise.sets.dropLast(1)) }
         last.id?.let { setId -> viewModelScope.launch { workoutRepository.deleteSet(setId) } }
+        persistSetCount(exerciseId)
     }
 
     /** 勾选 / 撤销一组：勾选时立刻落库，并启动组间休息倒计时。 */
@@ -695,6 +704,7 @@ class WorkoutLogScreenModel(
     private suspend fun loadSession(id: Long) {
         val session = workoutRepository.getSession(id) ?: return
         val sets = workoutRepository.getSets(id)
+        val states = workoutRepository.getExerciseStates(id).associateBy { it.exerciseId }
         val items = session.routineId?.let { routineRepository.getItems(it) }.orEmpty()
         val plan = items.flatMap { it.exercises }
         val planByExercise = plan.associateBy { it.exerciseId }
@@ -714,11 +724,12 @@ class WorkoutLogScreenModel(
                 durationSeconds = (finishedAt - session.startedAt).inWholeSeconds,
             )
         }
-        // 组里挑过哪些动作：本次已经有记录的就算挑过，进程被杀重进后也能还原；
-        // 只是挑了还没开练的动作会退回未挑状态。
+        // 组里挑过哪些动作：有状态行的动作以 `workout_exercise_state.picked` 为准（取消挑选也能记住），
+        // 没有状态行的是升级到 schema 12 之前的老训练，退回「本次已有 workout_set 记录」的旧判定。
         val recordedIds = recordedExerciseIds.toSet()
+        val pickedIds = recordedIds - states.keys + states.values.filter { it.picked }.map { it.exerciseId }
         _items.value = buildList {
-            items.forEach { add(it.toLogItem(pickedIds = recordedIds)) }
+            items.forEach { add(it.toLogItem(pickedIds = pickedIds)) }
             // 记录里出现、但计划编排里已经找不到的动作（计划外动作，或计划改过之后被移除的动作）。
             recordedExerciseIds.filterNot { it in plannedExerciseIds }.forEach { add(LogItem.Exercise(it)) }
         }
@@ -746,6 +757,7 @@ class WorkoutLogScreenModel(
                 description = libraryExercise?.description.orEmpty(),
             )
             exercise.copy(
+                skipped = states[exerciseId]?.skipped == true,
                 sets = ownSets
                     .map { set ->
                         SetEntry(
@@ -756,13 +768,32 @@ class WorkoutLogScreenModel(
                             completed = set.completed,
                         )
                     }
-                    .paddedToTargetSets(exercise = exercise, editable = !session.isFinished),
+                    .sizedTo(
+                        exercise = exercise,
+                        expectedSets = states[exerciseId]?.setCount,
+                        editable = !session.isFinished,
+                    ),
             )
         }
     }
 
     private fun mutate(exerciseId: Long, transform: (LogExercise) -> LogExercise) {
         _exercises.value = _exercises.value.map { if (it.exerciseId == exerciseId) transform(it) else it }
+    }
+
+    /**
+     * 把记录页的临时状态（跳过 / 组行数 / 组内挑选）写进 `workout_exercise_state`。
+     * 还没开始训练时（停在计划预览，[sessionId] 为空）没有可挂靠的训练，直接跳过。
+     */
+    private fun persistState(write: suspend (Long) -> Unit) {
+        val currentSessionId = sessionId ?: return
+        viewModelScope.launch { write(currentSessionId) }
+    }
+
+    /** 把该动作当前展示的组行数落库，重进后照此铺行；减到 0 也要记下来。 */
+    private fun persistSetCount(exerciseId: Long) {
+        val count = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets?.size ?: return
+        persistState { sessionId -> workoutRepository.setExerciseSetCount(sessionId, exerciseId, count) }
     }
 
     /**
@@ -869,14 +900,19 @@ private fun SetEntry.isPrefilledSeconds(baseline: Int): Boolean {
 }
 
 /**
- * 把已落库的组补齐成可继续录入的样子：不足目标组数时补空行，让计划目标一眼可见；
+ * 把已落库的组补齐成可继续录入的样子：按本次训练的「期望组行数」补空行——
+ * 用户增删过组就以增删后的数量为准（[expectedSets]），否则按计划目标组数铺；
  * 已经完成的行不会被追加新行——想多练一组得自己点「加一组」。
  * [editable] 为 false（已经结束的训练）时原样返回。
  */
-private fun List<SetEntry>.paddedToTargetSets(exercise: LogExercise, editable: Boolean): List<SetEntry> {
+private fun List<SetEntry>.sizedTo(
+    exercise: LogExercise,
+    expectedSets: Int?,
+    editable: Boolean,
+): List<SetEntry> {
     if (!editable) return this
-    val missing = exercise.targetSets - size
-    return if (missing <= 0) this else this + List(missing) { emptyEntry(exercise) }
+    val expected = expectedSets ?: maxOf(size, exercise.targetSets)
+    return if (size >= expected) this else this + List(expected - size) { emptyEntry(exercise) }
 }
 
 private fun SetEntry.toWorkoutSet(

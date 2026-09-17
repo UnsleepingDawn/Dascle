@@ -6,6 +6,7 @@ import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
+import com.fitplan.domain.model.WorkoutExerciseState
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
@@ -26,6 +27,7 @@ class WorkoutRepositoryImpl(
 
     private val sessionQueries get() = database.workoutSessionQueries
     private val setQueries get() = database.workoutSetQueries
+    private val stateQueries get() = database.workoutExerciseStateQueries
     private val utilQueries get() = database.utilQueries
 
     override suspend fun getSessions(): List<WorkoutSession> =
@@ -140,6 +142,33 @@ class WorkoutRepositoryImpl(
 
     override suspend fun getSetsOfExercise(sessionId: Long, exerciseId: Long): List<WorkoutSet> =
         setQueries.selectBySessionAndExercise(sessionId, exerciseId).awaitAsList().map { it.toDomain() }
+
+    override suspend fun getExerciseStates(sessionId: Long): List<WorkoutExerciseState> =
+        stateQueries.selectBySessionId(sessionId).awaitAsList().map { it.toDomain() }
+
+    override suspend fun setExerciseSkipped(sessionId: Long, exerciseId: Long, skipped: Boolean) {
+        stateQueries.upsertSkipped(
+            session_id = sessionId,
+            exercise_id = exerciseId,
+            skipped = skipped.toDbValue(),
+        )
+    }
+
+    override suspend fun setExerciseSetCount(sessionId: Long, exerciseId: Long, setCount: Int) {
+        stateQueries.upsertSetCount(
+            session_id = sessionId,
+            exercise_id = exerciseId,
+            set_count = setCount.toLong(),
+        )
+    }
+
+    override suspend fun setExercisePicked(sessionId: Long, exerciseId: Long, picked: Boolean) {
+        stateQueries.upsertPicked(
+            session_id = sessionId,
+            exercise_id = exerciseId,
+            picked = picked.toDbValue(),
+        )
+    }
 
     override suspend fun addSet(
         sessionId: Long,

@@ -12,6 +12,7 @@ import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineGroup
 import com.fitplan.domain.model.ScheduleEntry
+import com.fitplan.domain.model.WorkoutExerciseState
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.WorkoutSet
@@ -31,6 +32,7 @@ import com.fitplan.data.SelectFinished as FinishedSessionRow
 import com.fitplan.data.SelectFinishedBetween as FinishedSessionBetweenRow
 import com.fitplan.data.SelectLatestBodyFat as LatestBodyFatRow
 import com.fitplan.data.SelectLatestWeight as LatestWeightRow
+import com.fitplan.data.Workout_exercise_state as WorkoutExerciseStateRow
 import com.fitplan.data.Workout_session as WorkoutSessionRow
 import com.fitplan.data.Workout_set as WorkoutSetRow
 
@@ -191,6 +193,14 @@ internal fun WorkoutSetRow.toDomain(): WorkoutSet = WorkoutSet(
     reps = reps?.toInt(),
     durationSeconds = duration_seconds?.toInt(),
     completed = completed.toBoolean(),
+)
+
+internal fun WorkoutExerciseStateRow.toDomain(): WorkoutExerciseState = WorkoutExerciseState(
+    sessionId = session_id,
+    exerciseId = exercise_id,
+    skipped = skipped.toBoolean(),
+    setCount = set_count?.toInt(),
+    picked = picked.toBoolean(),
 )
 
 internal fun BodyMetricRow.toDomain(): BodyMetric = BodyMetric(
