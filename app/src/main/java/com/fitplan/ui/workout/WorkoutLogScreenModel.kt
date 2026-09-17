@@ -254,6 +254,10 @@ class WorkoutLogScreenModel(
     private val _allExercises = MutableStateFlow<List<Exercise>>(emptyList())
     val allExercises: StateFlow<List<Exercise>> = _allExercises.asStateFlow()
 
+    /** 手动收起的动作卡；只活在内存里，重新打开这次训练默认都是展开的。 */
+    private val _collapsedExerciseIds = MutableStateFlow<Set<Long>>(emptySet())
+    val collapsedExerciseIds: StateFlow<Set<Long>> = _collapsedExerciseIds.asStateFlow()
+
     /** 非空表示正在问「要不要把目标提高一点」；[ProgressHint] 里的动作就是被问的那个。 */
     private val _progressHint = MutableStateFlow<ProgressHint?>(null)
     val progressHint: StateFlow<ProgressHint?> = _progressHint.asStateFlow()
@@ -298,6 +302,7 @@ class WorkoutLogScreenModel(
         this.editing = editing
         // 换了一场训练就重新开始判定，上一场处理过的动作不影响这一场。
         handledHintExerciseIds.clear()
+        _collapsedExerciseIds.value = emptySet()
         _progressHint.value = null
         _progressTargetInput.value = null
         _progressTargetConfirm.value = null
@@ -363,7 +368,17 @@ class WorkoutLogScreenModel(
     fun toggleSkipped(exerciseId: Long) {
         val skipped = !(_exercises.value.firstOrNull { it.exerciseId == exerciseId }?.skipped ?: return)
         mutate(exerciseId) { it.copy(skipped = skipped) }
+        // 跳过的卡只剩标题与「恢复动作」，顺手把收起标记清掉，恢复时直接看到完整的组行。
+        if (skipped) {
+            _collapsedExerciseIds.value = _collapsedExerciseIds.value - exerciseId
+        }
         persistState { sessionId -> workoutRepository.setExerciseSkipped(sessionId, exerciseId, skipped) }
+    }
+
+    /** 手动收起 / 展开一张动作卡。 */
+    fun toggleExerciseCollapsed(exerciseId: Long) {
+        val collapsed = _collapsedExerciseIds.value
+        _collapsedExerciseIds.value = if (exerciseId in collapsed) collapsed - exerciseId else collapsed + exerciseId
     }
 
     /**
@@ -407,11 +422,19 @@ class WorkoutLogScreenModel(
         persistSetCount(exerciseId)
     }
 
-    /** 去掉最后一组；已经落库的那一组同时删掉。 */
+    /**
+     * 减一组：只减还没做的那一组（从最后一行没做的开始减），已经完成的组不动；
+     * 一组都没做过时不做任何事。界面负责在「只剩最后一组且没做」时改走跳过确认。
+     */
     fun removeSetRow(exerciseId: Long) {
-        val last = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets?.lastOrNull() ?: return
-        mutate(exerciseId) { exercise -> exercise.copy(sets = exercise.sets.dropLast(1)) }
-        last.id?.let { setId -> viewModelScope.launch { workoutRepository.deleteSet(setId) } }
+        val sets = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets ?: return
+        val index = sets.indexOfLast { !it.completed }
+        if (index < 0) return
+        val removed = sets[index]
+        mutate(exerciseId) { exercise ->
+            exercise.copy(sets = exercise.sets.filterIndexed { i, _ -> i != index })
+        }
+        removed.id?.let { setId -> viewModelScope.launch { workoutRepository.deleteSet(setId) } }
         persistSetCount(exerciseId)
     }
 
@@ -460,8 +483,21 @@ class WorkoutLogScreenModel(
                 )
             }
 
+            collapseWhenAllSetsDone(exerciseId)
             startRest(exercise.name, exercise.restSeconds)
             maybeShowProgressHint(exerciseId)
+        }
+    }
+
+    /**
+     * 刚勾完一组：如果这个动作的组已经全部做完，就把卡片自动收起，把列表腾出来；
+     * 想改自己点「展开」。只在训练进行中生效，编辑已结束的训练时不动卡片。
+     */
+    private fun collapseWhenAllSetsDone(exerciseId: Long) {
+        if (_phase.value != WorkoutPhase.IN_PROGRESS || editing) return
+        val sets = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets ?: return
+        if (sets.isNotEmpty() && sets.all { it.completed }) {
+            _collapsedExerciseIds.value = _collapsedExerciseIds.value + exerciseId
         }
     }
 

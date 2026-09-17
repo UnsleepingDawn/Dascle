@@ -1,5 +1,11 @@
 package com.fitplan.ui.workout
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +28,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.fitplan.app.R
@@ -242,6 +250,7 @@ internal fun LogExerciseCard(
     exercise: LogExercise,
     readOnly: Boolean,
     editableCompletedSets: Boolean,
+    collapsed: Boolean,
     onWeightChange: (Int, String) -> Unit,
     onRepsChange: (Int, String) -> Unit,
     onSecondsChange: (Int, String) -> Unit,
@@ -249,6 +258,7 @@ internal fun LogExerciseCard(
     onAddSet: () -> Unit,
     onRemoveSet: () -> Unit,
     onToggleSkipped: () -> Unit,
+    onToggleCollapsed: () -> Unit,
     modifier: Modifier = Modifier,
     /** true 表示这是动作组卡里的子卡：少一层外边距、用更紧凑的圆角。 */
     nested: Boolean = false,
@@ -265,11 +275,18 @@ internal fun LogExerciseCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         ) {
-            // 动作名一行：右侧依次挂「计划外」「已完成 N 组」和跳过动作的按钮。
+            // 动作名一行：右侧依次挂「计划外」「已完成 N 组」和跳过动作的按钮。收起 / 跳过时这一行常驻。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = exercise.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    // 跳过的动作整卡变灰，和「已跳过」标签呼应。
+                    color = if (exercise.skipped) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 if (exercise.isExtra) {
@@ -299,6 +316,8 @@ internal fun LogExerciseCard(
                 if (!readOnly) {
                     TextButton(
                         onClick = onToggleSkipped,
+                        // 动过任意一组之后就只能一组一组地撤销，不能再整卡跳过；「恢复动作」始终可点。
+                        enabled = exercise.skipped || exercise.completedSets == 0,
                         contentPadding = PaddingValues(horizontal = MaterialTheme.padding.small),
                     ) {
                         Text(
@@ -312,59 +331,121 @@ internal fun LogExerciseCard(
                 }
             }
 
-            // 动作库里的训练提示：放在动作名下方，和「目标 N 组」那行同一个字号。
-            if (exercise.description.isNotBlank()) {
-                Text(
-                    text = exercise.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            // 说明、目标、组行与增删组按钮一起折叠：手动「收起」与「跳过动作」共用这段过渡。
+            AnimatedVisibility(
+                visible = !exercise.skipped && !collapsed,
+                enter = expandVertically(animationSpec = tween(SET_EXPAND_MILLIS)) +
+                    fadeIn(animationSpec = tween(SET_FADE_MILLIS, delayMillis = SET_EXPAND_MILLIS)),
+                exit = fadeOut(animationSpec = tween(SET_FADE_MILLIS)) +
+                    shrinkVertically(animationSpec = tween(SET_EXPAND_MILLIS, delayMillis = SET_FADE_MILLIS)),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            // 动作库里的训练提示：放在动作名下方，和「目标 N 组」那行同一个字号。
+                            if (exercise.description.isNotBlank()) {
+                                Text(
+                                    text = exercise.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
 
-            if (!exercise.isExtra) {
-                Text(
-                    text = exercise.targetHint(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            // 跳过的动作不再展示组行，只保留上面的动作信息与「恢复动作」入口。
-            if (!exercise.skipped) {
-                exercise.sets.forEachIndexed { index, entry ->
-                    SetEntryRow(
-                        index = index,
-                        entry = entry,
-                        timed = exercise.isTimed,
-                        showsWeight = exercise.showsWeight,
-                        weightIsAssistance = exercise.weightIsAssistance,
-                        readOnly = readOnly,
-                        editableCompletedSets = editableCompletedSets,
-                        onWeightChange = { onWeightChange(index, it) },
-                        onRepsChange = { onRepsChange(index, it) },
-                        onSecondsChange = { onSecondsChange(index, it) },
-                        onToggleCompleted = { onToggleCompleted(index) },
-                    )
-                }
-
-                if (!readOnly) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                        TextButton(onClick = onAddSet) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
-                            )
-                            Text(text = stringResource(R.string.workout_add_set))
+                            if (!exercise.isExtra) {
+                                Text(
+                                    text = exercise.targetHint(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        TextButton(onClick = onRemoveSet) {
-                            Text(text = stringResource(R.string.workout_remove_set))
+                        TextButton(
+                            onClick = onToggleCollapsed,
+                            contentPadding = PaddingValues(horizontal = MaterialTheme.padding.small),
+                        ) {
+                            Text(text = stringResource(R.string.workout_collapse))
+                        }
+                    }
+
+                    exercise.sets.forEachIndexed { index, entry ->
+                        SetEntryRow(
+                            index = index,
+                            entry = entry,
+                            timed = exercise.isTimed,
+                            showsWeight = exercise.showsWeight,
+                            weightIsAssistance = exercise.weightIsAssistance,
+                            readOnly = readOnly,
+                            editableCompletedSets = editableCompletedSets,
+                            onWeightChange = { onWeightChange(index, it) },
+                            onRepsChange = { onRepsChange(index, it) },
+                            onSecondsChange = { onSecondsChange(index, it) },
+                            onToggleCompleted = { onToggleCompleted(index) },
+                        )
+                    }
+
+                    if (!readOnly) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                            TextButton(onClick = onAddSet) {
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
+                                )
+                                Text(text = stringResource(R.string.workout_add_set))
+                            }
+                            TextButton(
+                                onClick = onRemoveSet,
+                                // 只能减没做过的组，全部做完时按钮变灰。
+                                enabled = exercise.sets.any { !it.completed },
+                            ) {
+                                Text(text = stringResource(R.string.workout_remove_set))
+                            }
                         }
                     }
                 }
             }
+
+            // 收起后的「展开」入口：整宽淡蓝按钮，点开把上面的内容按原路放出来。
+            AnimatedVisibility(
+                visible = collapsed && !exercise.skipped,
+                enter = fadeIn(animationSpec = tween(SET_FADE_MILLIS, delayMillis = SET_EXPAND_MILLIS)),
+                exit = fadeOut(animationSpec = tween(SET_FADE_MILLIS)),
+            ) {
+                FilledTonalButton(
+                    onClick = onToggleCollapsed,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(R.string.workout_expand))
+                }
+            }
         }
     }
+}
+
+/**
+ * 「减一组」减到只剩最后一组时的确认：这一组减掉就什么都不剩了，
+ * 所以改成问一句「要不要直接跳过这个动作」，确定后走跳过动作的逻辑。
+ */
+@Composable
+internal fun SkipLastSetDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.workout_last_set_title)) },
+        text = { Text(text = stringResource(R.string.workout_last_set_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(text = stringResource(R.string.workout_skip))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
 
 @Composable
@@ -745,3 +826,9 @@ private fun LogExercise.targetHint(): String {
     return listOfNotNull(target, weight, stringResource(R.string.workout_target_rest, restSeconds))
         .joinToString(" · ")
 }
+
+/** 动作卡内容淡出 / 淡入的时长（毫秒）。 */
+private const val SET_FADE_MILLIS = 160
+
+/** 动作卡内容撑开 / 收缩的时长（毫秒）；与 [SET_FADE_MILLIS] 错开，做出「先消失、再收缩」。 */
+private const val SET_EXPAND_MILLIS = 220

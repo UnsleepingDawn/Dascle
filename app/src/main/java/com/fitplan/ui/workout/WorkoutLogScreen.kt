@@ -72,6 +72,7 @@ class WorkoutLogScreen(
         val progressHint by screenModel.progressHint.collectAsState()
         val progressTargetInput by screenModel.progressTargetInput.collectAsState()
         val progressTargetConfirm by screenModel.progressTargetConfirm.collectAsState()
+        val collapsedIds by screenModel.collapsedExerciseIds.collectAsState()
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
         LaunchedEffect(sessionId, routineId, editing, reopen) {
@@ -90,6 +91,9 @@ class WorkoutLogScreen(
         var showAbandonDialog by remember { mutableStateOf(false) }
         var showExtraDialog by remember { mutableStateOf(false) }
 
+        // 非空表示「减一组」减到最后一组，正在问要不要直接跳过这个动作。
+        var lastSetSkipId by remember { mutableStateOf<Long?>(null) }
+
         val freeName = stringResource(R.string.workout_free)
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
 
@@ -100,6 +104,7 @@ class WorkoutLogScreen(
                 readOnly = readOnly,
                 editableCompletedSets = editing,
                 nested = nested,
+                collapsed = exercise.exerciseId in collapsedIds,
                 onWeightChange = { index, value ->
                     screenModel.updateWeight(exercise.exerciseId, index, value)
                 },
@@ -113,8 +118,16 @@ class WorkoutLogScreen(
                     screenModel.toggleCompleted(exercise.exerciseId, index)
                 },
                 onAddSet = { screenModel.addSetRow(exercise.exerciseId) },
-                onRemoveSet = { screenModel.removeSetRow(exercise.exerciseId) },
+                onRemoveSet = {
+                    // 只剩一组且还没做时没有可减的组，改问要不要跳过这个动作。
+                    if (exercise.sets.size == 1 && exercise.sets.none { it.completed }) {
+                        lastSetSkipId = exercise.exerciseId
+                    } else {
+                        screenModel.removeSetRow(exercise.exerciseId)
+                    }
+                },
                 onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
+                onToggleCollapsed = { screenModel.toggleExerciseCollapsed(exercise.exerciseId) },
             )
         }
         val exercisesById = remember(exercises) { exercises.associateBy { it.exerciseId } }
@@ -278,6 +291,17 @@ class WorkoutLogScreen(
                     screenModel.addExtraExercise(exerciseId)
                 },
                 onDismiss = { showExtraDialog = false },
+            )
+        }
+
+        // 「减一组」减到最后一组：确认后直接跳过这个动作。
+        lastSetSkipId?.let { exerciseId ->
+            SkipLastSetDialog(
+                onConfirm = {
+                    lastSetSkipId = null
+                    screenModel.toggleSkipped(exerciseId)
+                },
+                onDismiss = { lastSetSkipId = null },
             )
         }
 

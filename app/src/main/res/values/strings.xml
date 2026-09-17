@@ -196,6 +196,10 @@
     <string name="workout_skip">跳过动作</string>
     <string name="workout_unskip">恢复动作</string>
     <string name="workout_skipped">已跳过</string>
+    <string name="workout_collapse">收起</string>
+    <string name="workout_expand">展开</string>
+    <string name="workout_last_set_title">这是最后一组了！</string>
+    <string name="workout_last_set_message">减掉这一组就没有组了，要跳过这个动作吗？</string>
     <string name="workout_rest">组间休息</string>
     <string name="workout_rest_done">休息结束</string>
     <string name="workout_rest_remaining">剩余 %1$d 秒</string>
