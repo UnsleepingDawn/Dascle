@@ -279,7 +279,7 @@ internal fun LogExerciseCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = exercise.name,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     // 跳过的动作整卡变灰，和「已跳过」标签呼应。
                     color = if (exercise.skipped) {
