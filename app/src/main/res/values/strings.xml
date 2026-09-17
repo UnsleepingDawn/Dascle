@@ -317,6 +317,11 @@
     <string name="settings_reminder_grant_notifications">开启通知</string>
     <string name="settings_reminder_exact_off">未授予「闹钟与提醒」权限，提醒可能会有几分钟延迟</string>
     <string name="settings_reminder_grant_exact">去开启</string>
+    <string name="settings_update_heading">版本更新</string>
+    <string name="settings_update_auto_check">启动时自动检查更新</string>
+    <string name="settings_update_auto_check_desc">每天最多查一次 GitHub 上的最新版本，有新版本才提示</string>
+    <string name="settings_update_mirror">镜像地址（可选）</string>
+    <string name="settings_update_mirror_desc">直连 GitHub 失败时用这个前缀重试；留空表示只直连</string>
     <string name="reminder_channel_name">训练提醒</string>
     <string name="reminder_channel_description">到点提醒当天的训练安排</string>
     <string name="reminder_notification_title">该训练了</string>
@@ -387,6 +392,21 @@
     <string name="about_version">版本 %1$s</string>
     <string name="about_github">GitHub 仓库</string>
     <string name="about_thanks">感谢您的支持！\n如果对本 APP 有任何意见、建议，欢迎到 GitHub 仓库提交 Issue 和 Discussion！</string>
+
+    <!-- 检查更新 -->
+    <string name="about_check_update">检查更新</string>
+    <string name="about_checking_update">正在检查…</string>
+    <string name="about_up_to_date">已是最新版本（%1$s）</string>
+    <string name="about_update_available">发现新版本 %1$s</string>
+    <string name="about_update_failed_network">检查失败，没连上 GitHub，请看看网络</string>
+    <string name="about_update_failed_server">检查失败，GitHub 暂时没有正常响应</string>
+    <string name="about_update_failed_rate_limited">请求太频繁了，过一会儿再试</string>
+    <string name="about_update_failed_no_release">GitHub 上还没发布可用的版本</string>
+    <string name="update_dialog_title">发现新版本 %1$s</string>
+    <string name="update_dialog_message_empty">这个版本没有写更新说明，去下载页看看。</string>
+    <string name="update_dialog_hint">到下载页下载 APK 覆盖安装就行，训练数据不会丢。</string>
+    <string name="update_dialog_download">去下载</string>
+    <string name="update_dialog_later">稍后再说</string>
 
     <!-- 肌群 -->
     <string name="muscle_chest">胸</string>

@@ -1,5 +1,7 @@
 package com.fitplan.ui.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
@@ -21,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
@@ -41,6 +44,8 @@ import com.fitplan.ui.more.MoreTab
 import com.fitplan.ui.plan.PlanTab
 import com.fitplan.ui.stats.StatsTab
 import com.fitplan.ui.today.TodayTab
+import com.fitplan.ui.update.UpdateDialog
+import com.fitplan.ui.update.UpdatePromptScreenModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
 import soup.compose.material.motion.animation.materialFadeThroughIn
@@ -105,6 +110,7 @@ object HomeScreen : Screen() {
         }
 
         MissedTrainingPrompt()
+        UpdatePrompt()
     }
 
     /**
@@ -142,6 +148,29 @@ object HomeScreen : Screen() {
             is MissedDialogState.Handle -> MissedHandleDialog(
                 onPostpone = { screenModel.postpone(state.missed) },
                 onSkip = { screenModel.skip(state.missed) },
+                onDismiss = screenModel::dismiss,
+            )
+        }
+    }
+
+    /**
+     * 启动时的更新提示：静默查一次 GitHub 上的最新版本，有新版就弹窗。
+     *
+     * 和漏练弹窗并列挂在根页；查不到、没有新版、或者这个版本已经提示过，都什么也不显示。
+     */
+    @Composable
+    private fun UpdatePrompt() {
+        val screenModel = metroViewModel<UpdatePromptScreenModel>()
+        val release by screenModel.dialog.collectAsState()
+        val context = LocalContext.current
+
+        release?.let { latest ->
+            UpdateDialog(
+                release = latest,
+                onDownload = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(latest.pageUrl)))
+                    screenModel.dismiss()
+                },
                 onDismiss = screenModel::dismiss,
             )
         }

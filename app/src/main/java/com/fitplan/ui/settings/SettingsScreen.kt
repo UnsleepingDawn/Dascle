@@ -44,6 +44,7 @@ import com.fitplan.app.R
 import com.fitplan.presentation.core.components.CheckboxItem
 import com.fitplan.presentation.core.components.IconItem
 import com.fitplan.presentation.core.components.SettingsItemsPaddings
+import com.fitplan.presentation.core.components.TextItem
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.util.secondaryItemAlpha
@@ -61,6 +62,10 @@ object SettingsScreen : Screen() {
         val enabled by screenModel.reminderEnabled.collectAsState()
         val hour by screenModel.reminderHour.collectAsState()
         val minute by screenModel.reminderMinute.collectAsState()
+        val autoCheck by screenModel.updateAutoCheck.collectAsState()
+
+        // 输入框用本地状态，避免「打字 → 写偏好 → 回流」导致的光标跳动。
+        var mirrorText by remember { mutableStateOf(screenModel.updateMirrorPrefix.value) }
 
         var showTimePicker by remember { mutableStateOf(false) }
         var notificationsAllowed by remember { mutableStateOf(screenModel.canPostNotifications()) }
@@ -166,6 +171,53 @@ object SettingsScreen : Screen() {
                         )
                     }
                 }
+
+                Text(
+                    text = stringResource(R.string.settings_update_heading),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(
+                        start = SettingsItemsPaddings.Horizontal,
+                        end = SettingsItemsPaddings.Horizontal,
+                        top = MaterialTheme.padding.extraLarge,
+                    ),
+                )
+
+                CheckboxItem(
+                    label = stringResource(R.string.settings_update_auto_check),
+                    checked = autoCheck,
+                    onClick = { screenModel.setUpdateAutoCheck(!autoCheck) },
+                )
+                Text(
+                    text = stringResource(R.string.settings_update_auto_check_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .padding(
+                            start = SettingsItemsPaddings.Horizontal,
+                            end = SettingsItemsPaddings.Horizontal,
+                        )
+                        .secondaryItemAlpha(),
+                )
+
+                TextItem(
+                    label = stringResource(R.string.settings_update_mirror),
+                    value = mirrorText,
+                    onChange = {
+                        mirrorText = it
+                        screenModel.setUpdateMirrorPrefix(it)
+                    },
+                )
+                Text(
+                    text = stringResource(R.string.settings_update_mirror_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .padding(
+                            start = SettingsItemsPaddings.Horizontal,
+                            end = SettingsItemsPaddings.Horizontal,
+                            bottom = MaterialTheme.padding.medium,
+                        )
+                        .secondaryItemAlpha(),
+                )
             }
         }
 

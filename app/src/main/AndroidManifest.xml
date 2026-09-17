@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 检查新版本：只向 GitHub Releases 发一个只读请求，不上传任何数据 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- 组间休息结束时震动提醒 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
