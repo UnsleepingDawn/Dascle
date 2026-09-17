@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,9 +25,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -34,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -318,7 +323,7 @@ private fun RoutineCard(
                 .fillMaxWidth()
                 // 有备注和没备注的卡片保持一样高，所以高度由按钮那一列决定。
                 .heightIn(min = ROUTINE_CARD_MIN_HEIGHT)
-                .padding(MaterialTheme.padding.medium),
+                .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -349,25 +354,49 @@ private fun RoutineCard(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
-                FilledTonalButton(
+                CompactActionButton(
+                    text = stringResource(R.string.plan_action_schedule),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     onClick = onSchedule,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                ) {
-                    Text(text = stringResource(R.string.plan_action_schedule), maxLines = 1)
-                }
-                FilledTonalButton(
+                )
+                CompactActionButton(
+                    text = stringResource(R.string.plan_action_rename),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     onClick = onRename,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    ),
-                ) {
-                    Text(text = stringResource(R.string.plan_action_rename), maxLines = 1)
-                }
+                )
             }
+        }
+    }
+}
+
+/**
+ * 卡片用的紧凑操作按钮：M3 按钮容器默认 40dp、最小触控区 48dp，两枚竖排会把卡片顶到 136dp，
+ * 这里把容器与触控区一起收到 36dp，左右内边距也从默认的 24dp 收到 8dp。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompactActionButton(
+    text: String,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit,
+) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides COMPACT_ACTION_BUTTON_HEIGHT) {
+        FilledTonalButton(
+            onClick = onClick,
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = containerColor,
+                contentColor = contentColor,
+            ),
+            contentPadding = PaddingValues(
+                horizontal = MaterialTheme.padding.small,
+                vertical = MaterialTheme.padding.extraSmall,
+            ),
+            modifier = Modifier.heightIn(min = COMPACT_ACTION_BUTTON_HEIGHT),
+        ) {
+            Text(text = text, maxLines = 1)
         }
     }
 }
@@ -419,8 +448,11 @@ private fun RoutineDetailDialog(
     )
 }
 
-/** 卡片高度下限：刚好装下右侧上下排列的两枚按钮，有没有备注都不变。 */
-private val ROUTINE_CARD_MIN_HEIGHT = 120.dp
+/** 卡片里的紧凑按钮高度：容器与最小触控区都收到这个值，比 M3 默认的 40dp / 48dp 矮一截。 */
+private val COMPACT_ACTION_BUTTON_HEIGHT = 36.dp
+
+/** 卡片高度下限：36 + 8 + 36 的按钮列，加上下各 8dp 内边距，有没有备注都不变。 */
+private val ROUTINE_CARD_MIN_HEIGHT = 96.dp
 
 /** 左滑后露出的红色删除键宽度。 */
 private val DELETE_ACTION_WIDTH = 96.dp
