@@ -2,7 +2,7 @@ package com.fitplan.domain.model
 
 import kotlinx.datetime.LocalDate
 
-/** 性别，只用于个人信息展示与后续可能的代谢估算。 */
+/** 性别，只用于个人信息展示与代谢估算。 */
 enum class Gender {
     MALE,
     FEMALE,
@@ -17,6 +17,8 @@ enum class Gender {
 data class UserProfile(
     val gender: Gender?,
     val birthday: LocalDate?,
+    val heightCm: Double?,
+    val activityLevel: ActivityLevel?,
     val onboardedAt: LocalDate?,
 ) {
     val isOnboarded: Boolean get() = onboardedAt != null

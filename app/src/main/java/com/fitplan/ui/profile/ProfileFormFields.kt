@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -27,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import com.fitplan.app.R
+import com.fitplan.domain.model.ActivityLevel
 import com.fitplan.domain.model.Gender
 import com.fitplan.domain.model.ageOn
 import com.fitplan.presentation.core.components.material.padding
@@ -37,8 +40,8 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
 /**
- * 个人信息表单本体：性别、生日（含推算出的年龄）、体重、体脂率。
- * 首次引导页与「我的 → 个人信息」都用它，四个字段都可以留空。
+ * 个人信息表单本体：性别、生日（含推算出的年龄）、身高、体重、体脂率、活动程度。
+ * 首次引导页与「我的 → 个人信息」都用它，所有字段都可以留空。
  */
 @Composable
 internal fun ProfileFormFields(
@@ -47,6 +50,7 @@ internal fun ProfileFormFields(
     modifier: Modifier = Modifier,
 ) {
     var pickingBirthday by remember { mutableStateOf(false) }
+    var pickingActivity by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -71,6 +75,13 @@ internal fun ProfileFormFields(
         )
 
         MetricTextField(
+            value = form.heightText,
+            onValueChange = { form.heightText = it.filterDecimalInput() },
+            label = stringResource(R.string.field_body_height),
+            errorMessage = stringResource(R.string.profile_height_invalid).takeIf { form.heightError },
+        )
+
+        MetricTextField(
             value = form.weightText,
             onValueChange = { form.weightText = it.filterDecimalInput() },
             label = stringResource(R.string.field_body_weight),
@@ -83,6 +94,13 @@ internal fun ProfileFormFields(
             label = stringResource(R.string.field_body_fat),
             errorMessage = stringResource(R.string.profile_body_fat_invalid).takeIf { form.bodyFatError },
         )
+
+        SectionLabel(text = stringResource(R.string.profile_activity))
+        PickerRow(
+            label = stringResource(R.string.profile_activity_pick),
+            value = form.activityLevel?.label(),
+            onClick = { pickingActivity = true },
+        )
     }
 
     if (pickingBirthday) {
@@ -93,6 +111,14 @@ internal fun ProfileFormFields(
             onDismiss = { pickingBirthday = false },
         )
     }
+
+    if (pickingActivity) {
+        ActivityLevelPickerDialog(
+            initial = form.activityLevel,
+            onPick = { form.activityLevel = it },
+            onDismiss = { pickingActivity = false },
+        )
+    }
 }
 
 @Composable
@@ -100,7 +126,7 @@ private fun SectionLabel(text: String) {
     Text(text = text, style = MaterialTheme.typography.titleSmall)
 }
 
-/** 生日一行：点开日期选择器；右侧显示日期，没填时显示「未填写」。 */
+/** 生日一行：点开日期选择器；右侧显示日期，没填时显示「未填写」，下面补一行周岁。 */
 @Composable
 private fun BirthdayRow(
     birthday: LocalDate?,
@@ -108,29 +134,11 @@ private fun BirthdayRow(
     onClick: () -> Unit,
 ) {
     Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.small)
-                .clickable(onClick = onClick)
-                .padding(vertical = MaterialTheme.padding.small),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.profile_birthday),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = birthday?.toString() ?: stringResource(R.string.profile_unset),
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (birthday == null) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
-            )
-        }
+        PickerRow(
+            label = stringResource(R.string.profile_birthday),
+            value = birthday?.toString(),
+            onClick = onClick,
+        )
 
         age?.let {
             Text(
@@ -139,6 +147,38 @@ private fun BirthdayRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/** 一行「标题 —— 当前值」，点开弹选择器；[value] 为 null 时显示「未填写」。 */
+@Composable
+private fun PickerRow(
+    label: String,
+    value: String?,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(vertical = MaterialTheme.padding.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value ?: stringResource(R.string.profile_unset),
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (value == null) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+        )
     }
 }
 
@@ -185,6 +225,79 @@ private fun BirthdayPickerDialog(
         },
     ) {
         DatePicker(state = state, showModeToggle = false)
+    }
+}
+
+/**
+ * 活动程度单选：五档，每档标题下面带一句说明（「每周运动 1-3 次」这类），
+ * 说明太长塞不进一行 chip 里，所以用对话框。已选过时给「清除」把这一项重新留空。
+ */
+@Composable
+private fun ActivityLevelPickerDialog(
+    initial: ActivityLevel?,
+    onPick: (ActivityLevel?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.profile_activity)) },
+        text = {
+            Column {
+                ActivityLevel.entries.forEach { item ->
+                    ActivityLevelOption(
+                        level = item,
+                        selected = item == initial,
+                        onClick = {
+                            onPick(item)
+                            onDismiss()
+                        },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (initial != null) {
+                TextButton(
+                    onClick = {
+                        onPick(null)
+                        onDismiss()
+                    },
+                ) {
+                    Text(text = stringResource(R.string.action_clear))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ActivityLevelOption(
+    level: ActivityLevel,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(vertical = MaterialTheme.padding.extraSmall),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Column(modifier = Modifier.padding(start = MaterialTheme.padding.small)) {
+            Text(text = level.label(), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = level.description(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

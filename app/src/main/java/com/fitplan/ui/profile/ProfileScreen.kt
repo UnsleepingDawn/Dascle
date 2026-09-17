@@ -33,6 +33,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
 import com.fitplan.domain.model.BodyMetric
+import com.fitplan.domain.model.EnergyExpenditure
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.LoadingScreen
@@ -69,6 +70,8 @@ object ProfileScreen : Screen() {
             if (current != null && !initialized) {
                 form.gender = current.profile.gender
                 form.birthday = current.profile.birthday
+                form.heightText = current.profile.heightCm?.let { formatMetric(it) }.orEmpty()
+                form.activityLevel = current.profile.activityLevel
                 form.weightText = current.latestWeight?.weight?.let { formatMetric(it) }.orEmpty()
                 form.bodyFatText = current.latestBodyFat?.bodyFat?.let { formatMetric(it) }.orEmpty()
                 initialized = true
@@ -119,6 +122,8 @@ object ProfileScreen : Screen() {
             ) {
                 CurrentDataCard(weight = current.latestWeight, bodyFat = current.latestBodyFat)
 
+                MetabolismCard(energy = current.energy)
+
                 ProfileFormFields(form = form, today = today())
 
                 Button(
@@ -128,6 +133,8 @@ object ProfileScreen : Screen() {
                         screenModel.save(
                             gender = form.gender,
                             birthday = form.birthday,
+                            heightCm = form.height,
+                            activityLevel = form.activityLevel,
                             weight = form.weight,
                             bodyFat = form.bodyFat,
                         )
@@ -137,6 +144,77 @@ object ProfileScreen : Screen() {
                 }
             }
         }
+    }
+}
+
+/** 代谢估算：基础代谢与每日总消耗；数据不全时给一句提示。 */
+@Composable
+private fun MetabolismCard(energy: EnergyExpenditure?) {
+    Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+        Text(
+            text = stringResource(R.string.profile_metabolism),
+            style = MaterialTheme.typography.titleSmall,
+        )
+
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+        ) {
+            Column(
+                modifier = Modifier.padding(MaterialTheme.padding.medium),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                if (energy == null) {
+                    Text(
+                        text = stringResource(R.string.profile_metabolism_missing),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    SimpleMetricRow(
+                        label = stringResource(R.string.profile_bmr),
+                        value = stringResource(R.string.profile_kcal_per_day, energy.basalMetabolism),
+                    )
+                    SimpleMetricRow(
+                        label = stringResource(R.string.profile_tdee),
+                        value = energy.dailyExpenditure
+                            ?.let { stringResource(R.string.profile_kcal_per_day, it) }
+                            ?: stringResource(R.string.profile_unset),
+                    )
+                    if (energy.dailyExpenditure == null) {
+                        Text(
+                            text = stringResource(R.string.profile_activity_missing),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Text(
+                    text = stringResource(R.string.profile_metabolism_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimpleMetricRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(text = value, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

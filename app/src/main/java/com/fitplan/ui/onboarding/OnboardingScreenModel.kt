@@ -48,7 +48,12 @@ class OnboardingScreenModel(
     fun complete(form: ProfileFormState) {
         viewModelScope.launch {
             val today = today()
-            userProfileRepository.save(gender = form.gender, birthday = form.birthday)
+            userProfileRepository.save(
+                gender = form.gender,
+                birthday = form.birthday,
+                heightCm = form.height,
+                activityLevel = form.activityLevel,
+            )
             form.weight?.let { bodyMetricRepository.recordWeight(today, it) }
             form.bodyFat?.let { bodyMetricRepository.recordBodyFat(today, it) }
             userProfileRepository.markOnboarded(today)
