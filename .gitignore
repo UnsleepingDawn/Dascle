@@ -24,3 +24,6 @@ docs/personal_docs
 
 dascle*.apk
 source_code.zip
+
+# 本地发行产物（APK + mapping.txt），随版本分目录
+dist/
