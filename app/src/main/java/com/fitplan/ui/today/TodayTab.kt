@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,12 +33,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -343,21 +346,28 @@ private fun ScheduledRoutineCard(
                     modifier = Modifier.weight(1f),
                 )
                 if (restEnabled) {
-                    FilledTonalButton(
-                        onClick = onRestToday,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = RestTodayColor,
-                            contentColor = Color.White,
-                        ),
-                        contentPadding = PaddingValues(
-                            horizontal = MaterialTheme.padding.small,
-                            vertical = MaterialTheme.padding.extraSmall,
-                        ),
+                    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比方案名高出一截；
+                    // 这里把两者一起收到 36dp，与计划卡片上的紧凑操作按钮同规格。
+                    CompositionLocalProvider(
+                        LocalMinimumInteractiveComponentSize provides TODAY_REST_BUTTON_HEIGHT,
                     ) {
-                        Text(
-                            text = stringResource(R.string.today_rest_button),
-                            maxLines = 1,
-                        )
+                        FilledTonalButton(
+                            onClick = onRestToday,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = RestTodayColor,
+                                contentColor = Color.White,
+                            ),
+                            contentPadding = PaddingValues(
+                                horizontal = MaterialTheme.padding.small,
+                                vertical = MaterialTheme.padding.extraSmall,
+                            ),
+                            modifier = Modifier.heightIn(min = TODAY_REST_BUTTON_HEIGHT),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.today_rest_button),
+                                maxLines = 1,
+                            )
+                        }
                     }
                 }
             }
@@ -811,3 +821,6 @@ private val RestDayAccentColor = Color(0xFF1565C0)
 
 /** 训练卡片右上角「今日休息」按钮的颜色：绿色。 */
 private val RestTodayColor = Color(0xFF2E7D32)
+
+/** 「今日休息」按钮的高度：容器与最小触控区一起收到这个值，比 M3 默认的 40dp / 48dp 矮一截。 */
+private val TODAY_REST_BUTTON_HEIGHT = 36.dp
