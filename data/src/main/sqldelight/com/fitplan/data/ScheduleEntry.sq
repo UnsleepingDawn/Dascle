@@ -50,6 +50,13 @@ deleteOnceBetween:
 DELETE FROM schedule_entry
 WHERE specific_date >= ? AND specific_date < ?;
 
+-- 今日休息（顺延到休息日）：读区间内的排期，好把它们整体后移一天。
+selectOnceBetween:
+SELECT *
+FROM schedule_entry
+WHERE specific_date >= ? AND specific_date < ?
+ORDER BY specific_date;
+
 -- 顺延：读 / 删「今天及以后」的排期，好把它们整体后移。
 selectOnceFrom:
 SELECT *

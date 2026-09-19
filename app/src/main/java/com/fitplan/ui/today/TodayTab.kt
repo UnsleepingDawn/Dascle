@@ -11,6 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,7 +28,9 @@ import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -93,7 +96,11 @@ object TodayTab : Tab {
         val todaySessionProgress by screenModel.todaySessionProgress.collectAsState()
         val loaded by screenModel.loaded.collectAsState()
         val upcomingPlan by screenModel.upcomingPlan.collectAsState()
+        val nextRestDay by screenModel.nextRestDay.collectAsState()
         val startRoutineRequest by screenModel.startRoutineRequest.collectAsState()
+
+        // 训练卡片右上角「今日休息」的选择框是否展开。
+        var showRestDialog by remember { mutableStateOf(false) }
 
         // 从训练记录页返回时本组合会重建，顺带刷新一次。
         LaunchedEffect(Unit) { screenModel.refresh() }
@@ -229,6 +236,9 @@ object TodayTab : Tab {
                                 isResuming = resumable != null,
                                 // 今天的训练已经结束，就不再从计划卡片开新的一次训练。
                                 startEnabled = resumable != null || finishedSession == null,
+                                // 练完了就没有「今日休息」可言，只有还没结束的今天才给这个入口。
+                                restEnabled = finishedSession == null,
+                                onRestToday = { showRestDialog = true },
                                 // 今天这次训练就是照着这张计划练的：标出各动作练到哪了。
                                 progress = todaySessionProgress
                                     ?.takeIf { it.routineId == scheduled.routine.id },
@@ -284,6 +294,19 @@ object TodayTab : Tab {
                 else -> Unit
             }
         }
+
+        if (showRestDialog) {
+            TodayRestDialog(
+                nextRestDay = nextRestDay,
+                // 今天这次训练还没结束：确认顺延时先把这次训练作废。
+                hasOngoingSession = todaySession?.let { !it.isFinished } == true,
+                onConfirm = { mode ->
+                    showRestDialog = false
+                    screenModel.restToday(mode)
+                },
+                onDismiss = { showRestDialog = false },
+            )
+        }
     }
 }
 
@@ -292,6 +315,8 @@ private fun ScheduledRoutineCard(
     scheduled: ScheduledRoutine,
     isResuming: Boolean,
     startEnabled: Boolean,
+    restEnabled: Boolean,
+    onRestToday: () -> Unit,
     progress: TodaySessionProgress?,
     onClick: () -> Unit,
 ) {
@@ -307,10 +332,35 @@ private fun ScheduledRoutineCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
         ) {
-            Text(
-                text = scheduled.routine.name,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            // 方案名占满整行，右上角留给「今日休息」；名字太长时只挤自己，不把按钮顶出卡片。
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = scheduled.routine.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (restEnabled) {
+                    FilledTonalButton(
+                        onClick = onRestToday,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = RestTodayColor,
+                            contentColor = Color.White,
+                        ),
+                        contentPadding = PaddingValues(
+                            horizontal = MaterialTheme.padding.small,
+                            vertical = MaterialTheme.padding.extraSmall,
+                        ),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.today_rest_button),
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
             if (scheduled.routine.note.isNotBlank()) {
                 Text(
                     text = scheduled.routine.note,
@@ -758,3 +808,6 @@ private const val REST_STAGE_ANIM_MILLIS = 220
 
 /** 休息页的小人图标与「开练！」文字的颜色：深蓝色，不跟随主题的 tertiary（绿／粉／灰）。 */
 private val RestDayAccentColor = Color(0xFF1565C0)
+
+/** 训练卡片右上角「今日休息」按钮的颜色：绿色。 */
+private val RestTodayColor = Color(0xFF2E7D32)

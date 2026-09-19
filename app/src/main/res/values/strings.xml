@@ -43,6 +43,18 @@
     <string name="today_rest_upcoming_message">把「%1$s」（%2$s）挪到今天开练，之后的计划与休息日整体提前 %3$d 天。</string>
     <string name="today_rest_no_upcoming">之后还没有安排训练，先用「临时加一个方案」开练吧</string>
 
+    <!-- 今日休息（顺延排期） -->
+    <string name="today_rest_button">今日休息</string>
+    <string name="today_rest_dialog_title">今天休息</string>
+    <string name="today_rest_dialog_message">今天改成休息日，之后的训练怎么顺延？</string>
+    <string name="today_rest_dialog_postpone_all">顺延之后每一天</string>
+    <string name="today_rest_dialog_until_rest">顺延直到占用下一个休息日</string>
+    <string name="today_rest_dialog_no_rest">之后还没有休息日可以占用</string>
+    <string name="today_rest_dialog_discard_warning">今天正在进行的训练会被作废，已记录的组一并删除。</string>
+    <string name="today_rest_dialog_discard_title">作废今天的训练？</string>
+    <string name="today_rest_dialog_discard_message">今天这次训练会被删掉，已记录的组也一起消失，再按你选的方式顺延之后的计划。</string>
+    <string name="today_rest_dialog_discard_confirm">作废并顺延</string>
+
     <string-array name="today_rest_encouragements">
         <item>休息也是训练的一部分，今天好好放松。</item>
         <item>给身体放个假，恢复好才练得动。</item>

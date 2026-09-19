@@ -35,3 +35,11 @@ ORDER BY date;
 deleteFrom:
 DELETE FROM rest_day
 WHERE date >= ?;
+
+-- 今日休息（顺延到休息日）：找 [after] 之后最近的一个休息日。
+selectNextFrom:
+SELECT *
+FROM rest_day
+WHERE date > ?
+ORDER BY date
+LIMIT 1;

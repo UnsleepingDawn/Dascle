@@ -78,4 +78,20 @@ interface ScheduleRepository {
 
     /** 跳过漏练：清掉 [dates] 这些天的排期；休息日与今天的安排都不动。 */
     suspend fun deletePlansOn(dates: Collection<LocalDate>)
+
+    /** [after] 之后最近的一个休息日；之后不再休息则为 null。 */
+    suspend fun getNextRestDay(after: LocalDate): LocalDate?
+
+    /**
+     * 今日休息：把 [date] 及以后的排期与休息日整体后移一天，并把 [date] 标成休息日，
+     * 之后每一天都顺延一格。整批放在一个事务里。
+     */
+    suspend fun postponeAllFrom(date: LocalDate)
+
+    /**
+     * 今日休息：只把 `[date, restDay)` 内的排期后移一天，让 [restDay] 被训练占用，
+     * [restDay] 之后的排期不动；[date] 标成休息日，[restDay] 原有的休息标记撤掉。
+     * 整批放在一个事务里。
+     */
+    suspend fun postponeUntilRestDay(date: LocalDate, restDay: LocalDate)
 }

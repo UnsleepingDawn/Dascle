@@ -2,6 +2,7 @@ package com.fitplan.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
 import app.cash.sqldelight.async.coroutines.awaitAsOne
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
@@ -186,6 +187,58 @@ class ScheduleRepositoryImpl(
             dates.forEach { date ->
                 queries.deleteOnceOnDate(specific_date = date.toDbValue())
             }
+        }
+    }
+
+    override suspend fun getNextRestDay(after: LocalDate): LocalDate? =
+        restQueries.selectNextFrom(date = after.toDbValue()).awaitAsOneOrNull()?.toLocalDate()
+
+    override suspend fun postponeAllFrom(date: LocalDate) {
+        database.transactionWithResult {
+            // 1. 「今天及以后」的排期整体后移一天，enabled 原样保留。
+            val upcoming = queries.selectOnceFrom(specific_date = date.toDbValue()).awaitAsList()
+            queries.deleteOnceFrom(specific_date = date.toDbValue())
+            upcoming.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = requireNotNull(entry.specific_date) + 1,
+                    enabled = entry.enabled,
+                )
+            }
+
+            // 2. 休息日跟着一起后移，练 / 休节奏原样保留。
+            val upcomingRest = restQueries.selectFrom(date = date.toDbValue()).awaitAsList()
+            restQueries.deleteFrom(date = date.toDbValue())
+            upcomingRest.forEach { day ->
+                restQueries.insert(date = day + 1)
+            }
+
+            // 3. 今天改成休息日：原来的排期都挪到明天了，这一步不会和搬过来的训练撞上。
+            restQueries.insert(date = date.toDbValue())
+        }
+    }
+
+    override suspend fun postponeUntilRestDay(date: LocalDate, restDay: LocalDate) {
+        val start = date.toDbValue()
+        val end = restDay.toDbValue()
+        database.transactionWithResult {
+            // 1. 只把 [今天, 休息日) 的排期后移一天，之后的安排原地不动。
+            val upcoming = queries.selectOnceBetween(
+                specific_date = start,
+                specific_date_ = end,
+            ).awaitAsList()
+            queries.deleteOnceBetween(specific_date = start, specific_date_ = end)
+            upcoming.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = requireNotNull(entry.specific_date) + 1,
+                    enabled = entry.enabled,
+                )
+            }
+
+            // 2. 休息日让位给搬过来的训练：撤掉它的休息标记，今天改成新的休息日。
+            restQueries.deleteByDate(date = end)
+            restQueries.insert(date = start)
         }
     }
 }
