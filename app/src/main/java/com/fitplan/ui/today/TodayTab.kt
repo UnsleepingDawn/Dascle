@@ -2,6 +2,7 @@ package com.fitplan.ui.today
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -660,8 +661,12 @@ private fun RestDayBlock(
             }
         }
 
-        // 问到「开练！」时寄语让位给下面的按钮。
-        AnimatedVisibility(visible = shownStage < REST_LAST_STAGE) {
+        // 问到「开练！」时寄语让位给下面的按钮。退场不做过场：这一档要寄语当帧就消失，
+        // 否则淡出的那句话会和稍后冒出来的按钮叠在同一屏上。
+        AnimatedVisibility(
+            visible = shownStage < REST_LAST_STAGE,
+            exit = ExitTransition.None,
+        ) {
             Text(
                 text = message,
                 modifier = Modifier.padding(top = MaterialTheme.padding.small),
