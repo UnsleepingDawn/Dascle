@@ -1,0 +1,52 @@
+{
+  "groups": [
+    {
+      "name": "胸组",
+      "muscleGroup": "CHEST",
+      "maxPicks": 2,
+      "exerciseNames": ["平板杠铃卧推", "上斜杠铃卧推", "坐姿推胸", "蝴蝶机夹胸"]
+    },
+    {
+      "name": "三头组",
+      "muscleGroup": "TRICEPS",
+      "maxPicks": 2,
+      "exerciseNames": ["双杠臂屈伸", "过顶臂屈伸", "绳索下压", "窄距卧推"]
+    },
+    {
+      "name": "三角肌中束组",
+      "muscleGroup": "SHOULDER",
+      "maxPicks": 1,
+      "exerciseNames": ["哑铃侧平举", "绳索侧平举"]
+    },
+    {
+      "name": "三角肌前束组",
+      "muscleGroup": "SHOULDER",
+      "maxPicks": 1,
+      "exerciseNames": ["坐姿哑铃推举", "哑铃前平举"]
+    },
+    {
+      "name": "三角肌后束组",
+      "muscleGroup": "SHOULDER",
+      "maxPicks": 1,
+      "exerciseNames": ["反向蝴蝶机", "绳索面拉"]
+    },
+    {
+      "name": "腹组",
+      "muscleGroup": "ABS",
+      "maxPicks": 2,
+      "exerciseNames": ["仰卧举腿", "卷腹", "悬垂举腿", "健腹轮"]
+    },
+    {
+      "name": "上背组",
+      "muscleGroup": "BACK",
+      "maxPicks": 1,
+      "exerciseNames": ["引体向上", "高位下拉"]
+    },
+    {
+      "name": "背阔肌组",
+      "muscleGroup": "BACK",
+      "maxPicks": 1,
+      "exerciseNames": ["器械划船", "单手悍马机划船"]
+    }
+  ]
+}

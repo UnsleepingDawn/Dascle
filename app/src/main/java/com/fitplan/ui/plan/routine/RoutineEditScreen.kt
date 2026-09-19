@@ -77,6 +77,8 @@ class RoutineEditScreen(
         LaunchedEffect(routineId) { screenModel.load(routineId) }
 
         var editTarget by remember { mutableStateOf<RoutineExercise?>(null) }
+        var groupRenameTarget by remember { mutableStateOf<RoutineGroup?>(null) }
+        var showGroupActionDialog by remember { mutableStateOf(false) }
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -97,7 +99,7 @@ class RoutineEditScreen(
                 // 两个入口并排：先加一个空的动作组，或者直接把某个动作排到计划里。
                 AddActionBar(
                     onAddExercise = { navigator.push(ExercisePickerScreen(routineId)) },
-                    onAddGroup = screenModel::addGroup,
+                    onAddGroup = { showGroupActionDialog = true },
                 )
             },
         ) { contentPadding ->
@@ -113,6 +115,7 @@ class RoutineEditScreen(
                     onClickEdit = { editTarget = it },
                     onClickRemoveExercise = { screenModel.removeExercise(it) },
                     onClickRemoveGroup = screenModel::removeGroup,
+                    onClickRenameGroup = { groupRenameTarget = it },
                     onChangeGroupPicks = screenModel::updateGroupMaxPicks,
                     onClickAddExerciseToGroup = { groupId ->
                         navigator.push(ExercisePickerScreen(routineId, groupId = groupId))
@@ -132,7 +135,90 @@ class RoutineEditScreen(
                 },
             )
         }
+
+        if (showGroupActionDialog) {
+            GroupActionDialog(
+                onDismiss = { showGroupActionDialog = false },
+                onAddEmptyGroup = {
+                    showGroupActionDialog = false
+                    screenModel.addGroup()
+                },
+                onPickPreset = {
+                    showGroupActionDialog = false
+                    navigator.push(GroupPresetPickerScreen(routineId))
+                },
+            )
+        }
+
+        groupRenameTarget?.let { group ->
+            GroupRenameDialog(
+                initialName = group.name.orEmpty(),
+                onDismiss = { groupRenameTarget = null },
+                onConfirm = { name ->
+                    screenModel.updateGroupName(group.id, name)
+                    groupRenameTarget = null
+                },
+            )
+        }
     }
+}
+
+/** 新建动作组的入口：空组自己往里加动作，预设组直接整组带动作加进来。 */
+@Composable
+private fun GroupActionDialog(
+    onDismiss: () -> Unit,
+    onAddEmptyGroup: () -> Unit,
+    onPickPreset: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.routine_edit_group_title)) },
+        text = { Text(text = stringResource(R.string.routine_edit_group_dialog_message)) },
+        confirmButton = {
+            TextButton(onClick = onAddEmptyGroup) {
+                Text(text = stringResource(R.string.routine_edit_group_add_empty))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onPickPreset) {
+                Text(text = stringResource(R.string.routine_edit_group_add_preset))
+            }
+        },
+    )
+}
+
+/** 改动作组的名字；清空保存表示不要名字，卡片回到默认的「动作组」。 */
+@Composable
+private fun GroupRenameDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.routine_edit_group_rename)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(text = stringResource(R.string.field_group_name)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name.trim()) }) {
+                Text(text = stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
 
 /**
@@ -188,6 +274,7 @@ private fun RoutineItemList(
     onClickEdit: (RoutineExercise) -> Unit,
     onClickRemoveExercise: (Long) -> Unit,
     onClickRemoveGroup: (Long) -> Unit,
+    onClickRenameGroup: (RoutineGroup) -> Unit,
     onChangeGroupPicks: (Long, Int) -> Unit,
     onClickAddExerciseToGroup: (Long) -> Unit,
     onChangeOrder: (List<RoutineItem>) -> Unit,
@@ -229,6 +316,7 @@ private fun RoutineItemList(
                         onClickEditExercise = onClickEdit,
                         onClickRemoveExercise = onClickRemoveExercise,
                         onClickRemoveGroup = { onClickRemoveGroup(item.value.id) },
+                        onClickRename = { onClickRenameGroup(item.value) },
                         onChangePicks = { picks -> onChangeGroupPicks(item.value.id, picks) },
                         onClickAddExercise = { onClickAddExerciseToGroup(item.value.id) },
                     )
@@ -300,6 +388,7 @@ private fun ReorderableCollectionItemScope.RoutineGroupCard(
     onClickEditExercise: (RoutineExercise) -> Unit,
     onClickRemoveExercise: (Long) -> Unit,
     onClickRemoveGroup: () -> Unit,
+    onClickRename: () -> Unit,
     onChangePicks: (Int) -> Unit,
     onClickAddExercise: () -> Unit,
 ) {
@@ -325,13 +414,19 @@ private fun ReorderableCollectionItemScope.RoutineGroupCard(
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.routine_edit_group_title),
+                        text = group.name ?: stringResource(R.string.routine_edit_group_title),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
                         text = stringResource(R.string.routine_edit_group_member_count, group.exercises.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onClickRename) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = stringResource(R.string.routine_edit_group_rename),
                     )
                 }
                 IconButton(onClick = onClickRemoveGroup) {

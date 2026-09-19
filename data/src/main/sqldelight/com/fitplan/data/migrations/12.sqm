@@ -1,0 +1,2 @@
+-- 动作组名称：编排页展示、可编辑改名；为空表示没起过名字，界面回退到默认的「动作组」。
+ALTER TABLE routine_group ADD COLUMN name TEXT;

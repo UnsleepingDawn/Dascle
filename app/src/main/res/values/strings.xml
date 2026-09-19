@@ -114,6 +114,11 @@
     <string name="routine_edit_group_picks_increase">多做一个</string>
     <string name="routine_edit_group_empty">组里还没有动作</string>
     <string name="routine_edit_group_add_exercise">往组里加动作</string>
+    <string name="routine_edit_group_dialog_message">多个动作选着练</string>
+    <string name="routine_edit_group_add_empty">空动作组</string>
+    <string name="routine_edit_group_add_preset">预设动作组</string>
+    <string name="routine_edit_group_rename">重命名动作组</string>
+    <string name="field_group_name">名称</string>
     <string name="routine_edit_remove_group">删除动作组</string>
     <string name="routine_edit_targets">%1$d 组 × %2$d 次</string>
     <string name="routine_edit_targets_timed">%1$d 组 × %2$d 秒</string>
@@ -137,6 +142,12 @@
     <string name="exercise_picker_unselected">未选中</string>
     <string name="exercise_filter_all">全部</string>
     <string name="equipment_filter_all">全部器械</string>
+
+    <!-- 预设动作组 -->
+    <string name="group_preset_title">预设动作组</string>
+    <string name="group_preset_empty">没有符合条件的预设动作组</string>
+    <string name="group_preset_member_count">%1$d 个动作 · 做其中 %2$d 个</string>
+    <string name="group_preset_added_all">这个预设组的动作都已经排进计划了</string>
 
     <!-- 训练日历 -->
     <string name="plan_calendar">日历</string>

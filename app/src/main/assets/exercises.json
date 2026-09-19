@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "exercises": [
     { "name": "平板杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "仰卧平板凳，握距略宽于肩，下放至胸部中段后推起", "defaultWeightKg": 40 },
     { "name": "上斜杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "上斜凳约 30-45 度，重点刺激胸大肌上部", "defaultWeightKg": 30 },
@@ -22,6 +22,7 @@
     { "name": "T 杠划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "俯身抱住 T 杠把手，拉向胸腹之间", "defaultWeightKg": 20 },
     { "name": "直臂下压", "muscleGroup": "BACK", "equipment": "CABLE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "站姿手臂伸直由高位下压至大腿前，练背阔肌", "defaultWeightKg": 15 },
     { "name": "器械划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "坐姿胸垫抵住，双手后拉至肘部过背", "defaultWeightKg": 30 },
+    { "name": "单手悍马机划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "片杆式单臂划船，单手拉握把至腰侧，肩胛后缩挤压背阔肌", "defaultWeightKg": 25 },
     { "name": "坐姿拉杆划船", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "坐姿胸口抵住支撑垫，双手拉横杆至腹部，肩胛后缩挤压背阔肌", "defaultWeightKg": 25 },
     { "name": "悍马机高位下拉", "muscleGroup": "BACK", "secondaryMuscleGroups": ["BICEPS"], "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "片杆式高位下拉，胸口抵垫，握把由上向下拉至肩胛下沉、背阔肌收紧", "defaultWeightKg": 30 },
     { "name": "山羊挺身", "muscleGroup": "BACK", "secondaryMuscleGroups": ["GLUTE"], "equipment": "BODYWEIGHT", "metric": "REPS", "loadMode": "BODYWEIGHT", "description": "俯卧于罗马椅，髋部为轴上下起伏，练下背与竖脊肌" },

@@ -179,7 +179,7 @@ class ExercisePickerScreen(
 }
 
 @Composable
-private fun FilterRow(content: @Composable () -> Unit) {
+internal fun FilterRow(content: @Composable () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

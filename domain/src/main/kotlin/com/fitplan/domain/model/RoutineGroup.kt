@@ -13,6 +13,8 @@ data class RoutineGroup(
     val position: Int,
     /** 训练时最多从组里挑几个动作，恒 >= 1 且不超过组内动作数。 */
     val maxPicks: Int,
+    /** 组名；为空表示没起过名字，界面按默认的「动作组」展示。 */
+    val name: String? = null,
     /** 组内动作，按组内顺序排列。 */
     val exercises: List<RoutineExercise> = emptyList(),
 )

@@ -118,17 +118,23 @@ class RoutineRepositoryImpl(
         }
     }
 
-    override suspend fun addGroup(routineId: Long, maxPicks: Int): Long = database.transactionWithResult {
-        routineGroupQueries.insert(
-            routine_id = routineId,
-            position = nextTopLevelPosition(routineId),
-            max_picks = maxPicks.coerceAtLeast(MIN_MAX_PICKS).toLong(),
-        )
-        utilQueries.lastInsertRowId().awaitAsOne()
-    }
+    override suspend fun addGroup(routineId: Long, maxPicks: Int, name: String?): Long =
+        database.transactionWithResult {
+            routineGroupQueries.insert(
+                routine_id = routineId,
+                position = nextTopLevelPosition(routineId),
+                max_picks = maxPicks.coerceAtLeast(MIN_MAX_PICKS).toLong(),
+                name = name?.takeIf { it.isNotBlank() },
+            )
+            utilQueries.lastInsertRowId().awaitAsOne()
+        }
 
     override suspend fun updateGroupMaxPicks(groupId: Long, maxPicks: Int) {
         routineGroupQueries.updateMaxPicks(max_picks = clampMaxPicks(groupId, maxPicks).toLong(), id = groupId)
+    }
+
+    override suspend fun updateGroupName(groupId: Long, name: String?) {
+        routineGroupQueries.updateName(name = name?.takeIf { it.isNotBlank() }, id = groupId)
     }
 
     override suspend fun removeGroup(groupId: Long) {

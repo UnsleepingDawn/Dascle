@@ -2,7 +2,8 @@ CREATE TABLE routine_group (
     id         INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     routine_id INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
     position   INTEGER NOT NULL,
-    max_picks  INTEGER NOT NULL DEFAULT 1
+    max_picks  INTEGER NOT NULL DEFAULT 1,
+    name       TEXT
 );
 
 CREATE INDEX routine_group_routine_id ON routine_group(routine_id);
@@ -24,8 +25,13 @@ FROM routine_group
 WHERE routine_id = ?;
 
 insert:
-INSERT INTO routine_group(routine_id, position, max_picks)
-VALUES (?, ?, ?);
+INSERT INTO routine_group(routine_id, position, max_picks, name)
+VALUES (?, ?, ?, ?);
+
+updateName:
+UPDATE routine_group
+SET name = ?
+WHERE id = ?;
 
 updateMaxPicks:
 UPDATE routine_group

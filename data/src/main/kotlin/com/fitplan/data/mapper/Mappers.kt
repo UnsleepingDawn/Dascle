@@ -126,6 +126,7 @@ internal fun RoutineGroupRow.toDomain(): RoutineGroup = RoutineGroup(
     routineId = routine_id,
     position = position.toInt(),
     maxPicks = max_picks.toInt(),
+    name = name,
 )
 
 private fun scheduleEntry(

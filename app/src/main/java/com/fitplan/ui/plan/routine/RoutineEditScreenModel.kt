@@ -58,6 +58,14 @@ class RoutineEditScreenModel(
         }
     }
 
+    /** 改动作组的名字；传空字符串表示清掉名字，卡片回到默认的「动作组」。 */
+    fun updateGroupName(groupId: Long, name: String) {
+        viewModelScope.launch {
+            routineRepository.updateGroupName(groupId, name)
+            refresh()
+        }
+    }
+
     fun removeGroup(groupId: Long) {
         viewModelScope.launch {
             routineRepository.removeGroup(groupId)
