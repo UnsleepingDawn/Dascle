@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -277,18 +278,34 @@ internal fun LogExerciseCard(
         ) {
             // 动作名一行：右侧依次挂「计划外」「已完成 N 组」和跳过动作的按钮。收起 / 跳过时这一行常驻。
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = exercise.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    // 跳过的动作整卡变灰，和「已跳过」标签呼应。
-                    color = if (exercise.skipped) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                Row(
                     modifier = Modifier.weight(1f),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = exercise.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        // 跳过的动作整卡变灰，和「已跳过」标签呼应。
+                        color = if (exercise.skipped) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    // 组全部做完时，名字右边立刻补一颗主色圆圈勾，和今日页「已练」的标记同款。
+                    if (exercise.isDone) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = stringResource(R.string.workout_exercise_done),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(start = MaterialTheme.padding.small)
+                                .size(DONE_CHECK_SIZE),
+                        )
+                    }
+                }
                 if (exercise.isExtra) {
                     Text(
                         text = stringResource(R.string.workout_extra),
@@ -832,3 +849,6 @@ private const val SET_FADE_MILLIS = 160
 
 /** 动作卡内容撑开 / 收缩的时长（毫秒）；与 [SET_FADE_MILLIS] 错开，做出「先消失、再收缩」。 */
 private const val SET_EXPAND_MILLIS = 220
+
+/** 动作做完全部组后，名字右边那颗「已完成」勾的尺寸；与今日页「已练」标记同规格。 */
+private val DONE_CHECK_SIZE = 18.dp

@@ -79,6 +79,9 @@ data class LogExercise(
 ) {
     val completedSets: Int get() = sets.count { it.completed }
 
+    /** 这个动作当前的组是否已经全部勾完（一个组行都没有时不算完成）。 */
+    val isDone: Boolean get() = sets.isNotEmpty() && sets.all { it.completed }
+
     /** 按次数还是按时长录入。 */
     val isTimed: Boolean get() = metric == ExerciseMetric.DURATION
 
@@ -259,6 +262,10 @@ class WorkoutLogScreenModel(
     /** 每自增一次表示训练已经结束或放弃，界面据此退出记录页。 */
     private val _exitTick = MutableStateFlow(0)
     val exitTick: StateFlow<Int> = _exitTick.asStateFlow()
+
+    /** 每自增一次表示刚有一个动作全部勾完，界面据此放礼花。 */
+    private val _celebrateTick = MutableStateFlow(0)
+    val celebrateTick: StateFlow<Int> = _celebrateTick.asStateFlow()
 
     /** 计划外动作选择用的全量动作库。 */
     private val _allExercises = MutableStateFlow<List<Exercise>>(emptyList())
@@ -504,14 +511,15 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 刚勾完一组：如果这个动作的组已经全部做完，就把卡片自动收起，把列表腾出来；
-     * 想改自己点「展开」。只在训练进行中生效，编辑已结束的训练时不动卡片。
+     * 刚勾完一组：如果这个动作的组已经全部做完，就把卡片自动收起，把列表腾出来，
+     * 并给界面发一次礼花信号；想改自己点「展开」。只在训练进行中生效，编辑已结束的训练时不动卡片。
      */
     private fun collapseWhenAllSetsDone(exerciseId: Long) {
         if (_phase.value != WorkoutPhase.IN_PROGRESS || editing) return
         val sets = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets ?: return
         if (sets.isNotEmpty() && sets.all { it.completed }) {
             _collapsedExerciseIds.value = _collapsedExerciseIds.value + exerciseId
+            _celebrateTick.value += 1
         }
     }
 

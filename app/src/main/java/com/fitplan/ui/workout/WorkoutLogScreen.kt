@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -35,7 +37,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -81,10 +85,30 @@ class WorkoutLogScreen(
         val progressTargetInput by screenModel.progressTargetInput.collectAsState()
         val progressTargetConfirm by screenModel.progressTargetConfirm.collectAsState()
         val collapsedIds by screenModel.collapsedExerciseIds.collectAsState()
+        val celebrateTick by screenModel.celebrateTick.collectAsState()
+
+        val listState = rememberLazyListState()
+
+        // 各张卡在列表里的位置：进入训练 / 挑中动作组里的动作后，据此平滑滚动过去。
+        val scrollTracker = remember { WorkoutScrollTracker() }
+        var revealRequest by remember { mutableStateOf<RevealRequest?>(null) }
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
         LaunchedEffect(sessionId, routineId, editing, reopen) {
             screenModel.load(sessionId, routineId, editing, reopen)
+        }
+
+        // 进入训练中：等这一场铺出来以后，平滑滚到第一个还没做完的动作；只滚一次。
+        var enteredScrollDone by remember(sessionId, routineId, editing, reopen) { mutableStateOf(false) }
+        LaunchedEffect(items, phase) {
+            if (enteredScrollDone || phase != WorkoutPhase.IN_PROGRESS) return@LaunchedEffect
+            enteredScrollDone = true
+            val byId = exercises.associateBy { it.exerciseId }
+            val index = items.indexOfFirst { it.isPending(byId) }
+            if (index >= 0) {
+                // 目标可能在屏幕外、还没铺出来，量不到位置，所以先按下标粗滚一次。
+                revealRequest = RevealRequest(key = "item:${items[index].key}", itemIndex = index)
+            }
         }
 
         val vibrateOnce = rememberVibrateOnce()
@@ -108,38 +132,43 @@ class WorkoutLogScreen(
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
 
         // 一张动作卡：单独排的动作直接用它，动作组里挑中的动作作为子卡（nested）用它。
-        val logExerciseCard: @Composable (LogExercise, Boolean) -> Unit = { exercise, nested ->
-            LogExerciseCard(
-                exercise = exercise,
-                readOnly = readOnly,
-                editableCompletedSets = editing,
-                nested = nested,
-                collapsed = exercise.exerciseId in collapsedIds,
-                onWeightChange = { index, value ->
-                    screenModel.updateWeight(exercise.exerciseId, index, value)
-                },
-                onRepsChange = { index, value ->
-                    screenModel.updateReps(exercise.exerciseId, index, value)
-                },
-                onSecondsChange = { index, value ->
-                    screenModel.updateSeconds(exercise.exerciseId, index, value)
-                },
-                onToggleCompleted = { index ->
-                    screenModel.toggleCompleted(exercise.exerciseId, index)
-                },
-                onAddSet = { screenModel.addSetRow(exercise.exerciseId) },
-                onRemoveSet = {
-                    // 只剩一组且还没做时没有可减的组，改问要不要跳过这个动作。
-                    if (exercise.sets.size == 1 && exercise.sets.none { it.completed }) {
-                        lastSetSkipId = exercise.exerciseId
-                    } else {
-                        screenModel.removeSetRow(exercise.exerciseId)
-                    }
-                },
-                onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
-                onToggleCollapsed = { screenModel.toggleExerciseCollapsed(exercise.exerciseId) },
-            )
-        }
+        // positionKey 是这张卡在滚动跟踪里的名字，用来把它平滑滚进视口。
+        val logExerciseCard: @Composable (LogExercise, Boolean, String) -> Unit =
+            { exercise, nested, positionKey ->
+                LogExerciseCard(
+                    exercise = exercise,
+                    readOnly = readOnly,
+                    editableCompletedSets = editing,
+                    nested = nested,
+                    collapsed = exercise.exerciseId in collapsedIds,
+                    modifier = Modifier.onGloballyPositioned {
+                        scrollTracker.onItemPositioned(positionKey, it)
+                    },
+                    onWeightChange = { index, value ->
+                        screenModel.updateWeight(exercise.exerciseId, index, value)
+                    },
+                    onRepsChange = { index, value ->
+                        screenModel.updateReps(exercise.exerciseId, index, value)
+                    },
+                    onSecondsChange = { index, value ->
+                        screenModel.updateSeconds(exercise.exerciseId, index, value)
+                    },
+                    onToggleCompleted = { index ->
+                        screenModel.toggleCompleted(exercise.exerciseId, index)
+                    },
+                    onAddSet = { screenModel.addSetRow(exercise.exerciseId) },
+                    onRemoveSet = {
+                        // 只剩一组且还没做时没有可减的组，改问要不要跳过这个动作。
+                        if (exercise.sets.size == 1 && exercise.sets.none { it.completed }) {
+                            lastSetSkipId = exercise.exerciseId
+                        } else {
+                            screenModel.removeSetRow(exercise.exerciseId)
+                        }
+                    },
+                    onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
+                    onToggleCollapsed = { screenModel.toggleExerciseCollapsed(exercise.exerciseId) },
+                )
+            }
         val exercisesById = remember(exercises) { exercises.associateBy { it.exerciseId } }
 
         Scaffold(
@@ -223,6 +252,22 @@ class WorkoutLogScreen(
                 }
             },
         ) { contentPadding ->
+            val topInsetPx = with(LocalDensity.current) { contentPadding.calculateTopPadding().toPx() }
+
+            // 把待滚动的卡平滑送进视口。滚完清掉请求。
+            LaunchedEffect(revealRequest) {
+                val request = revealRequest ?: return@LaunchedEffect
+                if (request.itemIndex != null) {
+                    // 顶层卡片：按下标滚。目标可能在屏幕外还没铺出来，量不到位置；
+                    // 滚到下标处正好是内容顶部，也就是顶栏下沿。
+                    listState.animateScrollToItem(request.itemIndex)
+                } else {
+                    // 动作组里的子卡没有自己的下标，只能量出它现在的位置再滚过去。
+                    scrollTracker.awaitScrollDelta(request.key, topInsetPx)?.let { listState.animateScrollBy(it) }
+                }
+                revealRequest = null
+            }
+
             if (phase == WorkoutPhase.NOT_STARTED) {
                 if (items.isEmpty()) {
                     EmptyScreen(
@@ -238,7 +283,10 @@ class WorkoutLogScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { scrollTracker.onListPositioned(it) },
                     contentPadding = contentPadding,
                     verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
                 ) {
@@ -250,7 +298,7 @@ class WorkoutLogScreen(
                         when (item) {
                             is LogItem.Exercise -> {
                                 val exercise = exercisesById[item.exerciseId]
-                                if (exercise != null) logExerciseCard(exercise, false)
+                                if (exercise != null) logExerciseCard(exercise, false, "item:${item.key}")
                             }
 
                             // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
@@ -263,9 +311,11 @@ class WorkoutLogScreen(
                                         screenModel.unpickGroupExercise(item.groupId, exerciseId)
                                     } else {
                                         screenModel.pickGroupExercise(item.groupId, exerciseId)
+                                        // 挑中的动作会在组卡里展开子卡，滚过去让用户直接接着录入。
+                                        revealRequest = RevealRequest("card:$exerciseId")
                                     }
                                 },
-                            ) { exercise -> logExerciseCard(exercise, true) }
+                            ) { exercise -> logExerciseCard(exercise, true, "card:${exercise.exerciseId}") }
                         }
                     }
                 }
@@ -341,7 +391,31 @@ class WorkoutLogScreen(
                 onDismiss = screenModel::dismissProgressTargetConfirm,
             )
         }
+
+        // 礼花：一个动作全部做完时放一轮。放在所有弹窗之后，且比它们更晚挂载窗口才盖得住它们。
+        WorkoutCelebrationOverlay(tick = celebrateTick)
     }
+}
+
+/**
+ * 一次「把目标滚进视口」的请求。
+ *
+ * 用普通类、靠实例身份区分：连着两次请求同一处也要能重新触发，所以不能是 data class。
+ * [itemIndex] 非空时先按下标粗滚一次——目标可能在屏幕外、还没铺出来，那时量不到位置。
+ */
+private class RevealRequest(
+    val key: String,
+    val itemIndex: Int? = null,
+)
+
+/**
+ * 这一项是不是「还没做完」，进训练时据此找第一个该接着练的位置：
+ * 跳过与已做完的动作不算；动作组还没挑、或挑中的动作里还有没做完的也要算。
+ */
+private fun LogItem.isPending(byId: Map<Long, LogExercise>): Boolean = when (this) {
+    is LogItem.Exercise -> byId[exerciseId]?.let { !it.skipped && !it.isDone } == true
+    is LogItem.Group -> pickedIds.isEmpty() ||
+        pickedIds.any { id -> byId[id]?.let { !it.skipped && !it.isDone } == true }
 }
 
 /**

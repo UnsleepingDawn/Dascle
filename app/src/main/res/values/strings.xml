@@ -222,6 +222,7 @@
     <string name="workout_target_sets">目标 %1$d 组</string>
     <string name="workout_target_rest">休息 %1$d 秒</string>
     <string name="workout_completed_sets">已完成 %1$d 组</string>
+    <string name="workout_exercise_done">已完成</string>
     <string name="workout_set_index">第 %1$d 组</string>
     <string name="workout_set_done">完成</string>
     <string name="workout_set_undo">撤销完成</string>
