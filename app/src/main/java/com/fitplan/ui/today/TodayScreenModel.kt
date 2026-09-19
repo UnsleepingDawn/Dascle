@@ -11,6 +11,7 @@ import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
 import com.fitplan.domain.interactor.UseUpcomingTrainingPlanForToday
 import com.fitplan.domain.model.WorkoutSession
+import com.fitplan.domain.model.pickedExerciseIds
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.WorkoutRepository
 import com.fitplan.widget.WidgetManager
@@ -45,6 +46,23 @@ data class TodaySessionExercise(
     val reps: Int?,
     val weight: Double?,
     val seconds: Int?,
+)
+
+/**
+ * 今天这场训练里各动作的状态，供今日页的计划卡片标注：
+ * 练过的动作整行反色底，跳过与动作组里没挑中的动作打删除线并变灰。
+ *
+ * [routineId] 是这次训练对应的计划 id；null 表示计划外训练（休息日「临时加一个方案」），
+ * 没有计划卡片可以标注。
+ */
+data class TodaySessionProgress(
+    val routineId: Long?,
+    /** 有已完成组的动作。 */
+    val completedExerciseIds: Set<Long>,
+    /** 被「跳过动作」的动作。 */
+    val skippedExerciseIds: Set<Long>,
+    /** 动作组里挑中要练的动作；单独排列的动作不在这个集合里，判定时不用管。 */
+    val pickedExerciseIds: Set<Long>,
 )
 
 @Inject
@@ -98,6 +116,13 @@ class TodayScreenModel(
     private val _todaySessionExercises = MutableStateFlow<List<TodaySessionExercise>>(emptyList())
     val todaySessionExercises: StateFlow<List<TodaySessionExercise>> = _todaySessionExercises.asStateFlow()
 
+    /**
+     * 今天这场训练里各动作的状态（练过 / 跳过 / 组内挑中），训练中也算，
+     * 供今日页计划卡片标注进度；今天还没开练时为 null。
+     */
+    private val _todaySessionProgress = MutableStateFlow<TodaySessionProgress?>(null)
+    val todaySessionProgress: StateFlow<TodaySessionProgress?> = _todaySessionProgress.asStateFlow()
+
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
 
@@ -124,6 +149,7 @@ class TodayScreenModel(
                 ?.takeIf { it.isFinished }
                 ?.let { loadSessionExercises(it.id) }
                 .orEmpty()
+            _todaySessionProgress.value = _todaySession.value?.let { loadSessionProgress(it) }
             _upcomingPlan.value = getUpcomingTrainingPlan(date)
             _loaded.value = true
         }
@@ -165,6 +191,21 @@ class TodayScreenModel(
                     seconds = representative.durationSeconds,
                 )
             }
+    }
+
+    /**
+     * 汇总今天这场训练里各动作的状态：哪些练过（有已完成组）、哪些被跳过、动作组里挑中了谁。
+     * 训练中也算，所以中途返回今日页就能看到进度；口径与记录页 `workout_exercise_state` 一致。
+     */
+    private suspend fun loadSessionProgress(session: WorkoutSession): TodaySessionProgress {
+        val sets = workoutRepository.getSets(session.id)
+        val states = workoutRepository.getExerciseStates(session.id)
+        return TodaySessionProgress(
+            routineId = session.routineId,
+            completedExerciseIds = sets.filter { it.completed }.map { it.exerciseId }.toSet(),
+            skippedExerciseIds = states.filter { it.skipped }.map { it.exerciseId }.toSet(),
+            pickedExerciseIds = pickedExerciseIds(sets.map { it.exerciseId }.distinct(), states),
+        )
     }
 
     /**

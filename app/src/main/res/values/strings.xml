@@ -27,6 +27,7 @@
     <string name="today_date">%1$d 月 %2$d 日 · %3$s</string>
     <string name="today_empty">今天没有训练安排\n去「计划」页给训练计划排个日程吧</string>
     <string name="today_exercise_count">%1$d 个动作</string>
+    <string name="today_exercise_trained">已练</string>
     <string name="today_start_workout">开始训练</string>
     <string name="today_extra_title">还想练？</string>
     <string name="today_start_extra">再来！</string>

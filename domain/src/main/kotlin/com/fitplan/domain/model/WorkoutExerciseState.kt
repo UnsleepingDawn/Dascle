@@ -15,3 +15,16 @@ data class WorkoutExerciseState(
     /** 动作组里是否挑中了这个动作（只对组内动作有意义）。 */
     val picked: Boolean = false,
 )
+
+/**
+ * 动作组里到底挑中了哪些动作：有状态行的动作以 `picked` 为准（取消挑选也能记住），
+ * 没有状态行的是升级到 schema 12 之前的老训练，退回「本次已有 `workout_set` 记录」的旧判定。
+ *
+ * [recordedIds] 是这次训练里出现过 `workout_set` 记录的动作 id。
+ * 记录页与今日页共用这套口径，免得两处实现漂移。
+ */
+fun pickedExerciseIds(
+    recordedIds: Collection<Long>,
+    states: List<WorkoutExerciseState>,
+): Set<Long> = recordedIds.toSet() - states.map { it.exerciseId } +
+    states.filter { it.picked }.map { it.exerciseId }

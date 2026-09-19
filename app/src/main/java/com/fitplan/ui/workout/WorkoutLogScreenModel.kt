@@ -13,6 +13,7 @@ import com.fitplan.domain.model.ExerciseProgressHint
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineItem
 import com.fitplan.domain.model.WorkoutSet
+import com.fitplan.domain.model.pickedExerciseIds
 import com.fitplan.domain.repository.ExerciseProgressHintRepository
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
@@ -255,7 +256,7 @@ class WorkoutLogScreenModel(
     private val _restFinishedTick = MutableStateFlow(0)
     val restFinishedTick: StateFlow<Int> = _restFinishedTick.asStateFlow()
 
-    /** 每自增一次表示训练已经放弃，界面据此退出记录页。 */
+    /** 每自增一次表示训练已经结束或放弃，界面据此退出记录页。 */
     private val _exitTick = MutableStateFlow(0)
     val exitTick: StateFlow<Int> = _exitTick.asStateFlow()
 
@@ -747,8 +748,9 @@ class WorkoutLogScreenModel(
                 workoutRepository.updateSessionNote(currentSessionId, note.trim())
             }
             workoutRepository.finishSession(currentSessionId, Clock.System.now())
-            loadSession(currentSessionId)
             widgetManager.updateTodayWidget()
+            // 结束训练后不停在只读汇总页，直接退回今日页；今日卡片会标出这次练了哪些动作。
+            _exitTick.value += 1
         }
     }
 
@@ -829,10 +831,8 @@ class WorkoutLogScreenModel(
                 durationSeconds = (finishedAt - session.startedAt).inWholeSeconds,
             )
         }
-        // 组里挑过哪些动作：有状态行的动作以 `workout_exercise_state.picked` 为准（取消挑选也能记住），
-        // 没有状态行的是升级到 schema 12 之前的老训练，退回「本次已有 workout_set 记录」的旧判定。
-        val recordedIds = recordedExerciseIds.toSet()
-        val pickedIds = recordedIds - states.keys + states.values.filter { it.picked }.map { it.exerciseId }
+        // 组里挑过哪些动作：与今日页共用 `pickedExerciseIds` 的口径。
+        val pickedIds = pickedExerciseIds(recordedExerciseIds, states.values.toList())
         _items.value = buildList {
             items.forEach { add(it.toLogItem(pickedIds = pickedIds)) }
             // 记录里出现、但计划编排里已经找不到的动作（计划外动作，或计划改过之后被移除的动作）。

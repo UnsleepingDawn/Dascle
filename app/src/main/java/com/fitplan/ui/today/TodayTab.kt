@@ -11,13 +11,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Today
@@ -46,6 +49,7 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -53,6 +57,7 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import com.fitplan.app.R
 import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
+import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
@@ -84,6 +89,7 @@ object TodayTab : Tab {
         val unfinished by screenModel.unfinished.collectAsState()
         val todaySession by screenModel.todaySession.collectAsState()
         val todaySessionExercises by screenModel.todaySessionExercises.collectAsState()
+        val todaySessionProgress by screenModel.todaySessionProgress.collectAsState()
         val loaded by screenModel.loaded.collectAsState()
         val upcomingPlan by screenModel.upcomingPlan.collectAsState()
         val startRoutineRequest by screenModel.startRoutineRequest.collectAsState()
@@ -178,6 +184,7 @@ object TodayTab : Tab {
                             TodaySessionCard(
                                 name = session.name,
                                 exercises = todaySessionExercises,
+                                progress = todaySessionProgress,
                                 modifier = Modifier.padding(bottom = MaterialTheme.padding.small),
                             )
                         }
@@ -221,6 +228,9 @@ object TodayTab : Tab {
                                 isResuming = resumable != null,
                                 // 今天的训练已经结束，就不再从计划卡片开新的一次训练。
                                 startEnabled = resumable != null || finishedSession == null,
+                                // 今天这次训练就是照着这张计划练的：标出各动作练到哪了。
+                                progress = todaySessionProgress
+                                    ?.takeIf { it.routineId == scheduled.routine.id },
                                 onClick = {
                                     if (resumable != null) {
                                         navigator.push(WorkoutLogScreen(sessionId = resumable.id))
@@ -237,6 +247,7 @@ object TodayTab : Tab {
                                     TodaySessionCard(
                                         name = finishedSession.name,
                                         exercises = todaySessionExercises,
+                                        progress = todaySessionProgress,
                                     )
                                 }
                             }
@@ -280,6 +291,7 @@ private fun ScheduledRoutineCard(
     scheduled: ScheduledRoutine,
     isResuming: Boolean,
     startEnabled: Boolean,
+    progress: TodaySessionProgress?,
     onClick: () -> Unit,
 ) {
     ElevatedCard(
@@ -312,18 +324,11 @@ private fun ScheduledRoutineCard(
             )
 
             scheduled.exercises.forEach { exercise ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = exercise.exerciseName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = exercise.targetText(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                TodayExerciseRow(
+                    name = exercise.exerciseName,
+                    trailing = exercise.targetText(),
+                    status = progress?.statusOf(exercise) ?: TodayExerciseStatus.PLANNED,
+                )
             }
 
             Button(
@@ -347,16 +352,87 @@ private fun ScheduledRoutineCard(
 }
 
 /**
+ * 今日卡片里一个动作的训练状态：
+ * [TRAINED] 练过（有已完成组），[NOT_DONE] 跳过或动作组里没挑中，[PLANNED] 计划里还没轮到。
+ */
+private enum class TodayExerciseStatus { TRAINED, NOT_DONE, PLANNED }
+
+/**
+ * 判定计划里一个动作今天的训练状态。只有今天这场训练确实照这张计划练（`routineId` 对上）时才会问到这里。
+ * 动作组里没挑中的动作也算「不用做」，与跳过一样打删除线。
+ */
+private fun TodaySessionProgress.statusOf(exercise: RoutineExercise): TodayExerciseStatus = when {
+    exercise.exerciseId in completedExerciseIds -> TodayExerciseStatus.TRAINED
+    exercise.exerciseId in skippedExerciseIds -> TodayExerciseStatus.NOT_DONE
+    exercise.groupId != null && exercise.exerciseId !in pickedExerciseIds -> TodayExerciseStatus.NOT_DONE
+    else -> TodayExerciseStatus.PLANNED
+}
+
+/** 动作名前那颗「已练」勾的尺寸；没练的动作也占同样宽度，好让动作名对齐。 */
+private val TrainedCheckSize = 18.dp
+
+/**
+ * 今日页一个动作一行：左边动作名、右边目标或实际训练量。
+ *
+ * [TodayExerciseStatus.TRAINED] 动作名前一颗主色（蓝）圆圈勾，表示今天已经练过；
+ * [TodayExerciseStatus.NOT_DONE] 只有动作名打删除线并转灰，表示跳过或组内没挑中、今天不用做。
+ * 右侧的训练量只跟着变灰，不打删除线。
+ */
+@Composable
+private fun TodayExerciseRow(
+    name: String,
+    trailing: String,
+    status: TodayExerciseStatus,
+) {
+    val struck = status == TodayExerciseStatus.NOT_DONE
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (status == TodayExerciseStatus.TRAINED) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = stringResource(R.string.today_exercise_trained),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(TrainedCheckSize),
+            )
+        } else {
+            // 没练的动作也占好勾的位置，同一张卡片里的动作名才对得齐。
+            Spacer(modifier = Modifier.size(TrainedCheckSize))
+        }
+        Spacer(modifier = Modifier.width(MaterialTheme.padding.small))
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (struck) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            textDecoration = if (struck) TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = trailing,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
  * 今天这场训练没有对应的计划卡片（休息日「临时加一个方案」这类计划外训练的入口是「开始训练」，
  * 练完之后原先只在页面上留一句鼓励语）时，在鼓励语上面补一张总结卡片，
  * 让用户看得到今天到底练了什么：方案名 + 动作数 + 每个动作的实际训练量。
  *
- * 版式与计划卡片同规格，但只展示、不给入口。
+ * 版式与计划卡片同规格，但只展示、不给入口。[progress] 非空表示这张卡就是今天这场训练的总结，
+ * 卡里列的都是练过的动作，整行按「已训练」带勾渲染，与计划卡片的标记一致。
  */
 @Composable
 private fun TodaySessionCard(
     name: String,
     exercises: List<TodaySessionExercise>,
+    progress: TodaySessionProgress?,
     modifier: Modifier = Modifier,
 ) {
     ElevatedCard(
@@ -382,18 +458,11 @@ private fun TodaySessionCard(
             )
 
             exercises.forEach { exercise ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = exercise.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = exercise.volumeText(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                TodayExerciseRow(
+                    name = exercise.name,
+                    trailing = exercise.volumeText(),
+                    status = if (progress != null) TodayExerciseStatus.TRAINED else TodayExerciseStatus.PLANNED,
+                )
             }
         }
     }
