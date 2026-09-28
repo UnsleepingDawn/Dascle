@@ -287,7 +287,10 @@ class WorkoutLogScreenModel(
     private val _allExercises = MutableStateFlow<List<Exercise>>(emptyList())
     val allExercises: StateFlow<List<Exercise>> = _allExercises.asStateFlow()
 
-    /** 手动收起的动作卡；只活在内存里，重新打开这次训练默认都是展开的。 */
+    /**
+     * 手动收起的动作卡；只活在内存里。
+     * 重新打开一次进行中的训练时，已经全部做完的动作会按 [collapseFinishedExercises] 预先收起，其余默认展开。
+     */
     private val _collapsedExerciseIds = MutableStateFlow<Set<Long>>(emptySet())
     val collapsedExerciseIds: StateFlow<Set<Long>> = _collapsedExerciseIds.asStateFlow()
 
@@ -917,6 +920,19 @@ class WorkoutLogScreenModel(
                     ),
             )
         }
+        collapseFinishedExercises()
+    }
+
+    /**
+     * 重新打开一次进行中的训练时，把已经全部做完的动作直接摆成收起状态。
+     *
+     * 和「勾完最后一组就自动收起」保持同一个口径，退出再进来不会先看到一屏练完的组行。
+     * 已经结束的训练（回看与编辑）不动卡片，与 [collapseWhenAllSetsDone] 一致。
+     */
+    private fun collapseFinishedExercises() {
+        if (_phase.value != WorkoutPhase.IN_PROGRESS || editing) return
+        _collapsedExerciseIds.value =
+            _collapsedExerciseIds.value + _exercises.value.filter { it.isDone }.map { it.exerciseId }
     }
 
     private fun mutate(exerciseId: Long, transform: (LogExercise) -> LogExercise) {
