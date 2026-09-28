@@ -79,6 +79,22 @@ data class LogExercise(
 ) {
     val completedSets: Int get() = sets.count { it.completed }
 
+    /**
+     * 下一组该做的组的序号（第一组未完成的行）；返回 -1 表示每一组都已完成。
+     *
+     * 完成只能按顺序来，所以只有这一行上的「做完了」按钮是可点的，
+     * 后面的行要么已完成、要么被锁定。
+     */
+    val nextSetIndex: Int get() = sets.indexOfFirst { !it.completed }
+
+    /**
+     * 最后一组已完成的组的序号（最后一条已完成的行）；返回 -1 表示一组都还没完成。
+     *
+     * 撤销只能从后往前，所以只有这一行上的「撤销」按钮是可点的，
+     * 更早的那些已完成行要等后面的组退回来之后才能动。
+     */
+    val lastCompletedIndex: Int get() = sets.indexOfLast { it.completed }
+
     /** 这个动作当前的组是否已经全部勾完（一个组行都没有时不算完成）。 */
     val isDone: Boolean get() = sets.isNotEmpty() && sets.all { it.completed }
 
@@ -459,7 +475,14 @@ class WorkoutLogScreenModel(
         persistSetCount(exerciseId)
     }
 
-    /** 勾选 / 撤销一组：勾选时立刻落库，并启动组间休息倒计时。 */
+    /**
+     * 完成 / 撤销一组：完成时立刻落库，并启动组间休息倒计时。
+     *
+     * 完成只能按顺序、撤销只能反着来：一个动作里只有排在最前面的那一组还没做完时，
+     * 才允许完成它；也只有最后那一组已完成的组，才允许退回未完成。这样记录永远是一段
+     * 「前 k 组已完成」的连续前缀，中间不会被跳过或挖空。界面会把当前不可点的那几档
+     * 按钮置灰。
+     */
     fun toggleCompleted(exerciseId: Long, index: Int) {
         val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
         val entry = exercise.sets.getOrNull(index) ?: return
@@ -467,6 +490,9 @@ class WorkoutLogScreenModel(
 
         viewModelScope.launch {
             if (entry.completed) {
+                // 顺序约束：不是「最后那一组已完成的组」就不接受，界面也会把这类按钮置灰。
+                if (index != exercise.lastCompletedIndex) return@launch
+
                 entry.id?.let { setId ->
                     workoutRepository.updateSet(
                         entry.toWorkoutSet(setId, currentSessionId, exerciseId, index, completed = false),
@@ -475,6 +501,9 @@ class WorkoutLogScreenModel(
                 mutateSet(exerciseId, index) { it.copy(completed = false) }
                 return@launch
             }
+
+            // 顺序约束：不是「最靠前的未完成组」就不接受，界面也会把这类按钮置灰。
+            if (index != exercise.nextSetIndex) return@launch
 
             val reps = entry.reps.toIntOrNull()
             val seconds = entry.seconds.toIntOrNull()

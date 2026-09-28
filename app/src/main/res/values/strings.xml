@@ -209,7 +209,7 @@
     <string name="workout_continue">继续训练</string>
     <string name="workout_finish">结束训练</string>
     <string name="workout_note_label">备注（可选）</string>
-    <string name="workout_plan_hint">练完一组勾一组，勾选后自动开始组间休息。</string>
+    <string name="workout_plan_hint">按顺序练，练完一组点一次「做完了」，点完自动开始组间休息；撤销也只能从最后一组往回退。</string>
     <string name="workout_plan_empty">这个计划还没有动作\n开始后可以临时添加</string>
     <string name="workout_add_extra">计划外动作</string>
     <string name="workout_extra">计划外</string>
@@ -224,8 +224,8 @@
     <string name="workout_completed_sets">已完成 %1$d 组</string>
     <string name="workout_exercise_done">已完成</string>
     <string name="workout_set_index">第 %1$d 组</string>
-    <string name="workout_set_done">完成</string>
-    <string name="workout_set_undo">撤销完成</string>
+    <string name="workout_set_done">做完了</string>
+    <string name="workout_set_undo">撤销</string>
     <string name="workout_add_set">加一组</string>
     <string name="workout_remove_set">减一组</string>
     <string name="workout_skip">跳过动作</string>

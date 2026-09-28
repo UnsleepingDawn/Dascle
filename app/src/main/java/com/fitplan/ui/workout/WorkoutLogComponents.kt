@@ -1,19 +1,28 @@
 package com.fitplan.ui.workout
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,16 +32,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -46,6 +54,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -384,6 +395,8 @@ internal fun LogExerciseCard(
                         }
                     }
 
+                    val nextSetIndex = exercise.nextSetIndex
+                    val lastCompletedIndex = exercise.lastCompletedIndex
                     exercise.sets.forEachIndexed { index, entry ->
                         SetEntryRow(
                             index = index,
@@ -393,6 +406,8 @@ internal fun LogExerciseCard(
                             weightIsAssistance = exercise.weightIsAssistance,
                             readOnly = readOnly,
                             editableCompletedSets = editableCompletedSets,
+                            // 做完的一组只有「最后一组已完成的」能撤销，没做完的只有下一组能做。
+                            actionable = index == if (entry.completed) lastCompletedIndex else nextSetIndex,
                             onWeightChange = { onWeightChange(index, it) },
                             onRepsChange = { onRepsChange(index, it) },
                             onSecondsChange = { onSecondsChange(index, it) },
@@ -474,6 +489,7 @@ private fun SetEntryRow(
     weightIsAssistance: Boolean,
     readOnly: Boolean,
     editableCompletedSets: Boolean,
+    actionable: Boolean,
     onWeightChange: (String) -> Unit,
     onRepsChange: (String) -> Unit,
     onSecondsChange: (String) -> Unit,
@@ -535,31 +551,170 @@ private fun SetEntryRow(
             )
         }
 
-        when {
-            readOnly && entry.completed -> Icon(
-                imageVector = Icons.Filled.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-
-            readOnly -> Unit
-
-            entry.completed -> IconButton(onClick = onToggleCompleted) {
+        // 只读（已经结束且不再编辑）时末尾只留一颗勾，没有可点的操作。
+        if (readOnly) {
+            if (entry.completed) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Undo,
-                    contentDescription = stringResource(R.string.workout_set_undo),
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = stringResource(R.string.workout_exercise_done),
+                    tint = MaterialTheme.colorScheme.primary,
                 )
             }
+        } else {
+            SetActionControl(
+                completed = entry.completed,
+                actionable = actionable,
+                onComplete = onToggleCompleted,
+                onUndo = onToggleCompleted,
+            )
+        }
+    }
+}
 
-            else -> IconButton(onClick = onToggleCompleted) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = stringResource(R.string.workout_set_done),
-                )
+/**
+ * 一行的末尾操作。顺序即视觉上的推进方向：从「还没轮到」到「可以做了」再到「已完成」，
+ * 最后是「做过了但不能再撤」；[ordinal] 用来决定切换时贴面往哪个方向滑。
+ */
+private enum class SetAction { LOCKED, DONE, UNDO, UNDO_LOCKED }
+
+/**
+ * 组行末尾的「做完了 / 撤销」按钮。
+ *
+ * 按钮的外框、位置和尺寸全程不动，切换时只让里面那张「贴面」（整块底色加一行文字）
+ * 横向滑过：新贴面从一侧滑进来、旧贴面从另一侧滑出去，像一条传送带，避免整颗按钮
+ * 上下跳或者原地变大变小。顺序往前推进（锁定 → 可做 → 已完成）时从右侧滑入，退回来时反向。
+ *
+ * 四种形态对应记录的推进方向：还没轮到（淡边框的「做完了」）、轮到这一组（蓝色
+ * 「做完了」）、刚做完可以撤回（灰色「撤销」）、做过了但要先撤后面的（淡边框的
+ * 「撤销」）。
+ */
+@Composable
+private fun SetActionControl(
+    completed: Boolean,
+    actionable: Boolean,
+    onComplete: () -> Unit,
+    onUndo: () -> Unit,
+) {
+    val action = when {
+        completed && actionable -> SetAction.UNDO
+        completed -> SetAction.UNDO_LOCKED
+        actionable -> SetAction.DONE
+        else -> SetAction.LOCKED
+    }
+
+    Button(
+        onClick = if (action == SetAction.UNDO) onUndo else onComplete,
+        enabled = action == SetAction.DONE || action == SetAction.UNDO,
+        colors = ButtonDefaults.buttonColors(
+            // 外框保持透明：切换时动的只有里面滑动的贴面，按钮本身一丝不动。
+            containerColor = Color.Transparent,
+            contentColor = if (completed) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onPrimary
+            },
+            // 两档不可点的形态由贴面自己给配色（透明底 + 淡边框 + 浅字）。
+            disabledContainerColor = Color.Transparent,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        // 去掉按钮自带的内边距，让贴面正好铺满按钮，滑动时看不到留白。
+        contentPadding = PaddingValues(0.dp),
+        modifier = Modifier.width(SET_ACTION_WIDTH),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ButtonDefaults.MinHeight)
+                .clip(ButtonDefaults.shape),
+        ) {
+            AnimatedContent(
+                targetState = action,
+                transitionSpec = {
+                    // 往前推进时新贴面从右边进来、旧贴面往左边出去；往回退时整体反向。
+                    val enterFrom = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                    slideInHorizontally(tween(SET_ACTION_SLIDE_MILLIS)) { width -> enterFrom * width }
+                        .togetherWith(
+                            slideOutHorizontally(tween(SET_ACTION_SLIDE_MILLIS)) { width -> -enterFrom * width },
+                        )
+                },
+                contentAlignment = Alignment.Center,
+                label = "setAction",
+            ) { target ->
+                when (target) {
+                    SetAction.DONE -> SetActionFace(
+                        text = stringResource(R.string.workout_set_done),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    )
+
+                    SetAction.UNDO -> SetActionFace(
+                        text = stringResource(R.string.workout_set_undo),
+                        containerColor = undoContainerColor(),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    )
+
+                    // 做过了、但要先把后面的组撤回来才能动它。
+                    SetAction.UNDO_LOCKED -> SetActionFace(
+                        text = stringResource(R.string.workout_set_undo),
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = LOCKED_CONTENT_ALPHA),
+                        border = BorderStroke(LOCKED_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant),
+                    )
+
+                    // 还没轮到这一组。
+                    SetAction.LOCKED -> SetActionFace(
+                        text = stringResource(R.string.workout_set_done),
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = LOCKED_CONTENT_ALPHA),
+                        border = BorderStroke(LOCKED_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant),
+                    )
+                }
             }
         }
     }
 }
+
+/** 按钮里滑动的那一层贴面：一整块底色加一行居中文字，尺寸始终是按钮的大小。 */
+@Composable
+private fun SetActionFace(
+    text: String,
+    containerColor: Color,
+    contentColor: Color,
+    border: BorderStroke? = null,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(containerColor, ButtonDefaults.shape)
+            .then(
+                if (border == null) {
+                    Modifier
+                } else {
+                    Modifier.border(border, ButtonDefaults.shape)
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = contentColor,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+/**
+ * 「撤销」按钮的灰色底。
+ *
+ * 主题里的 `surfaceContainerHighest` / `surfaceContainer` 在浅色模式下都接近纯白
+ * （默认主题是 #FCF7FF），铺在卡片上几乎看不出形状，所以改成用 `onSurface` 按比例
+ * 叠在卡片色上：浅色模式得到浅灰、深色模式得到深灰，各套配色都能和蓝色的
+ * 「做完了」拉开差别。
+ */
+@Composable
+private fun undoContainerColor(): Color = MaterialTheme.colorScheme.onSurface
+    .copy(alpha = UNDO_CONTAINER_ALPHA)
+    .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
 
 /** 组间休息条：贴在 Scaffold 的 bottomBar 上。 */
 @Composable
@@ -849,6 +1004,21 @@ private const val SET_FADE_MILLIS = 160
 
 /** 动作卡内容撑开 / 收缩的时长（毫秒）；与 [SET_FADE_MILLIS] 错开，做出「先消失、再收缩」。 */
 private const val SET_EXPAND_MILLIS = 220
+
+/** 「做完了 / 撤销」按钮里贴面横向滑过的时长（毫秒）。 */
+private const val SET_ACTION_SLIDE_MILLIS = 220
+
+/** 组行末尾按钮的固定宽度；三种状态同宽，切换时不挤动左边的输入框。 */
+private val SET_ACTION_WIDTH = 84.dp
+
+/** 「撤销」灰色底的叠色比例：`onSurface` 按这个透明度盖在卡片色上。 */
+private const val UNDO_CONTAINER_ALPHA = 0.14f
+
+/** 还没轮到的「做完了」里的字色透明度；比可点的按钮淡，一眼看出不能按。 */
+private const val LOCKED_CONTENT_ALPHA = 0.38f
+
+/** 还没轮到的「做完了」的描边粗细。 */
+private val LOCKED_BORDER_WIDTH = 1.dp
 
 /** 动作做完全部组后，名字右边那颗「已完成」勾的尺寸；与今日页「已练」标记同规格。 */
 private val DONE_CHECK_SIZE = 18.dp
