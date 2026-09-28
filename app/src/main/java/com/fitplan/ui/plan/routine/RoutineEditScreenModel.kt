@@ -2,6 +2,8 @@ package com.fitplan.ui.plan.routine
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.core.common.preference.Preference
+import com.fitplan.core.common.preference.PreferenceStore
 import com.fitplan.domain.interactor.UpdateExerciseProgression
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineItem
@@ -24,10 +26,18 @@ class RoutineEditScreenModel(
     private val routineRepository: RoutineRepository,
     private val updateProgress: UpdateExerciseProgression,
     private val widgetManager: WidgetManager,
+    preferenceStore: PreferenceStore,
 ) : ViewModel() {
+
+    /** 「怎么定重量」说明只在第一次进编排页弹一次；属于内部状态，不进备份。 */
+    private val weightIntroShown = preferenceStore.getBoolean(Preference.appStateKey(KEY_WEIGHT_INTRO_SHOWN))
 
     private val _routineName = MutableStateFlow("")
     val routineName: StateFlow<String> = _routineName.asStateFlow()
+
+    /** true 表示要弹「怎么定重量」的说明弹窗。 */
+    private val _showWeightIntro = MutableStateFlow(false)
+    val showWeightIntro: StateFlow<Boolean> = _showWeightIntro.asStateFlow()
 
     /** 顶层编排：单独动作与动作组按共用序号交错排列，组内已含动作。 */
     private val _items = MutableStateFlow<List<RoutineItem>>(emptyList())
@@ -38,7 +48,14 @@ class RoutineEditScreenModel(
     /** 每次进入页面（含从动作选择器返回）都重新读一遍，保证编排是最新的。 */
     fun load(id: Long) {
         routineId = id
+        if (!weightIntroShown.get()) _showWeightIntro.value = true
         viewModelScope.launch { refresh() }
+    }
+
+    /** 关掉「怎么定重量」说明：记下已经看过，之后进编排页不再弹。 */
+    fun dismissWeightIntro() {
+        weightIntroShown.set(true)
+        _showWeightIntro.value = false
     }
 
     /** 新增一个空的动作组，放在计划末尾；之后往里加动作、设「做其中 x 个」。 */
@@ -131,6 +148,10 @@ class RoutineEditScreenModel(
         _items.value = routineRepository.getItems(id)
         // 编排（增删动作等）会改变今日计划在组件上的动作数，这里统一兜住。
         widgetManager.updateTodayWidget()
+    }
+
+    private companion object {
+        const val KEY_WEIGHT_INTRO_SHOWN = "routine_weight_intro_shown"
     }
 }
 

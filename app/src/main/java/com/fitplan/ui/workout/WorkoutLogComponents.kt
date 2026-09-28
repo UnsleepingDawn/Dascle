@@ -468,6 +468,41 @@ internal fun SkipLastSetDialog(
     )
 }
 
+/**
+ * 某一组低于计划目标时的重填提醒：这一组还没记录，用户可以先改数值再回来勾，
+ * 也可以确认「就这样」把这组照原样记上。主操作是「重新填一次」。
+ */
+@Composable
+internal fun LowTargetReminderDialog(
+    exercise: LogExercise,
+    onRetry: () -> Unit,
+    onKeep: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.workout_low_target_title, exercise.name)) },
+        text = {
+            Text(
+                text = stringResource(
+                    R.string.workout_low_target_message,
+                    exercise.targetHint(),
+                ),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onRetry) {
+                Text(text = stringResource(R.string.workout_low_target_retry))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onKeep) {
+                Text(text = stringResource(R.string.workout_low_target_keep))
+            }
+        },
+    )
+}
+
 @Composable
 private fun SetEntryRow(
     index: Int,

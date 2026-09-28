@@ -73,6 +73,7 @@ class RoutineEditScreen(
         val screenModel = metroViewModel<RoutineEditScreenModel>()
         val routineName by screenModel.routineName.collectAsState()
         val items by screenModel.items.collectAsState()
+        val showWeightIntro by screenModel.showWeightIntro.collectAsState()
 
         LaunchedEffect(routineId) { screenModel.load(routineId) }
 
@@ -160,7 +161,29 @@ class RoutineEditScreen(
                 },
             )
         }
+
+        if (showWeightIntro) {
+            WeightIntroDialog(onDismiss = screenModel::dismissWeightIntro)
+        }
     }
+}
+
+/**
+ * 第一次进编排页时的「怎么定重量」说明：提前设的重量只是起点，
+ * 真正合适的重量要在训练中边做边找。
+ */
+@Composable
+private fun WeightIntroDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.routine_edit_weight_intro_title)) },
+        text = { Text(text = stringResource(R.string.routine_edit_weight_intro_message)) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.routine_edit_weight_intro_ok))
+            }
+        },
+    )
 }
 
 /** 新建动作组的入口：空组自己往里加动作，预设组直接整组带动作加进来。 */

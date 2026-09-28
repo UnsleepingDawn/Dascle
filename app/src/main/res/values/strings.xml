@@ -138,6 +138,9 @@
     <string name="routine_edit_edit_target">编辑目标</string>
     <string name="routine_edit_remove_exercise">移除动作</string>
     <string name="routine_edit_drag_handle">拖动排序</string>
+    <string name="routine_edit_weight_intro_title">怎么定重量？</string>
+    <string name="routine_edit_weight_intro_message">最好的重量，是「做一组就力竭」的重量。\n\n我们提前给你设的默认重量，很可能不符合你的标准。可以在训练中边做边调，找到真正适合自己的重量。</string>
+    <string name="routine_edit_weight_intro_ok">知道了</string>
     <string name="field_target_sets">组数</string>
     <string name="field_target_reps">次数</string>
     <string name="field_target_weight">默认重量（kg，可选）</string>
@@ -280,6 +283,10 @@
     <string name="workout_progress_confirm_title">确认调整「%1$s」的目标？</string>
     <string name="workout_progress_confirm_message">从 %1$s 调整到 %2$s，之后的训练都会用这个目标</string>
     <string name="workout_progress_confirm_message_assist">辅助重量从 %1$s 减少到 %2$s，之后的训练都会用这个目标</string>
+    <string name="workout_low_target_title">「%1$s」这一组低于计划目标</string>
+    <string name="workout_low_target_message">计划目标是 %1$s。\n\n你可以重新填一次，把数值改成更符合实际的水平；也可以就这样记录下来。</string>
+    <string name="workout_low_target_retry">重新填一次</string>
+    <string name="workout_low_target_keep">就这样</string>
     <string name="unit_kg">kg</string>
     <string name="unit_reps">次</string>
     <string name="unit_seconds">秒</string>

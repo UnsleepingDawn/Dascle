@@ -1,0 +1,16 @@
+-- 每个动作的「低于计划目标」重填提醒：只记最近一次给出提醒时的 versionCode。
+-- 读到 version_code 与当前版本一致才算本版本已提醒过；版本一变旧值天然失效，
+-- 相当于每次更新都把所有动作的标记清空，用户在新版本里能重新遇到这个提醒。
+CREATE TABLE exercise_low_reminder (
+    exercise_id  INTEGER NOT NULL PRIMARY KEY REFERENCES exercise(id) ON DELETE CASCADE,
+    version_code INTEGER NOT NULL
+);
+
+selectByExerciseId:
+SELECT version_code
+FROM exercise_low_reminder
+WHERE exercise_id = ?;
+
+upsert:
+INSERT OR REPLACE INTO exercise_low_reminder(exercise_id, version_code)
+VALUES (?, ?);

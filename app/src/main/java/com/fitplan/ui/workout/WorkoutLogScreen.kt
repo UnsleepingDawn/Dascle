@@ -84,6 +84,7 @@ class WorkoutLogScreen(
         val progressHint by screenModel.progressHint.collectAsState()
         val progressTargetInput by screenModel.progressTargetInput.collectAsState()
         val progressTargetConfirm by screenModel.progressTargetConfirm.collectAsState()
+        val lowTargetReminder by screenModel.lowTargetReminder.collectAsState()
         val collapsedIds by screenModel.collapsedExerciseIds.collectAsState()
         val celebrateTick by screenModel.celebrateTick.collectAsState()
 
@@ -390,6 +391,18 @@ class WorkoutLogScreen(
                 onConfirm = screenModel::applyProgressTarget,
                 onDismiss = screenModel::dismissProgressTargetConfirm,
             )
+        }
+
+        // 低于计划目标：这一组还没记录，先问重填还是照原样记上。
+        lowTargetReminder?.let { reminder ->
+            exercisesById[reminder.exerciseId]?.let { exercise ->
+                LowTargetReminderDialog(
+                    exercise = exercise,
+                    onRetry = screenModel::retryLowTargetSet,
+                    onKeep = screenModel::keepLowTargetSet,
+                    onDismiss = screenModel::retryLowTargetSet,
+                )
+            }
         }
 
         // 礼花：一个动作全部做完时放一轮。放在所有弹窗之后，且比它们更晚挂载窗口才盖得住它们。

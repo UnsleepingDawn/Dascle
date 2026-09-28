@@ -2,6 +2,7 @@ package com.fitplan.ui.workout
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.app.BuildConfig
 import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.ClearRestDay
 import com.fitplan.domain.interactor.RestoreRestDay
@@ -14,6 +15,7 @@ import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineItem
 import com.fitplan.domain.model.WorkoutSet
 import com.fitplan.domain.model.pickedExerciseIds
+import com.fitplan.domain.repository.ExerciseLowReminderRepository
 import com.fitplan.domain.repository.ExerciseProgressHintRepository
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
@@ -48,6 +50,16 @@ data class SetEntry(
     val reps: String = "",
     val seconds: String = "",
     val completed: Boolean = false,
+)
+
+/**
+ * 某一组低于计划目标、正在问用户要不要重填。
+ *
+ * [index] 是动作内的组序号；用户确认「就这样」后才按这个位置把那组记录上。
+ */
+data class LowTargetReminder(
+    val exerciseId: Long,
+    val index: Int,
 )
 
 /** 记录页里的一个动作：计划内动作带目标值，计划外动作用默认值。 */
@@ -238,6 +250,7 @@ class WorkoutLogScreenModel(
     private val routineRepository: RoutineRepository,
     private val exerciseRepository: ExerciseRepository,
     private val hintRepository: ExerciseProgressHintRepository,
+    private val lowReminderRepository: ExerciseLowReminderRepository,
     private val updateProgress: UpdateExerciseProgression,
     private val clearRestDay: ClearRestDay,
     private val restoreRestDay: RestoreRestDay,
@@ -245,6 +258,14 @@ class WorkoutLogScreenModel(
     private val restNotifier: RestNotifier,
     private val dataRevision: DataRevision,
 ) : ViewModel() {
+
+    /**
+     * 当前 App 版本号（`versionCode`）。
+     *
+     * 低量提醒标记按它来判断「本版本是否已提醒过」：版本一变，旧标记自然失效，
+     * 相当于每次更新都给所有动作重新开放一次提醒。
+     */
+    private val versionCode = BuildConfig.VERSION_CODE.toLong()
 
     private val _phase = MutableStateFlow(WorkoutPhase.NOT_STARTED)
     val phase: StateFlow<WorkoutPhase> = _phase.asStateFlow()
@@ -306,6 +327,10 @@ class WorkoutLogScreenModel(
     private val _progressTargetConfirm = MutableStateFlow<ProgressTargetConfirm?>(null)
     val progressTargetConfirm: StateFlow<ProgressTargetConfirm?> = _progressTargetConfirm.asStateFlow()
 
+    /** 非空表示某一组低于计划目标，正在问要不要重填；这时那组还没记录。 */
+    private val _lowTargetReminder = MutableStateFlow<LowTargetReminder?>(null)
+    val lowTargetReminder: StateFlow<LowTargetReminder?> = _lowTargetReminder.asStateFlow()
+
     /**
      * 这一场里已经处理过（点过任意一个按钮、或者点掉遮罩）的动作，处理过就不再重复弹；
      * 只活在内存里，重新打开这次训练会重新开始判定。
@@ -342,6 +367,7 @@ class WorkoutLogScreenModel(
         _progressHint.value = null
         _progressTargetInput.value = null
         _progressTargetConfirm.value = null
+        _lowTargetReminder.value = null
         viewModelScope.launch {
             if (sessionId != null) {
                 if (reopen && workoutRepository.getSession(sessionId)?.isFinished == true) {
@@ -513,32 +539,101 @@ class WorkoutLogScreenModel(
             val valid = if (exercise.isTimed) seconds != null && seconds > 0 else reps != null && reps > 0
             if (!valid) return@launch
 
-            val setId = entry.id ?: workoutRepository.addSet(
-                sessionId = currentSessionId,
-                exerciseId = exerciseId,
-                setIndex = index + 1,
-                // 纯自重动作不给重量输入框，落库时也不要凭空写一个 0。
-                weight = if (exercise.showsWeight) entry.weight.toDoubleOrNull() else null,
-                reps = if (exercise.isTimed) null else reps,
-                durationSeconds = if (exercise.isTimed) seconds else null,
-            )
-
-            // addSet 写进去的是「未完成」的占位行，勾选状态得再更新一次才落库。
-            workoutRepository.updateSet(
-                entry.toWorkoutSet(setId, currentSessionId, exerciseId, index, completed = true),
-            )
-
-            mutate(exerciseId) { current ->
-                current.copy(
-                    sets = current.sets.mapIndexed { i, item ->
-                        if (i == index) item.copy(id = setId, completed = true) else item
-                    },
-                )
+            // 低于计划目标：这个动作在当前版本还没提醒过时，先弹窗给一次重填机会，暂不记录。
+            if (isBelowTarget(exercise, entry) && !lowReminderRepository.isShown(exerciseId, versionCode)) {
+                _lowTargetReminder.value = LowTargetReminder(exerciseId, index)
+                return@launch
             }
 
-            collapseWhenAllSetsDone(exerciseId)
-            startRest(exercise.name, exercise.restSeconds)
-            maybeShowProgressHint(exerciseId)
+            completeSet(exerciseId, index)
+        }
+    }
+
+    /**
+     * 真正把一组记为完成：落库、更新界面、自动收起、开始休息，并判定渐进提示。
+     *
+     * 从 [toggleCompleted] 里抽出来，好让「就这样」这条路径在确认后再走一次同样的收尾；
+     * 走这里时调用方已经校验过顺序与数值合法性。
+     */
+    private suspend fun completeSet(exerciseId: Long, index: Int) {
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
+        val entry = exercise.sets.getOrNull(index) ?: return
+        val currentSessionId = sessionId ?: return
+
+        val reps = entry.reps.toIntOrNull()
+        val seconds = entry.seconds.toIntOrNull()
+        val valid = if (exercise.isTimed) seconds != null && seconds > 0 else reps != null && reps > 0
+        if (!valid) return
+
+        val setId = entry.id ?: workoutRepository.addSet(
+            sessionId = currentSessionId,
+            exerciseId = exerciseId,
+            setIndex = index + 1,
+            // 纯自重动作不给重量输入框，落库时也不要凭空写一个 0。
+            weight = if (exercise.showsWeight) entry.weight.toDoubleOrNull() else null,
+            reps = if (exercise.isTimed) null else reps,
+            durationSeconds = if (exercise.isTimed) seconds else null,
+        )
+
+        // addSet 写进去的是「未完成」的占位行，勾选状态得再更新一次才落库。
+        workoutRepository.updateSet(
+            entry.toWorkoutSet(setId, currentSessionId, exerciseId, index, completed = true),
+        )
+
+        mutate(exerciseId) { current ->
+            current.copy(
+                sets = current.sets.mapIndexed { i, item ->
+                    if (i == index) item.copy(id = setId, completed = true) else item
+                },
+            )
+        }
+
+        collapseWhenAllSetsDone(exerciseId)
+        startRest(exercise.name, exercise.restSeconds)
+        maybeShowProgressHint(exerciseId)
+    }
+
+    /**
+     * 这一组是不是低于计划目标：重量、次数、时长任一项不达基准就算低。
+     *
+     * 与 [maybeShowProgressHint] 的达标判定互为反向：辅助类动作重量越大助力越多、越轻松，
+     * 所以「高于基准」才算低；重量留空也算低。
+     */
+    private fun isBelowTarget(exercise: LogExercise, entry: SetEntry): Boolean {
+        val weightBaseline = exercise.weightBaseline
+        if (exercise.showsWeight && weightBaseline != null) {
+            val weight = entry.weight.toDoubleOrNull()
+            val below = when {
+                weight == null -> true
+                exercise.loadMode == ExerciseLoadMode.ASSISTED -> weight > weightBaseline
+                else -> weight < weightBaseline
+            }
+            if (below) return true
+        }
+        if (exercise.isTimed) {
+            val secondsBaseline = exercise.secondsBaseline ?: return false
+            return (entry.seconds.toIntOrNull() ?: 0) < secondsBaseline
+        }
+        return (entry.reps.toIntOrNull() ?: 0) < exercise.repsBaseline
+    }
+
+    /**
+     * 低量提醒点「重新填一次」：记下这个动作已提醒过，关掉弹窗、先不记录，
+     * 等用户改完数值再自己点「做完了」。点掉遮罩也走这里，不会反复打断。
+     */
+    fun retryLowTargetSet() {
+        val reminder = _lowTargetReminder.value ?: return
+        _lowTargetReminder.value = null
+        viewModelScope.launch { lowReminderRepository.markShown(reminder.exerciseId, versionCode) }
+    }
+
+    /** 低量提醒点「就这样」：记下已提醒过，关掉弹窗，照原样把这一组记录上。 */
+    fun keepLowTargetSet() {
+        val reminder = _lowTargetReminder.value ?: return
+        _lowTargetReminder.value = null
+        viewModelScope.launch {
+            lowReminderRepository.markShown(reminder.exerciseId, versionCode)
+            completeSet(reminder.exerciseId, reminder.index)
         }
     }
 
@@ -750,6 +845,9 @@ class WorkoutLogScreenModel(
             // 查库期间用户可能已经练到下一个动作、或者处理过这条提示，落状态前再确认一次。
             if (exerciseId in handledHintExerciseIds) return@launch
             if (saved != null && !saved.canRemindAt(Clock.System.now())) return@launch
+            // 已经进到「要不要提高目标」，就等于这个动作本版本有互动过，
+            // 顺手把低量提醒标上，免得同一个动作又冒一次低量提示。
+            lowReminderRepository.markShown(exerciseId, versionCode)
             _progressHint.value = hint
         }
     }

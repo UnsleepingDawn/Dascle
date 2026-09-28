@@ -1,0 +1,7 @@
+-- 每个动作的「低于计划目标」重填提醒标记：version_code 与当前版本一致才算已提醒过，
+-- 版本更新后旧值失效，用户在新版本里能重新遇到这个提醒。老库没有这张表，
+-- 首次建表时为空，所有动作都当「还没提醒过」。
+CREATE TABLE exercise_low_reminder (
+    exercise_id  INTEGER NOT NULL PRIMARY KEY REFERENCES exercise(id) ON DELETE CASCADE,
+    version_code INTEGER NOT NULL
+);
