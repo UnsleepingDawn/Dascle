@@ -66,7 +66,7 @@ class ExercisePickerScreen(
         val muscleFilter by screenModel.muscleFilter.collectAsState()
         val equipmentFilter by screenModel.equipmentFilter.collectAsState()
         val selectedIds by screenModel.selectedIds.collectAsState()
-        val allAdded by screenModel.allAdded.collectAsState()
+        val addedIds by screenModel.addedIds.collectAsState()
 
         LaunchedEffect(routineId) { screenModel.load(routineId) }
 
@@ -142,21 +142,14 @@ class ExercisePickerScreen(
                 }
 
                 if (exercises.isEmpty()) {
-                    EmptyScreen(
-                        message = stringResource(
-                            if (allAdded) {
-                                R.string.exercise_picker_all_added
-                            } else {
-                                R.string.exercise_picker_empty
-                            },
-                        ),
-                    )
+                    EmptyScreen(message = stringResource(R.string.exercise_picker_empty))
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(exercises, key = { it.id }) { exercise ->
                             ExerciseListItem(
                                 exercise = exercise,
                                 selected = exercise.id in selectedIds,
+                                added = exercise.id in addedIds,
                                 showSelection = pickingForGroup,
                                 onClick = {
                                     if (pickingForGroup) {
@@ -195,20 +188,27 @@ internal fun FilterRow(content: @Composable () -> Unit) {
 private fun ExerciseListItem(
     exercise: Exercise,
     selected: Boolean,
+    added: Boolean,
     showSelection: Boolean,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = !added, onClick = onClick)
             .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val nameColor = if (added) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = exercise.name,
                 style = MaterialTheme.typography.bodyLarge,
+                color = nameColor,
             )
             Text(
                 text = "${muscleLabels(exercise.muscleGroups)} · ${exercise.equipment.label()}",
@@ -225,7 +225,15 @@ private fun ExerciseListItem(
                 )
             }
         }
-        if (showSelection) {
+        if (added) {
+            // 已经排进这个计划的动作留在列表里但置灰，右侧标一下原因，点它不会有反应。
+            Text(
+                text = stringResource(R.string.exercise_picker_added),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = MaterialTheme.padding.small),
+            )
+        } else if (showSelection) {
             Icon(
                 imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
                 contentDescription = stringResource(

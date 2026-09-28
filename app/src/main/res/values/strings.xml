@@ -148,7 +148,7 @@
     <!-- 动作选择器 -->
     <string name="exercise_picker_title">选择动作</string>
     <string name="exercise_picker_empty">没有符合条件的动作</string>
-    <string name="exercise_picker_all_added">动作库里的动作都已经排进这个计划了</string>
+    <string name="exercise_picker_added">已添加</string>
     <string name="exercise_picker_done">完成（%1$d）</string>
     <string name="exercise_picker_selected">已选中</string>
     <string name="exercise_picker_unselected">未选中</string>
@@ -159,7 +159,10 @@
     <string name="group_preset_title">预设动作组</string>
     <string name="group_preset_empty">没有符合条件的预设动作组</string>
     <string name="group_preset_member_count">%1$d 个动作 · 做其中 %2$d 个</string>
-    <string name="group_preset_added_all">这个预设组的动作都已经排进计划了</string>
+    <string name="group_preset_add">加入方案</string>
+    <string name="group_preset_member_added">已添加</string>
+    <string name="group_preset_expand">展开动作</string>
+    <string name="group_preset_collapse">收起动作</string>
 
     <!-- 训练日历 -->
     <string name="plan_calendar">日历</string>

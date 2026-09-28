@@ -3,6 +3,7 @@ package com.fitplan.ui.plan.routine
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,6 +11,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -21,7 +25,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -96,7 +104,7 @@ class GroupPresetPickerScreen(
                         items(presets, key = { it.preset.name }) { item ->
                             GroupPresetCard(
                                 item = item,
-                                onClick = {
+                                onAdd = {
                                     scope.launch {
                                         screenModel.addPreset(routineId, item)
                                         navigator.pop()
@@ -112,44 +120,98 @@ class GroupPresetPickerScreen(
     }
 }
 
-/** 一张预设卡片：组名、「几个动作 · 做其中几个」、组内动作名；组里动作都排过了就置灰。 */
+/**
+ * 一张预设卡片：标题一行是组名与「几个动作 · 做其中几个」，整行可点，点一下展开看组里有哪些动作。
+ *
+ * 展开后列出预设的全部动作，已经排进方案的标「已添加」置灰；底部「加入方案」只把没排过的
+ * 动作加进计划（一个都加不进去时按钮置灰）。
+ */
 @Composable
 private fun GroupPresetCard(
     item: GroupPresetItem,
-    onClick: () -> Unit,
+    onAdd: () -> Unit,
 ) {
-    val addable = item.addable
-    val enabled = addable.isNotEmpty()
-    val picks = minOf(item.preset.maxPicks, addable.size)
+    var expanded by remember { mutableStateOf(false) }
+    val picks = minOf(item.preset.maxPicks, item.members.size)
+    val addableIds = remember(item) { item.addable.map { it.id }.toSet() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
-        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-    ) {
-        Text(
-            text = item.preset.name,
-            style = MaterialTheme.typography.titleMedium,
-        )
-        if (enabled) {
-            Text(
-                text = stringResource(R.string.group_preset_member_count, addable.size, picks),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+            ) {
+                Text(
+                    text = item.preset.name,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.group_preset_member_count, item.members.size, picks),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = stringResource(
+                    if (expanded) R.string.group_preset_collapse else R.string.group_preset_expand,
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                text = addable.joinToString(" / ") { it.name },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            Text(
-                text = stringResource(R.string.group_preset_added_all),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        }
+
+        if (expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = MaterialTheme.padding.medium,
+                        end = MaterialTheme.padding.medium,
+                        bottom = MaterialTheme.padding.small,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+            ) {
+                item.members.forEach { exercise ->
+                    val added = exercise.id !in addableIds
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                    ) {
+                        Text(
+                            text = exercise.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (added) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (added) {
+                            Text(
+                                text = stringResource(R.string.group_preset_member_added),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Button(
+                    onClick = onAdd,
+                    enabled = item.addable.isNotEmpty(),
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text(text = stringResource(R.string.group_preset_add))
+                }
+            }
         }
     }
 }

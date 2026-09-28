@@ -40,21 +40,20 @@ class ExercisePickerScreenModel(
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
 
-    /** true 表示动作库里已经没有可加的动作了：计划的每个动作都排过了。 */
-    private val _allAdded = MutableStateFlow(false)
-    val allAdded: StateFlow<Boolean> = _allAdded.asStateFlow()
+    /** 已经排进这个计划的动作：列表里保留，但界面置灰成不可点的「已添加」。 */
+    private val _addedIds = MutableStateFlow<Set<Long>>(emptySet())
+    val addedIds: StateFlow<Set<Long>> = _addedIds.asStateFlow()
 
     private var allExercises: List<Exercise> = emptyList()
 
     /**
-     * 读动作库，并排除这个计划里已经排过的动作：同一个动作在计划里只出现一次，
-     * 否则记录页会把它当成两个动作分别记录。
+     * 读动作库。已经排进这个计划的动作仍然留在列表里（由 [addedIds] 标出来让界面置灰），
+     * 不直接剔掉——同一个动作在计划里只出现一次，重复加入会让记录页把它当成两个动作。
      */
     fun load(routineId: Long) {
         viewModelScope.launch {
-            val existingIds = routineRepository.getExercises(routineId).map { it.exerciseId }.toSet()
-            allExercises = exerciseRepository.getAll().filterNot { it.id in existingIds }
-            _allAdded.value = allExercises.isEmpty()
+            _addedIds.value = routineRepository.getExercises(routineId).map { it.exerciseId }.toSet()
+            allExercises = exerciseRepository.getAll()
             applyFilter()
         }
     }
@@ -69,8 +68,9 @@ class ExercisePickerScreenModel(
         applyFilter()
     }
 
-    /** 组模式：勾选 / 取消勾选一个动作。 */
+    /** 组模式：勾选 / 取消勾选一个动作；已经排进计划的动作不给勾。 */
     fun toggleSelect(exerciseId: Long) {
+        if (exerciseId in _addedIds.value) return
         _selectedIds.value = _selectedIds.value.let { current ->
             if (exerciseId in current) current - exerciseId else current + exerciseId
         }
@@ -81,6 +81,8 @@ class ExercisePickerScreenModel(
      * 并按动作类型带上动作库的默认重量（辅助类为辅助重量）或默认时长。
      */
     suspend fun addToRoutine(routineId: Long, exerciseId: Long) {
+        // 界面已经把这些动作置灰，这里再兜一层，避免重复排进同一个计划。
+        if (exerciseId in _addedIds.value) return
         val exercise = findExercise(exerciseId) ?: return
         val targets = exercise.defaultTargets()
         routineRepository.addExercise(
@@ -96,7 +98,8 @@ class ExercisePickerScreenModel(
 
     /** 组模式：把勾选的动作依次追加到动作组末尾，动作组里的顺序就是加入顺序。 */
     suspend fun addSelectedToGroup(groupId: Long) {
-        val selected = _selectedIds.value
+        val addedIds = _addedIds.value
+        val selected = _selectedIds.value - addedIds
         allExercises.filter { it.id in selected }.forEach { exercise ->
             val targets = exercise.defaultTargets()
             routineRepository.addExerciseToGroup(
