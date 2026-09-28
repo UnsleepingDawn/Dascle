@@ -38,7 +38,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -288,9 +287,12 @@ internal fun LogExerciseCard(
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         ) {
             // 动作名一行：右侧依次挂「计划外」「已完成 N 组」和跳过动作的按钮。收起 / 跳过时这一行常驻。
+            // 收起后不再单独占一行放「展开」按钮，点动作名所在的这一整行即可展开或收起；跳过的动作不响应。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(enabled = !exercise.skipped, onClick = onToggleCollapsed),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -434,20 +436,6 @@ internal fun LogExerciseCard(
                             }
                         }
                     }
-                }
-            }
-
-            // 收起后的「展开」入口：整宽淡蓝按钮，点开把上面的内容按原路放出来。
-            AnimatedVisibility(
-                visible = collapsed && !exercise.skipped,
-                enter = fadeIn(animationSpec = tween(SET_FADE_MILLIS, delayMillis = SET_EXPAND_MILLIS)),
-                exit = fadeOut(animationSpec = tween(SET_FADE_MILLIS)),
-            ) {
-                FilledTonalButton(
-                    onClick = onToggleCollapsed,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(text = stringResource(R.string.workout_expand))
                 }
             }
         }
