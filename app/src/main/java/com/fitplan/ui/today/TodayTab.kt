@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -51,7 +52,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -384,12 +387,8 @@ private fun ScheduledRoutineCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            scheduled.exercises.forEach { exercise ->
-                TodayExerciseRow(
-                    name = exercise.exerciseName,
-                    trailing = exercise.targetText(),
-                    status = progress?.statusOf(exercise) ?: TodayExerciseStatus.PLANNED,
-                )
+            scheduled.exercises.toTodayBlocks().forEach { block ->
+                TodayExerciseBlockRow(block = block, progress = progress)
             }
 
             Button(
@@ -427,6 +426,97 @@ private fun TodaySessionProgress.statusOf(exercise: RoutineExercise): TodayExerc
     exercise.exerciseId in skippedExerciseIds -> TodayExerciseStatus.NOT_DONE
     exercise.groupId != null && exercise.exerciseId !in pickedExerciseIds -> TodayExerciseStatus.NOT_DONE
     else -> TodayExerciseStatus.PLANNED
+}
+
+/**
+ * 计划卡片里的一块动作：单独排列的动作各成一块，同一动作组的成员并成一块。
+ * 是不是动作组由 [exercises] 的第一个动作的 `groupId` 决定——组内成员这一项必然一起排列。
+ */
+private data class TodayExerciseBlock(val exercises: List<RoutineExercise>) {
+    /** 同组的动作要圈在同一个暗色圆角框里；单独排的动作不圈。 */
+    val isGroup: Boolean get() = exercises.first().groupId != null
+}
+
+/**
+ * 把计划里的动作切成若干块：顺序扫一遍，遇到相同的 `groupId` 就并进当前块。
+ *
+ * 动作按顶层项的顺序展开（`RoutineRepository.getExercises` 把每个动作组的成员连着吐出来），
+ * 所以组内成员在列表里是连续的，一个 `groupId` 只会对应一块。
+ */
+private fun List<RoutineExercise>.toTodayBlocks(): List<TodayExerciseBlock> {
+    val blocks = mutableListOf<TodayExerciseBlock>()
+    var index = 0
+    while (index < size) {
+        val groupId = this[index].groupId
+        val members = mutableListOf(this[index])
+        index++
+        if (groupId != null) {
+            while (index < size && this[index].groupId == groupId) {
+                members += this[index]
+                index++
+            }
+        }
+        blocks += TodayExerciseBlock(members)
+    }
+    return blocks
+}
+
+/**
+ * 计划卡片里一块动作：单独排的动作直接铺一行；同一动作组的成员套一层与卡片底色拉开深浅的
+ * 圆角底，一眼看出它们是「选着练」的一组。
+ */
+@Composable
+private fun TodayExerciseBlockRow(
+    block: TodayExerciseBlock,
+    progress: TodaySessionProgress?,
+) {
+    if (!block.isGroup) {
+        TodayPlanExerciseRow(block.exercises.single(), progress)
+        return
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            // 外距离让相邻两块之间留出缝，暗色底不至于上下贴成一片。
+            .padding(vertical = MaterialTheme.padding.extraSmall)
+            .clip(MaterialTheme.shapes.large)
+            .background(groupContainerColor())
+            .padding(MaterialTheme.padding.small),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+    ) {
+        block.exercises.forEach { exercise ->
+            TodayPlanExerciseRow(exercise, progress)
+        }
+    }
+}
+
+/**
+ * 动作组底色的叠色比例：`onSurface` 按这个透明度盖在卡片色上，得到比卡片「稍暗」的一层。
+ *
+ * 不能直接用 `surfaceContainerHigh`：本主题浅色模式下它是 #FCF7FF，比 ElevatedCard 的底色
+ * `surfaceContainerLow`（#F7F2FA）还亮，铺上去会是「更浅」而不是更暗；`surfaceContainerHighest`
+ * 同值，`surfaceContainer` 也几乎看不出差别，单色主题下更是全白 / 全黑。
+ * 这里沿用记录页「撤销」按钮的做法（见 `WorkoutLogComponents.undoContainerColor`），
+ * 让底色随 `onSurface` 自己算：浅色模式叠出浅灰、深色模式叠出更亮的一层，各套配色都拉得开。
+ */
+private const val GROUP_CONTAINER_ALPHA = 0.06f
+
+@Composable
+private fun groupContainerColor(): Color = MaterialTheme.colorScheme.onSurface
+    .copy(alpha = GROUP_CONTAINER_ALPHA)
+    .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+
+/** 计划卡片里的一个计划动作：目标文案与今天的训练状态都由 [RoutineExercise] 现算。 */
+@Composable
+private fun TodayPlanExerciseRow(
+    exercise: RoutineExercise,
+    progress: TodaySessionProgress?,
+) {
+    TodayExerciseRow(
+        name = exercise.exerciseName,
+        trailing = exercise.targetText(),
+        status = progress?.statusOf(exercise) ?: TodayExerciseStatus.PLANNED,
+    )
 }
 
 /** 动作名前那颗「已练」勾的尺寸；没练的动作也占同样宽度，好让动作名对齐。 */
