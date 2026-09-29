@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.CalendarDay
+import com.fitplan.domain.interactor.CloseStaleWorkouts
 import com.fitplan.domain.interactor.GetMonthCalendar
 import com.fitplan.domain.interactor.RecordPastWorkout
 import com.fitplan.domain.model.Routine
@@ -35,6 +36,7 @@ import kotlin.time.Clock
 class PlanCalendarScreenModel(
     private val getMonthCalendar: GetMonthCalendar,
     private val recordPastWorkout: RecordPastWorkout,
+    private val closeStaleWorkouts: CloseStaleWorkouts,
     private val scheduleRepository: ScheduleRepository,
     private val routineRepository: RoutineRepository,
     private val workoutRepository: WorkoutRepository,
@@ -61,6 +63,8 @@ class PlanCalendarScreenModel(
 
     fun refresh() {
         viewModelScope.launch {
+            // 跨零点时 App 可能一直没退过，这里补一次收尾，隔天遗留的训练才会出现在日历上。
+            closeStaleWorkouts()
             _days.value = getMonthCalendar(_month.value)
             _routines.value = routineRepository.getAll()
         }

@@ -3,6 +3,7 @@ package com.fitplan.ui.today
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitplan.app.data.DataRevision
+import com.fitplan.domain.interactor.CloseStaleWorkouts
 import com.fitplan.domain.interactor.GetNextRestDay
 import com.fitplan.domain.interactor.GetScheduledRoutinesForDate
 import com.fitplan.domain.interactor.GetTodayWorkoutSession
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
@@ -79,6 +81,7 @@ class TodayScreenModel(
     private val useUpcomingTrainingPlanForToday: UseUpcomingTrainingPlanForToday,
     private val getNextRestDay: GetNextRestDay,
     private val takeRestToday: TakeRestToday,
+    private val closeStaleWorkouts: CloseStaleWorkouts,
     private val workoutRepository: WorkoutRepository,
     private val exerciseRepository: ExerciseRepository,
     private val widgetManager: WidgetManager,
@@ -102,12 +105,18 @@ class TodayScreenModel(
     private val _restDay = MutableStateFlow(false)
     val restDay: StateFlow<Boolean> = _restDay.asStateFlow()
 
-    /** 上一次没练完就退出的训练，用于把「开始训练」换成「继续训练」。 */
+    /**
+     * 上一次没练完就退出的训练，用于把「开始训练」换成「继续训练」。
+     *
+     * 只认**当天**开始的训练：隔天的旧账由 [CloseStaleWorkouts] 收尾，不再给续练入口（与桌面组件、
+     * 训练日历口径一致）；今天这次已经结束时也一律不给，免得与「还想练？」重复。
+     */
     private val _unfinished = MutableStateFlow<WorkoutSession?>(null)
     val unfinished: StateFlow<WorkoutSession?> = _unfinished.asStateFlow()
 
     /**
-     * 今天开始的那次训练（结束与否都算）。
+     * 今天开始的那次训练（结束与否都算）；同一天既有已结束又有未结束的（重复开始留下的孤儿）时
+     * 取已结束的那次，由 `GetTodayWorkoutSession` 保证。
      * [WorkoutSession.isFinished] 为 true 表示今天的训练已经做完：计划卡片的「开始训练」置灰，
      * 下方改给一张「还想练？」卡片，往里加的动作仍然追加到这一次训练上。
      */
@@ -151,17 +160,25 @@ class TodayScreenModel(
 
     fun refresh() {
         viewModelScope.launch {
+            // 先把隔天遗留的旧账收尾（有已勾组就补记成已结束），后面的取数才是一致的。
+            closeStaleWorkouts()
             val date = today()
             _date.value = date
             _restDay.value = isRestDay(date)
             _routines.value = getScheduledRoutinesForDate(date)
-            _unfinished.value = workoutRepository.getUnfinishedSessions().maxByOrNull { it.startedAt }
-            _todaySession.value = getTodayWorkoutSession()
-            _todaySessionExercises.value = _todaySession.value
+            val todaySession = getTodayWorkoutSession()
+            _todaySession.value = todaySession
+            // 「继续训练」只照顾当天没练完的那次：隔天的旧账已被 CloseStaleWorkouts 收尾，
+            // 当天这次也已经结束时更不该再给续练入口（否则会和「再来！」一起亮）。
+            _unfinished.value = workoutRepository.getUnfinishedSessions()
+                .filter { it.startedAt >= date.atStartOfDayIn(TimeZone.currentSystemDefault()) }
+                .maxByOrNull { it.startedAt }
+                .takeIf { todaySession?.isFinished != true }
+            _todaySessionExercises.value = todaySession
                 ?.takeIf { it.isFinished }
                 ?.let { loadSessionExercises(it.id) }
                 .orEmpty()
-            _todaySessionProgress.value = _todaySession.value?.let { loadSessionProgress(it) }
+            _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it) }
             _upcomingPlan.value = getUpcomingTrainingPlan(date)
             _nextRestDay.value = getNextRestDay(date)
             _loaded.value = true

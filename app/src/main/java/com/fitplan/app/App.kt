@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.fitplan.app.di.AppGraph
 import com.fitplan.core.metro.GraphProvider
+import com.fitplan.domain.interactor.CloseStaleWorkouts
 import com.fitplan.domain.repository.ExerciseSeedRepository
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.createGraphFactory
@@ -26,6 +27,8 @@ class App : Application(), GraphProvider<AppGraph> {
 
     @Inject lateinit var exerciseSeedRepository: ExerciseSeedRepository
 
+    @Inject lateinit var closeStaleWorkouts: CloseStaleWorkouts
+
     override fun onCreate() {
         super<Application>.onCreate()
 
@@ -37,6 +40,8 @@ class App : Application(), GraphProvider<AppGraph> {
         Log.d(TAG, "AppGraph initialized: $graph, appContext injected: ${::appContext.isInitialized}")
 
         applicationScope.launch {
+            // 先把隔天还挂着的未完成训练收尾，用户直接打开「计划」日历也能看到一致的结果。
+            closeStaleWorkouts()
             val inserted = exerciseSeedRepository.importSeedExercises()
             Log.d(TAG, "Seed exercises inserted: $inserted")
         }

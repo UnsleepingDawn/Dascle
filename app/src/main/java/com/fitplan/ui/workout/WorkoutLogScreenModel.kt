@@ -347,6 +347,9 @@ class WorkoutLogScreenModel(
     /** 未开始阶段真正点「开始训练」时写进 `workout_session.routine_id`。 */
     private var routineId: Long? = null
 
+    /** 正在插入这一场训练；用来挡住「开始训练」的连点，避免留下永远不结束的孤儿 session。 */
+    private var starting = false
+
     private var sessionId: Long? = null
 
     /** true 表示正在编辑一次已经结束的训练：输入框解锁，改动即时落库。 */
@@ -376,10 +379,13 @@ class WorkoutLogScreenModel(
         _progressTargetInput.value = null
         _progressTargetConfirm.value = null
         _lowTargetReminder.value = null
+        starting = false
         viewModelScope.launch {
             if (sessionId != null) {
                 if (reopen && workoutRepository.getSession(sessionId)?.isFinished == true) {
                     workoutRepository.reopenSession(sessionId)
+                    // 这次训练重新变成进行中，今日页与日历得跟着重算，否则还会以为今天已经练完。
+                    dataRevision.bump()
                     widgetManager.updateTodayWidget()
                 }
                 loadSession(sessionId)
@@ -408,18 +414,26 @@ class WorkoutLogScreenModel(
 
     /** [fallbackName] 为计划名为空时使用的兜底名字（由界面传入字符串资源）。 */
     fun startWorkout(fallbackName: String) {
+        // 防重：连点「开始训练」会插入两条 workout_session，其中一条永远不结束，变成隔天还挂着的旧账。
+        // 标记在挂起之前就置上，第二次点击直接返回；只靠界面禁用按钮挡不住极快的连点。
+        if (starting || _phase.value != WorkoutPhase.NOT_STARTED) return
+        starting = true
         viewModelScope.launch {
-            val id = workoutRepository.startSession(
-                routineId = routineId,
-                name = _sessionName.value.ifBlank { fallbackName },
-                startedAt = Clock.System.now(),
-            )
-            // 今天开练了，今天就不再是休息日（休息日的「临时方案」走到这里把标记撤掉；
-            // 有排期的日子本来就不该有休息标记，这里删的是空集）。
-            clearRestDay(today())
-            dataRevision.bump()
-            loadSession(id)
-            widgetManager.updateTodayWidget()
+            try {
+                val id = workoutRepository.startSession(
+                    routineId = routineId,
+                    name = _sessionName.value.ifBlank { fallbackName },
+                    startedAt = Clock.System.now(),
+                )
+                // 今天开练了，今天就不再是休息日（休息日的「临时方案」走到这里把标记撤掉；
+                // 有排期的日子本来就不该有休息标记，这里删的是空集）。
+                clearRestDay(today())
+                dataRevision.bump()
+                loadSession(id)
+                widgetManager.updateTodayWidget()
+            } finally {
+                starting = false
+            }
         }
     }
 
@@ -899,6 +913,8 @@ class WorkoutLogScreenModel(
                 workoutRepository.updateSessionNote(currentSessionId, note.trim())
             }
             workoutRepository.finishSession(currentSessionId, Clock.System.now())
+            // 今日页与日历可能已经取过数，结束训练要让它们重算（否则还会显示「继续训练」）。
+            dataRevision.bump()
             widgetManager.updateTodayWidget()
             // 结束训练后不停在只读汇总页，直接退回今日页；今日卡片会标出这次练了哪些动作。
             _exitTick.value += 1
