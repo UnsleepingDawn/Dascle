@@ -300,7 +300,7 @@ class WorkoutLogScreenModel(
     private val _exitTick = MutableStateFlow(0)
     val exitTick: StateFlow<Int> = _exitTick.asStateFlow()
 
-    /** 每自增一次表示刚有一个动作全部勾完，界面据此放礼花。 */
+    /** 每自增一次表示刚有一个动作第一次全部勾完，界面据此放礼花。 */
     private val _celebrateTick = MutableStateFlow(0)
     val celebrateTick: StateFlow<Int> = _celebrateTick.asStateFlow()
 
@@ -337,6 +337,13 @@ class WorkoutLogScreenModel(
      */
     private val handledHintExerciseIds = mutableSetOf<Long>()
 
+    /**
+     * 这一场里已经放过礼花的动作。同一个动作只在**第一次**做满全部组时庆祝一次：
+     * 撤销之后重新做完（或者中途退出再进来重新做）都不再重复放，免得同一个动作反复放礼花。
+     * 只活在内存里，换一场训练会重新开始判定。
+     */
+    private val celebratedExerciseIds = mutableSetOf<Long>()
+
     /** 未开始阶段真正点「开始训练」时写进 `workout_session.routine_id`。 */
     private var routineId: Long? = null
 
@@ -363,6 +370,7 @@ class WorkoutLogScreenModel(
         this.editing = editing
         // 换了一场训练就重新开始判定，上一场处理过的动作不影响这一场。
         handledHintExerciseIds.clear()
+        celebratedExerciseIds.clear()
         _collapsedExerciseIds.value = emptySet()
         _progressHint.value = null
         _progressTargetInput.value = null
@@ -640,13 +648,18 @@ class WorkoutLogScreenModel(
     /**
      * 刚勾完一组：如果这个动作的组已经全部做完，就把卡片自动收起，把列表腾出来，
      * 并给界面发一次礼花信号；想改自己点「展开」。只在训练进行中生效，编辑已结束的训练时不动卡片。
+     *
+     * 礼花同一个动作只发第一次：撤销之后重新做满全部组不再重复放（见 [celebratedExerciseIds]）。
+     * 自动收起则每次做满都会发生，和礼花是否放无关。
      */
     private fun collapseWhenAllSetsDone(exerciseId: Long) {
         if (_phase.value != WorkoutPhase.IN_PROGRESS || editing) return
         val sets = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets ?: return
         if (sets.isNotEmpty() && sets.all { it.completed }) {
             _collapsedExerciseIds.value = _collapsedExerciseIds.value + exerciseId
-            _celebrateTick.value += 1
+            if (celebratedExerciseIds.add(exerciseId)) {
+                _celebrateTick.value += 1
+            }
         }
     }
 
