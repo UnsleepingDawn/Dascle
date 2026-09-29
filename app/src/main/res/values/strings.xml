@@ -259,8 +259,6 @@
     <string name="workout_edit_done">完成编辑</string>
     <string name="workout_duration_minutes">%1$d 分钟</string>
     <string name="workout_duration_hours">%1$d 小时 %2$d 分</string>
-    <string name="field_weight">重量（kg）</string>
-    <string name="field_weight_assist">辅助重量（kg）</string>
     <string name="field_seconds">秒</string>
     <string name="weight_kg">%1$s kg</string>
     <string name="weight_kg_assist">辅助 %1$s kg</string>

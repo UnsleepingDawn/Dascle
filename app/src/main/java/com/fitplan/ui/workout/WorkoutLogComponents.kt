@@ -405,7 +405,6 @@ internal fun LogExerciseCard(
                             entry = entry,
                             timed = exercise.isTimed,
                             showsWeight = exercise.showsWeight,
-                            weightIsAssistance = exercise.weightIsAssistance,
                             readOnly = readOnly,
                             editableCompletedSets = editableCompletedSets,
                             // 做完的一组只有「最后一组已完成的」能撤销，没做完的只有下一组能做。
@@ -509,7 +508,6 @@ private fun SetEntryRow(
     entry: SetEntry,
     timed: Boolean,
     showsWeight: Boolean,
-    weightIsAssistance: Boolean,
     readOnly: Boolean,
     editableCompletedSets: Boolean,
     actionable: Boolean,
@@ -536,15 +534,7 @@ private fun SetEntryRow(
             OutlinedTextField(
                 value = entry.weight,
                 onValueChange = onWeightChange,
-                label = {
-                    Text(
-                        text = if (weightIsAssistance) {
-                            stringResource(R.string.field_weight_assist)
-                        } else {
-                            stringResource(R.string.field_weight)
-                        },
-                    )
-                },
+                label = { Text(text = stringResource(R.string.unit_kg)) },
                 enabled = editable,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -566,7 +556,7 @@ private fun SetEntryRow(
             OutlinedTextField(
                 value = entry.reps,
                 onValueChange = onRepsChange,
-                label = { Text(text = stringResource(R.string.field_target_reps)) },
+                label = { Text(text = stringResource(R.string.unit_reps)) },
                 enabled = editable,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
