@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "exercises": [
     { "name": "平板杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "仰卧平板凳，握距略宽于肩，下放至胸部中段后推起", "defaultWeightKg": 40 },
     { "name": "上斜杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "上斜凳约 30-45 度，重点刺激胸大肌上部", "defaultWeightKg": 30 },
@@ -78,6 +78,17 @@
     { "name": "俄罗斯转体", "muscleGroup": "ABS", "equipment": "DUMBBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "坐姿后仰，双手持重物左右转动触地", "defaultWeightKg": 8 },
     { "name": "绳索卷腹", "muscleGroup": "ABS", "equipment": "CABLE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "跪姿握绳索，腹肌发力向下卷曲躯干", "defaultWeightKg": 20 },
     { "name": "健腹轮", "muscleGroup": "ABS", "equipment": "BODYWEIGHT", "metric": "REPS", "loadMode": "BODYWEIGHT", "description": "跪姿推动健腹轮前伸，核心控制回拉" },
-    { "name": "仰卧举腿", "muscleGroup": "ABS", "equipment": "BODYWEIGHT", "metric": "REPS", "loadMode": "BODYWEIGHT", "description": "仰卧双腿并拢抬起至垂直，下放时不触地" }
+    { "name": "仰卧举腿", "muscleGroup": "ABS", "equipment": "BODYWEIGHT", "metric": "REPS", "loadMode": "BODYWEIGHT", "description": "仰卧双腿并拢抬起至垂直，下放时不触地" },
+
+    { "name": "快走", "muscleGroup": "CARDIO", "equipment": "BODYWEIGHT", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "保持自然步幅和摆臂，以稳定节奏连续行走，按实际运动时长记录", "defaultDurationSeconds": 600 },
+    { "name": "慢跑", "muscleGroup": "CARDIO", "equipment": "BODYWEIGHT", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "以舒适节奏连续慢跑，保持自然呼吸，按实际运动时长记录", "defaultDurationSeconds": 600 },
+    { "name": "跑步机跑步", "muscleGroup": "CARDIO", "equipment": "MACHINE", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "在跑步机上按适合自己的速度连续跑步，按实际运动时长记录", "defaultDurationSeconds": 600 },
+    { "name": "骑行", "muscleGroup": "CARDIO", "equipment": "MACHINE", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "骑自行车保持稳定踩踏节奏，按实际骑行时长记录", "defaultDurationSeconds": 600 },
+    { "name": "动感单车", "muscleGroup": "CARDIO", "equipment": "MACHINE", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "调整座椅高度和阻力后连续踩踏，按实际运动时长记录", "defaultDurationSeconds": 600 },
+    { "name": "椭圆机", "muscleGroup": "CARDIO", "equipment": "MACHINE", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "双脚踩稳踏板，手脚配合保持连续椭圆轨迹，按实际运动时长记录", "defaultDurationSeconds": 600 },
+    { "name": "划船机", "muscleGroup": "CARDIO", "equipment": "MACHINE", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "蹬腿后拉动手柄，回程先伸臂再屈膝，按实际运动时长记录", "defaultDurationSeconds": 600 },
+    { "name": "登山机", "muscleGroup": "CARDIO", "equipment": "MACHINE", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "在登山机上交替踏步，保持躯干稳定，按实际运动时长记录", "defaultDurationSeconds": 600 },
+    { "name": "跳绳", "muscleGroup": "CARDIO", "equipment": "BODYWEIGHT", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "手腕带动跳绳，小幅起跳并轻柔落地，按实际运动时长记录", "defaultDurationSeconds": 60 },
+    { "name": "开合跳", "muscleGroup": "CARDIO", "equipment": "BODYWEIGHT", "metric": "DURATION", "loadMode": "BODYWEIGHT", "description": "跳起时双脚分开并举臂，落下时双脚合拢并收臂，按实际运动时长记录", "defaultDurationSeconds": 60 }
   ]
 }

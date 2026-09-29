@@ -455,6 +455,7 @@
     <string name="muscle_back">背</string>
     <string name="muscle_leg">腿</string>
     <string name="muscle_glute">臀</string>
+    <string name="muscle_cardio">有氧</string>
     <string name="muscle_arm_other">其他手臂</string>
 
     <!-- 器械 -->
