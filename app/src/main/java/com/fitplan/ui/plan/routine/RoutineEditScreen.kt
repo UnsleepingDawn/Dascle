@@ -403,7 +403,7 @@ private fun ReorderableCollectionItemScope.RoutineExerciseCard(
     }
 }
 
-/** 动作组卡片：组内动作、以及「做其中 x 个」都在卡片里直接管，不用进二级页面。 */
+/** 动作组卡片：组内动作、以及「建议做 x 个」都在卡片里直接管，不用进二级页面。 */
 @Composable
 private fun ReorderableCollectionItemScope.RoutineGroupCard(
     group: RoutineGroup,
@@ -494,7 +494,7 @@ private fun ReorderableCollectionItemScope.RoutineGroupCard(
     }
 }
 
-/** 「做其中 x 个」：读数配一对加减按钮，范围是 1..组内动作数。 */
+/** 「建议做 x 个」：读数配一对加减按钮，范围是 1..组内动作数。 */
 @Composable
 private fun GroupPicksRow(
     picks: Int,

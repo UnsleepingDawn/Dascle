@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
 
-/** 一个预设动作组：组里的动作可以互相替换，训练时挑最多 [maxPicks] 个来练。 */
+/** 一个预设动作组：组里的动作可以互相替换，训练时建议挑 [maxPicks] 个来练。 */
 data class GroupPreset(
     val name: String,
     val muscleGroup: MuscleGroup,

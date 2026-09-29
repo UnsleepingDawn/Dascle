@@ -146,15 +146,36 @@ sealed interface LogItem {
 
     data class Group(
         val groupId: Long,
-        /** 「做其中 x 个」，即最多能挑几个。 */
+        /** 「建议做 x 个」：鼓励挑几个，挑多了只是提示，不拦人。 */
         val maxPicks: Int,
+        /** 组名；为空表示没起过名字，界面回退到默认的「动作组」。 */
+        val groupName: String? = null,
         val memberIds: List<Long>,
         val pickedIds: List<Long>,
     ) : LogItem {
         override val key: String get() = "g$groupId"
 
-        val canPickMore: Boolean get() = pickedIds.size < maxPicks
+        /** 挑中的动作数已经超过建议值时，界面把计数标成醒目色。 */
+        val overPicked: Boolean get() = pickedIds.size > maxPicks
     }
+}
+
+/**
+ * 「计划外动作」里选中了一个今天方案里已经有的动作时的提醒。
+ *
+ * 同一个动作在同一次训练里重复排进去，记录页会冒出两张同名卡、动作记录被拆成两处，
+ * 所以这里只提醒、不真的添加：要么去那张已有的卡片上加组，要么去对应的动作组里挑中它。
+ */
+sealed interface ExtraExerciseNotice {
+
+    /** 用户选中的动作名。 */
+    val name: String
+
+    /** 这个动作在今天的方案里是单独排的一个动作。 */
+    data class AlreadyInWorkout(override val name: String) : ExtraExerciseNotice
+
+    /** 这个动作属于今天方案里的某个动作组；[groupName] 为空表示这个组没起过名字。 */
+    data class InGroup(override val name: String, val groupName: String?) : ExtraExerciseNotice
 }
 
 /** 组间休息倒计时；[remainingSeconds] 为 0 表示刚刚结束。 */
@@ -331,6 +352,10 @@ class WorkoutLogScreenModel(
     private val _lowTargetReminder = MutableStateFlow<LowTargetReminder?>(null)
     val lowTargetReminder: StateFlow<LowTargetReminder?> = _lowTargetReminder.asStateFlow()
 
+    /** 非空表示选了一个今天方案里已经有的计划外动作，正在提醒用户去原处操作。 */
+    private val _extraNotice = MutableStateFlow<ExtraExerciseNotice?>(null)
+    val extraNotice: StateFlow<ExtraExerciseNotice?> = _extraNotice.asStateFlow()
+
     /**
      * 这一场里已经处理过（点过任意一个按钮、或者点掉遮罩）的动作，处理过就不再重复弹；
      * 只活在内存里，重新打开这次训练会重新开始判定。
@@ -379,6 +404,7 @@ class WorkoutLogScreenModel(
         _progressTargetInput.value = null
         _progressTargetConfirm.value = null
         _lowTargetReminder.value = null
+        _extraNotice.value = null
         starting = false
         viewModelScope.launch {
             if (sessionId != null) {
@@ -470,12 +496,12 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 从动作组里挑一个动作来练；已经挑满「做其中 x 个」时不再接受新的。
+     * 从动作组里挑一个动作来练；「建议做 x 个」只是指标，挑超了也照样接受。
      * 挑中后组卡片内会出现这个动作的子卡，能像单独动作一样录入。
      */
     fun pickGroupExercise(groupId: Long, exerciseId: Long) {
         val group = _items.value.firstOrNull { it is LogItem.Group && it.groupId == groupId } as? LogItem.Group
-        if (group == null || exerciseId in group.pickedIds || !group.canPickMore) return
+        if (group == null || exerciseId in group.pickedIds) return
         _items.value = _items.value.map { item ->
             if (item is LogItem.Group && item.groupId == groupId) {
                 item.copy(pickedIds = item.pickedIds + exerciseId)
@@ -879,8 +905,34 @@ class WorkoutLogScreenModel(
         }
     }
 
+    /**
+     * 用户从「计划外动作」里选中一个动作。
+     *
+     * 这个动作今天已经排在方案里时（单独排列，或属于某个动作组），重复加进来会让记录页出现
+     * 两张同名卡、动作记录被拆成两处，所以只弹一句提醒、让用户去原处操作，不落库；
+     * 只在动作确实不在方案里时才真的按计划外动作加进本次训练。
+     */
+    fun requestExtraExercise(exerciseId: Long) {
+        val items = _items.value
+        val name = _allExercises.value.firstOrNull { it.id == exerciseId }?.name.orEmpty()
+        val standalone = items.any { it is LogItem.Exercise && it.exerciseId == exerciseId }
+        val group = items.filterIsInstance<LogItem.Group>().firstOrNull { exerciseId in it.memberIds }
+        val notice = when {
+            standalone -> ExtraExerciseNotice.AlreadyInWorkout(name)
+            group != null -> ExtraExerciseNotice.InGroup(name, group.groupName)
+            else -> null
+        }
+        _extraNotice.value = notice
+        if (notice == null) addExtraExercise(exerciseId)
+    }
+
+    /** 点掉「这个动作已经在今天的方案里」的提醒。 */
+    fun dismissExtraNotice() {
+        _extraNotice.value = null
+    }
+
     /** 把动作库里的动作临时加进本次训练，目标值取动作库默认值（次数缺省 10 次）、休息 90 秒。 */
-    fun addExtraExercise(exerciseId: Long) {
+    private fun addExtraExercise(exerciseId: Long) {
         if (_exercises.value.any { it.exerciseId == exerciseId }) return
         viewModelScope.launch {
             val exercise = exerciseRepository.getById(exerciseId) ?: return@launch
@@ -1150,6 +1202,7 @@ private fun RoutineItem.toLogItem(pickedIds: Set<Long>): LogItem = when (this) {
     is RoutineItem.Group -> LogItem.Group(
         groupId = value.id,
         maxPicks = value.maxPicks,
+        groupName = value.name,
         memberIds = value.exercises.map { it.exerciseId },
         pickedIds = value.exercises.map { it.exerciseId }.filter { it in pickedIds },
     )

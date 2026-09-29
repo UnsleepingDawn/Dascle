@@ -184,7 +184,7 @@ class RoutineRepositoryImpl(
 
     override suspend fun removeExercise(id: Long) {
         database.transaction {
-            // 删掉的若是组内最后一个动作，组的「做其中 x 个」要跟着收敛，免得出现「做其中 3 个」只剩 1 个动作。
+            // 删掉的若是组内最后一个动作，组的「建议做 x 个」要跟着收敛，免得出现「建议做 3 个」只剩 1 个动作。
             val groupId = routineExerciseQueries.selectGroupIdById(id).awaitAsOneOrNull()?.group_id
             routineExerciseQueries.deleteById(id)
             groupId?.let { routineGroupQueries.updateMaxPicks(max_picks = clampMaxPicks(it, null).toLong(), id = it) }
@@ -225,7 +225,7 @@ class RoutineRepositoryImpl(
         return maxOf(ungrouped, groups) + 1
     }
 
-    /** 「做其中 x 个」的取值范围是 1..组内动作数；[maxPicks] 为 null 表示收敛当前值。 */
+    /** 「建议做 x 个」的取值范围是 1..组内动作数；[maxPicks] 为 null 表示收敛当前值。 */
     private suspend fun clampMaxPicks(groupId: Long, maxPicks: Int?): Int {
         val members = routineExerciseQueries.countByGroupId(groupId).awaitAsOne().toInt()
         val upper = members.coerceAtLeast(MIN_MAX_PICKS)

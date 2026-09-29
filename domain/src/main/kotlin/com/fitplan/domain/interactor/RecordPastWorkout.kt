@@ -36,7 +36,7 @@ class RecordPastWorkout(
         val exercises = routineRepository.getItems(routineId).flatMap { item ->
             when (item) {
                 is RoutineItem.Exercise -> listOf(item.value)
-                // 动作组按「做其中 x 个」的约定，只补记排在前面的 x 个动作。
+                // 补记时自动按「建议做 x 个」取组内排在前面的 x 个，不必让用户面对整组动作。
                 is RoutineItem.Group -> item.value.exercises.take(item.value.maxPicks)
             }
         }

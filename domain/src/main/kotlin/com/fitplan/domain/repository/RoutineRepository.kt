@@ -50,7 +50,7 @@ interface RoutineRepository {
     /** 在计划末尾新建一个动作组，返回新组 id；[name] 为空表示还没起名字。 */
     suspend fun addGroup(routineId: Long, maxPicks: Int = DEFAULT_MAX_PICKS, name: String? = null): Long
 
-    /** 设「做其中 x 个」；写入前按组内动作数收敛（1..组内动作数）。 */
+    /** 设「建议做 x 个」；写入前按组内动作数收敛（1..组内动作数）。 */
     suspend fun updateGroupMaxPicks(groupId: Long, maxPicks: Int)
 
     /** 改动作组的名字；传空字符串 / null 表示清掉名字、回到默认的「动作组」。 */
@@ -82,7 +82,7 @@ interface RoutineRepository {
     suspend fun removeExercise(id: Long)
 
     companion object {
-        /** 新动作组默认「做其中 1 个」。 */
+        /** 新动作组默认「建议做 1 个」。 */
         const val DEFAULT_MAX_PICKS = 1
     }
 }

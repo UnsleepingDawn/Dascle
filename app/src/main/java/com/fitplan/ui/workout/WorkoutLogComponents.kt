@@ -152,7 +152,7 @@ private fun PlanGroupCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.workout_group_title),
+                    text = group.title(),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
@@ -179,10 +179,15 @@ private fun PlanGroupCard(
     }
 }
 
+/** 动作组的标题：起过名字就用名字，没起过名字回退到默认的「动作组」。 */
+@Composable
+private fun LogItem.Group.title(): String = groupName ?: stringResource(R.string.workout_group_title)
+
 /**
- * 记录页里的一个动作组卡：先在芯片行里挑最多「做其中 x 个」个动作，
+ * 记录页里的一个动作组卡：先在芯片行里挑「建议做 x 个」个动作，
  * 挑中的动作在卡片内以子卡展开，记录能力与单独排的动作完全一致。
  *
+ * 「建议做 x 个」不是硬上限，挑多了照样能继续挑，只在计数上标成醒目色；
  * 已经练过（有已完成组）的动作不给取消挑选，免得用户以为记录也跟着没了。
  */
 @Composable
@@ -211,14 +216,23 @@ internal fun LogGroupCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.workout_group_title),
+                    text = group.title(),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
+                // 「已选 x/y」里的 y 只是建议值，挑超了不拦人，只把计数标成醒目色提醒一下。
                 Text(
-                    text = stringResource(R.string.workout_group_picked, group.pickedIds.size, group.maxPicks),
+                    text = if (group.overPicked) {
+                        stringResource(R.string.workout_group_picked_over, group.pickedIds.size, group.maxPicks)
+                    } else {
+                        stringResource(R.string.workout_group_picked, group.pickedIds.size, group.maxPicks)
+                    },
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (group.overPicked) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
             }
 
@@ -234,8 +248,9 @@ internal fun LogGroupCard(
                     val alreadyTrained = exercise.completedSets > 0
                     FilterChip(
                         selected = selected,
-                        enabled = !readOnly &&
-                            (if (selected) !alreadyTrained else group.canPickMore),
+                        // 建议数量不是硬上限，挑满之后剩下的芯片照样能点；
+                        // 只有「练过了、不给取消挑选」这一条仍然置灰。
+                        enabled = !readOnly && (!selected || !alreadyTrained),
                         onClick = { onTogglePick(exerciseId) },
                         label = { Text(text = exercise.name) },
                     )
@@ -815,20 +830,25 @@ internal fun WorkoutSummaryCard(
     }
 }
 
-/** 计划外动作选择弹窗：可按肌群与器械筛选。 */
+/**
+ * 计划外动作选择弹窗：可按肌群与器械筛选。
+ *
+ * 已经排在今天方案里的动作也照样留在列表里（右侧标一句「今天的方案里有」），
+ * 点它由 [WorkoutLogScreenModel.requestExtraExercise] 决定是加进来还是弹重复提醒——
+ * 这里不能再把它们过滤掉，否则动作组里的成员根本看不到、也点不到。
+ */
 @Composable
 internal fun ExtraExerciseDialog(
     exercises: List<Exercise>,
-    existingIds: Set<Long>,
+    presentIds: Set<Long>,
     onPick: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var muscleFilter by remember { mutableStateOf<MuscleGroup?>(null) }
     var equipmentFilter by remember { mutableStateOf<Equipment?>(null) }
 
-    val selectable = remember(exercises, existingIds, muscleFilter, equipmentFilter) {
+    val visible = remember(exercises, muscleFilter, equipmentFilter) {
         exercises
-            .filterNot { it.id in existingIds }
             .filter { muscleFilter == null || muscleFilter in it.muscleGroups }
             .filter { equipmentFilter == null || it.equipment == equipmentFilter }
     }
@@ -866,7 +886,7 @@ internal fun ExtraExerciseDialog(
                         )
                     }
                 }
-                if (selectable.isEmpty()) {
+                if (visible.isEmpty()) {
                     Text(
                         text = stringResource(R.string.exercise_picker_empty),
                         style = MaterialTheme.typography.bodySmall,
@@ -874,17 +894,28 @@ internal fun ExtraExerciseDialog(
                     )
                 } else {
                     LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
-                        items(selectable, key = { it.id }) { exercise ->
+                        items(visible, key = { it.id }) { exercise ->
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onPick(exercise.id) }
                                     .padding(vertical = MaterialTheme.padding.small),
                             ) {
-                                Text(
-                                    text = exercise.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = exercise.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    if (exercise.id in presentIds) {
+                                        Text(
+                                            text = stringResource(R.string.workout_extra_present),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = "${muscleLabels(exercise.muscleGroups)} · ${exercise.equipment.label()}",
                                     style = MaterialTheme.typography.bodySmall,
@@ -900,6 +931,43 @@ internal fun ExtraExerciseDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+/**
+ * 选中的计划外动作今天已经排在方案里时的提醒：不重复添加，只告诉用户去哪儿操作。
+ *
+ * 单独排列的动作让它去那张卡片上加组；动作组里的动作让它去对应组里挑中它。
+ */
+@Composable
+internal fun ExtraExerciseNoticeDialog(
+    notice: ExtraExerciseNotice,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.workout_extra_notice_title)) },
+        text = {
+            Text(
+                text = when (notice) {
+                    is ExtraExerciseNotice.AlreadyInWorkout -> stringResource(
+                        R.string.workout_extra_notice_standalone,
+                        notice.name,
+                    )
+
+                    is ExtraExerciseNotice.InGroup -> stringResource(
+                        R.string.workout_extra_notice_group,
+                        notice.name,
+                        notice.groupName ?: stringResource(R.string.workout_group_title),
+                    )
+                },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_understood))
             }
         },
     )

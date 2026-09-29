@@ -58,7 +58,7 @@ class RoutineEditScreenModel(
         _showWeightIntro.value = false
     }
 
-    /** 新增一个空的动作组，放在计划末尾；之后往里加动作、设「做其中 x 个」。 */
+    /** 新增一个空的动作组，放在计划末尾；之后往里加动作、设「建议做 x 个」。 */
     fun addGroup() {
         viewModelScope.launch {
             val id = routineId ?: return@launch
@@ -67,7 +67,7 @@ class RoutineEditScreenModel(
         }
     }
 
-    /** 设「做其中 x 个」，取值范围由 repository 按组内动作数收敛。 */
+    /** 设「建议做 x 个」，取值范围由 repository 按组内动作数收敛。 */
     fun updateGroupMaxPicks(groupId: Long, maxPicks: Int) {
         viewModelScope.launch {
             routineRepository.updateGroupMaxPicks(groupId, maxPicks)

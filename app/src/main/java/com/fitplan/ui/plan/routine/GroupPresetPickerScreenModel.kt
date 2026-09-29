@@ -83,7 +83,7 @@ class GroupPresetPickerScreenModel(
     suspend fun addPreset(routineId: Long, item: GroupPresetItem) {
         val members = item.addable
         if (members.isEmpty()) return
-        // 「做其中 x 个」不能超过实际加进来的动作数，否则训练页永远挑不满。
+        // 「建议做 x 个」不能超过实际加进来的动作数，否则这个建议值没有意义。
         val groupId = routineRepository.addGroup(
             routineId = routineId,
             maxPicks = minOf(item.preset.maxPicks, members.size),

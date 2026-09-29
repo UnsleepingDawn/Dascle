@@ -54,7 +54,7 @@ SELECT count(*)
 FROM routine_exercise
 WHERE group_id = ?;
 
--- 删动作前先看它属不属于某个动作组，好在那之后把组的「做其中 x 个」收敛回组内动作数。
+-- 删动作前先看它属不属于某个动作组，好在那之后把组的「建议做 x 个」收敛回组内动作数。
 selectGroupIdById:
 SELECT group_id
 FROM routine_exercise

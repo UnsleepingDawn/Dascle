@@ -85,6 +85,7 @@ class WorkoutLogScreen(
         val progressTargetInput by screenModel.progressTargetInput.collectAsState()
         val progressTargetConfirm by screenModel.progressTargetConfirm.collectAsState()
         val lowTargetReminder by screenModel.lowTargetReminder.collectAsState()
+        val extraNotice by screenModel.extraNotice.collectAsState()
         val collapsedIds by screenModel.collapsedExerciseIds.collectAsState()
         val celebrateTick by screenModel.celebrateTick.collectAsState()
 
@@ -346,12 +347,21 @@ class WorkoutLogScreen(
         if (showExtraDialog) {
             ExtraExerciseDialog(
                 exercises = allExercises,
-                existingIds = exercises.map { it.exerciseId }.toSet(),
+                // 今天方案里已有的动作仍然列出来（标一句提示），点了由 ScreenModel 决定是加还是弹提醒。
+                presentIds = exercises.map { it.exerciseId }.toSet(),
                 onPick = { exerciseId ->
                     showExtraDialog = false
-                    screenModel.addExtraExercise(exerciseId)
+                    screenModel.requestExtraExercise(exerciseId)
                 },
                 onDismiss = { showExtraDialog = false },
+            )
+        }
+
+        // 计划外动作今天已经排在方案里：不重复添加，提醒去原有的卡片或动作组里操作。
+        extraNotice?.let { notice ->
+            ExtraExerciseNoticeDialog(
+                notice = notice,
+                onDismiss = screenModel::dismissExtraNotice,
             )
         }
 
