@@ -416,14 +416,12 @@ class WorkoutLogScreen(
             }
         }
 
-        // 选了「重新填一次」：打开设置表单改这一组的数值，顺手还能改计划目标。保存后不自动打勾。
+        // 选了「重新填一次」：打开设置表单改计划目标，保存后按新目标覆盖这一组的实际值，不自动打勾。
         lowTargetRetry?.let { retry ->
             val exercise = exercisesById[retry.exerciseId]
-            val entry = exercise?.sets?.getOrNull(retry.index)
-            if (exercise != null && entry != null) {
+            if (exercise != null) {
                 LowTargetRetryDialog(
                     exercise = exercise,
-                    entry = entry,
                     onConfirm = screenModel::applyLowTargetRetry,
                     onDismiss = screenModel::dismissLowTargetRetry,
                 )

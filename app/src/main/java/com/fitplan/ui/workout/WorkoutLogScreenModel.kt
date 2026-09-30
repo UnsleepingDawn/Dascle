@@ -728,35 +728,30 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 重填表单点「保存」：写回这一组的实际数值并标记已提醒，**不**把这一组记为完成；
-     * [targets] 非空时（计划内动作）把「计划目标」也一并写进动作库默认值与所有计划。
+     * 重填表单点「保存」：把这一组**实际做的数值直接换成新目标**，并把目标写进动作库默认值与所有计划，
+     * 最后标记已提醒。**不**把这一组记为完成，用户确认无误后再自己点「做完了」。
      *
      * 目标值确实变了才写，没动过的字段碰都不碰，免得无谓地清掉渐进提示状态。
      */
-    fun applyLowTargetRetry(
-        weight: String,
-        reps: String,
-        seconds: String,
-        targets: ExerciseTargetDraft?,
-    ) {
+    fun applyLowTargetRetry(targets: ExerciseTargetDraft) {
         val retry = _lowTargetRetry.value ?: return
         val exercise = _exercises.value.firstOrNull { it.exerciseId == retry.exerciseId } ?: return
         val index = retry.index
         _lowTargetRetry.value = null
 
-        // 这一组的实际数值：口径与输入框一致（重量允许小数点，次数 / 时长只留数字）。
+        // 这一组的实际值按新目标覆盖；重量只在有重量框时写，次数 / 时长按计量方式二选一。
         mutateSet(retry.exerciseId, index) { entry ->
             entry.copy(
-                weight = if (exercise.showsWeight) sanitizeDecimal(weight) else entry.weight,
-                reps = if (exercise.isTimed) entry.reps else sanitizeInt(reps),
-                seconds = if (exercise.isTimed) sanitizeInt(seconds) else entry.seconds,
+                weight = if (exercise.showsWeight) targets.weight.toWeightText() else entry.weight,
+                reps = if (exercise.isTimed) entry.reps else targets.reps.toString(),
+                seconds = if (exercise.isTimed) targets.seconds?.toString() ?: entry.seconds else entry.seconds,
             )
         }
         // 编辑已结束的训练时，改完就落库；训练进行中的新组等勾选时再写。
         persistEditedSet(retry.exerciseId, index)
 
         viewModelScope.launch {
-            if (targets != null) applyPlanTargets(exercise, index, targets)
+            applyPlanTargets(exercise, index, targets)
             lowReminderRepository.markShown(retry.exerciseId, versionCode)
         }
     }
@@ -1416,12 +1411,6 @@ private fun rebasedSeconds(entry: SetEntry, previous: Int?, next: Int): String {
     val baseline = previous ?: return entry.seconds
     return if (entry.isPrefilledSeconds(baseline)) next.toString() else entry.seconds
 }
-
-/** 只保留数字与小数点，与重量输入框的过滤口径一致。 */
-private fun sanitizeDecimal(value: String): String = value.filter { it.isDigit() || it == '.' }
-
-/** 只保留数字，与次数 / 时长输入框的过滤口径一致。 */
-private fun sanitizeInt(value: String): String = value.filter(Char::isDigit)
 
 /**
  * 把已落库的组补齐成可继续录入的样子：按本次训练的「期望组行数」补空行——
