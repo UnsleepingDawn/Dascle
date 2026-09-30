@@ -68,6 +68,11 @@ data class TodaySessionProgress(
     val skippedExerciseIds: Set<Long>,
     /** 动作组里挑中要练的动作；单独排列的动作不在这个集合里，判定时不用管。 */
     val pickedExerciseIds: Set<Long>,
+    /**
+     * 练过、但不在本次计划编排里的动作，也就是训练中临时加的那些，
+     * 供计划卡片在计划动作之后补出来并标上「临时」；没练过（一组都没勾）的不算。
+     */
+    val extraExercises: List<TodaySessionExercise> = emptyList(),
 )
 
 @Inject
@@ -165,7 +170,8 @@ class TodayScreenModel(
             val date = today()
             _date.value = date
             _restDay.value = isRestDay(date)
-            _routines.value = getScheduledRoutinesForDate(date)
+            val routines = getScheduledRoutinesForDate(date)
+            _routines.value = routines
             val todaySession = getTodayWorkoutSession()
             _todaySession.value = todaySession
             // 「继续训练」只照顾当天没练完的那次：隔天的旧账已被 CloseStaleWorkouts 收尾，
@@ -174,11 +180,29 @@ class TodayScreenModel(
                 .filter { it.startedAt >= date.atStartOfDayIn(TimeZone.currentSystemDefault()) }
                 .maxByOrNull { it.startedAt }
                 .takeIf { todaySession?.isFinished != true }
-            _todaySessionExercises.value = todaySession
-                ?.takeIf { it.isFinished }
-                ?.let { loadSessionExercises(it.id) }
-                .orEmpty()
-            _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it) }
+
+            // 今天照哪张计划练：找得到当天的排期卡片才谈得上「计划内 / 临时」，找不到
+            // （休息日「临时加一个方案」这类计划外训练）就没有计划编排可比。
+            val plannedExerciseIds = todaySession?.routineId
+                ?.let { routineId -> routines.firstOrNull { it.routine.id == routineId } }
+                ?.exercises
+                ?.map { it.exerciseId }
+                ?.toSet()
+
+            // 今天练过的动作汇总（只含已完成组）；训练中与已结束都算，只查一次给两处共用。
+            val loggedExercises = todaySession?.let { loadSessionExercises(it.id) }.orEmpty()
+
+            // 没有计划卡片时，练了什么全靠总结卡片列出来（口径与界面的 standaloneFinished 一致，
+            // 只有已结束的训练才给卡片）；有计划卡片时改由计划卡片自己展示，这里不再重复。
+            _todaySessionExercises.value = when {
+                plannedExerciseIds != null -> emptyList()
+                else -> loggedExercises.takeIf { todaySession?.isFinished == true }.orEmpty()
+            }
+
+            // 有计划卡片时，把练过、计划编排里却没有的动作标出来：它们就是训练中临时加的。
+            val extras = loggedExercises.filterNot { it.exerciseId in plannedExerciseIds.orEmpty() }
+            _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it, extras) }
+
             _upcomingPlan.value = getUpcomingTrainingPlan(date)
             _nextRestDay.value = getNextRestDay(date)
             _loaded.value = true
@@ -226,8 +250,14 @@ class TodayScreenModel(
     /**
      * 汇总今天这场训练里各动作的状态：哪些练过（有已完成组）、哪些被跳过、动作组里挑中了谁。
      * 训练中也算，所以中途返回今日页就能看到进度；口径与记录页 `workout_exercise_state` 一致。
+     *
+     * [extraExercises] 由调用方按「练过但不在计划编排里」算好传进来（判定要拿到当天的排期，
+     * 不在这层的职责里）。
      */
-    private suspend fun loadSessionProgress(session: WorkoutSession): TodaySessionProgress {
+    private suspend fun loadSessionProgress(
+        session: WorkoutSession,
+        extraExercises: List<TodaySessionExercise>,
+    ): TodaySessionProgress {
         val sets = workoutRepository.getSets(session.id)
         val states = workoutRepository.getExerciseStates(session.id)
         return TodaySessionProgress(
@@ -235,6 +265,7 @@ class TodayScreenModel(
             completedExerciseIds = sets.filter { it.completed }.map { it.exerciseId }.toSet(),
             skippedExerciseIds = states.filter { it.skipped }.map { it.exerciseId }.toSet(),
             pickedExerciseIds = pickedExerciseIds(sets.map { it.exerciseId }.distinct(), states),
+            extraExercises = extraExercises,
         )
     }
 
