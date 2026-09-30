@@ -62,6 +62,30 @@ data class LowTargetReminder(
     val index: Int,
 )
 
+/**
+ * 低量提醒点「重新填一次」后正在填的设置表单。
+ *
+ * [index] 是这一组在动作内的组序号；用户「保存」后只写回数值、**不**顺手记录这一组。
+ */
+data class LowTargetRetry(
+    val exerciseId: Long,
+    val index: Int,
+)
+
+/**
+ * 重填表单里「计划目标」这一块提交上来的值。
+ *
+ * 与 [LogExercise] 不同，重量 / 时长用可空表达「没设」：清空重量输入框表示不写这一项。
+ * 组数与休息在计划表里是 NOT NULL 带默认值，所以始终有值。
+ */
+data class ExerciseTargetDraft(
+    val sets: Int,
+    val reps: Int,
+    val weight: Double?,
+    val seconds: Int?,
+    val restSeconds: Int,
+)
+
 /** 记录页里的一个动作：计划内动作带目标值，计划外动作用默认值。 */
 data class LogExercise(
     val exerciseId: Long,
@@ -70,6 +94,12 @@ data class LogExercise(
     val targetReps: Int,
     val restSeconds: Int,
     val isExtra: Boolean,
+    /**
+     * 计划编排里的那条动作记录 id（`routine_exercise.id`）；计划外动作为 null。
+     *
+     * 重填弹窗据此判断能不能改计划目标：只有计划内的动作才写得回 `routine_exercise`。
+     */
+    val routineExerciseId: Long? = null,
     /** 计量方式（次数 / 时长），跟随动作库，记录页不允许切换。 */
     val metric: ExerciseMetric = ExerciseMetric.DEFAULT,
     /** 负重方式（外部负重 / 自重 / 辅助），决定要不要填重量。 */
@@ -352,6 +382,10 @@ class WorkoutLogScreenModel(
     private val _lowTargetReminder = MutableStateFlow<LowTargetReminder?>(null)
     val lowTargetReminder: StateFlow<LowTargetReminder?> = _lowTargetReminder.asStateFlow()
 
+    /** 非空表示用户选了「重新填一次」，正在设置表单里改这一组的数值与计划目标。 */
+    private val _lowTargetRetry = MutableStateFlow<LowTargetRetry?>(null)
+    val lowTargetRetry: StateFlow<LowTargetRetry?> = _lowTargetRetry.asStateFlow()
+
     /** 非空表示选了一个今天方案里已经有的计划外动作，正在提醒用户去原处操作。 */
     private val _extraNotice = MutableStateFlow<ExtraExerciseNotice?>(null)
     val extraNotice: StateFlow<ExtraExerciseNotice?> = _extraNotice.asStateFlow()
@@ -404,6 +438,7 @@ class WorkoutLogScreenModel(
         _progressTargetInput.value = null
         _progressTargetConfirm.value = null
         _lowTargetReminder.value = null
+        _lowTargetRetry.value = null
         _extraNotice.value = null
         starting = false
         viewModelScope.launch {
@@ -666,13 +701,135 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 低量提醒点「重新填一次」：记下这个动作已提醒过，关掉弹窗、先不记录，
-     * 等用户改完数值再自己点「做完了」。点掉遮罩也走这里，不会反复打断。
+     * 低量提醒点「重新填一次」：关掉提醒，打开设置表单让用户改这一组的数值，
+     * 想改的话还能顺手把计划目标也调成更符合实际的水平。这时**不写**任何东西，
+     * 也不标记已提醒——等表单里的「保存」或「取消」再收尾。
      */
     fun retryLowTargetSet() {
         val reminder = _lowTargetReminder.value ?: return
         _lowTargetReminder.value = null
+        _lowTargetRetry.value = LowTargetRetry(reminder.exerciseId, reminder.index)
+    }
+
+    /**
+     * 点掉低量提醒的遮罩：等同放弃重填，记下已提醒后关闭，这一组仍然不记录。
+     */
+    fun dismissLowTargetReminder() {
+        val reminder = _lowTargetReminder.value ?: return
+        _lowTargetReminder.value = null
         viewModelScope.launch { lowReminderRepository.markShown(reminder.exerciseId, versionCode) }
+    }
+
+    /** 重填表单点「取消」：丢弃改动，回到上一层提醒，让用户还能选「就这样」。 */
+    fun dismissLowTargetRetry() {
+        val retry = _lowTargetRetry.value ?: return
+        _lowTargetRetry.value = null
+        _lowTargetReminder.value = LowTargetReminder(retry.exerciseId, retry.index)
+    }
+
+    /**
+     * 重填表单点「保存」：写回这一组的实际数值并标记已提醒，**不**把这一组记为完成；
+     * [targets] 非空时（计划内动作）把「计划目标」也一并写进动作库默认值与所有计划。
+     *
+     * 目标值确实变了才写，没动过的字段碰都不碰，免得无谓地清掉渐进提示状态。
+     */
+    fun applyLowTargetRetry(
+        weight: String,
+        reps: String,
+        seconds: String,
+        targets: ExerciseTargetDraft?,
+    ) {
+        val retry = _lowTargetRetry.value ?: return
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == retry.exerciseId } ?: return
+        val index = retry.index
+        _lowTargetRetry.value = null
+
+        // 这一组的实际数值：口径与输入框一致（重量允许小数点，次数 / 时长只留数字）。
+        mutateSet(retry.exerciseId, index) { entry ->
+            entry.copy(
+                weight = if (exercise.showsWeight) sanitizeDecimal(weight) else entry.weight,
+                reps = if (exercise.isTimed) entry.reps else sanitizeInt(reps),
+                seconds = if (exercise.isTimed) sanitizeInt(seconds) else entry.seconds,
+            )
+        }
+        // 编辑已结束的训练时，改完就落库；训练进行中的新组等勾选时再写。
+        persistEditedSet(retry.exerciseId, index)
+
+        viewModelScope.launch {
+            if (targets != null) applyPlanTargets(exercise, index, targets)
+            lowReminderRepository.markShown(retry.exerciseId, versionCode)
+        }
+    }
+
+    /**
+     * 把重填表单里的计划目标写下去，并同步内存里的动作卡。
+     *
+     * 重量 / 次数 / 时长的写入范围与渐进提示一致（动作库默认值 + 所有计划）；
+     * 目标组数与组间休息在 `exercise` 表里没有对应列，只写所有计划。
+     * 其余「按旧目标预填、还没勾选」的组行一起换成新值，已完成或手改过的行不动。
+     */
+    private suspend fun applyPlanTargets(
+        exercise: LogExercise,
+        index: Int,
+        targets: ExerciseTargetDraft,
+    ) {
+        val exerciseId = exercise.exerciseId
+        val previousWeight = exercise.targetWeight
+        val previousReps = exercise.targetReps
+        val previousSeconds = exercise.targetSeconds
+
+        // 改了才写：重量用可空表达「没设」，清空输入框不写这一项；次数 / 时长按计量方式二选一。
+        val appliedWeight = targets.weight.takeIf {
+            exercise.showsWeight && it != null && it != previousWeight
+        }
+        val appliedSeconds = targets.seconds.takeIf {
+            exercise.isTimed && it != null && it != previousSeconds
+        }
+        val repsChanged = !exercise.isTimed && targets.reps != previousReps
+        val setsChanged = targets.sets != exercise.targetSets
+        val restChanged = targets.restSeconds != exercise.restSeconds
+        if (appliedWeight == null && appliedSeconds == null && !repsChanged && !setsChanged && !restChanged) {
+            return
+        }
+
+        appliedWeight?.let { updateProgress.applyWeight(exerciseId, it) }
+        if (repsChanged) updateProgress.applyReps(exerciseId, targets.reps)
+        appliedSeconds?.let { updateProgress.applySeconds(exerciseId, it) }
+        if (setsChanged) updateProgress.applySets(exerciseId, targets.sets)
+        if (restChanged) updateProgress.applyRest(exerciseId, targets.restSeconds)
+
+        mutate(exerciseId) { current ->
+            current.copy(
+                targetSets = if (setsChanged) targets.sets else current.targetSets,
+                targetReps = if (repsChanged) targets.reps else current.targetReps,
+                targetSeconds = appliedSeconds ?: current.targetSeconds,
+                targetWeight = appliedWeight ?: current.targetWeight,
+                restSeconds = if (restChanged) targets.restSeconds else current.restSeconds,
+                sets = current.sets.mapIndexed { i, entry ->
+                    if (i == index) {
+                        entry
+                    } else {
+                        entry.copy(
+                            weight = if (appliedWeight != null) {
+                                rebasedWeight(entry, previousWeight, appliedWeight)
+                            } else {
+                                entry.weight
+                            },
+                            reps = if (repsChanged) {
+                                rebasedReps(entry, previousReps, targets.reps)
+                            } else {
+                                entry.reps
+                            },
+                            seconds = if (appliedSeconds != null) {
+                                rebasedSeconds(entry, previousSeconds, appliedSeconds)
+                            } else {
+                                entry.seconds
+                            },
+                        )
+                    }
+                },
+            )
+        }
     }
 
     /** 低量提醒点「就这样」：记下已提醒过，关掉弹窗，照原样把这一组记录上。 */
@@ -1067,6 +1224,7 @@ class WorkoutLogScreenModel(
             val exercise = LogExercise(
                 exerciseId = exerciseId,
                 name = routineExercise?.exerciseName ?: libraryExercise?.name.orEmpty(),
+                routineExerciseId = routineExercise?.id,
                 targetSets = routineExercise?.targetSets ?: DEFAULT_TARGET_SETS,
                 targetReps = routineExercise?.targetReps ?: libraryExercise?.repsOrDefault ?: DEFAULT_TARGET_REPS,
                 restSeconds = routineExercise?.restSeconds ?: DEFAULT_REST_SECONDS,
@@ -1180,6 +1338,7 @@ private fun RoutineExercise.toLogExercise(): LogExercise {
     val exercise = LogExercise(
         exerciseId = exerciseId,
         name = exerciseName,
+        routineExerciseId = id,
         targetSets = targetSets,
         targetReps = targetReps,
         restSeconds = restSeconds,
@@ -1239,6 +1398,30 @@ private fun SetEntry.isPrefilledSeconds(baseline: Int): Boolean {
     val value = seconds.toIntOrNull()
     return value == null || value == baseline
 }
+
+/**
+ * 目标值改动后，把这一行「按旧目标预填、还没勾选」的数值换成 [next]；
+ * 已完成的记录与用户手改过的行保留原样。旧目标为空时无从判断，直接不动。
+ */
+private fun rebasedWeight(entry: SetEntry, previous: Double?, next: Double): String {
+    val baseline = previous ?: return entry.weight
+    return if (entry.isPrefilledWeight(baseline)) next.toWeightText() else entry.weight
+}
+
+private fun rebasedReps(entry: SetEntry, previous: Int, next: Int): String {
+    return if (entry.isPrefilledReps(previous)) next.toString() else entry.reps
+}
+
+private fun rebasedSeconds(entry: SetEntry, previous: Int?, next: Int): String {
+    val baseline = previous ?: return entry.seconds
+    return if (entry.isPrefilledSeconds(baseline)) next.toString() else entry.seconds
+}
+
+/** 只保留数字与小数点，与重量输入框的过滤口径一致。 */
+private fun sanitizeDecimal(value: String): String = value.filter { it.isDigit() || it == '.' }
+
+/** 只保留数字，与次数 / 时长输入框的过滤口径一致。 */
+private fun sanitizeInt(value: String): String = value.filter(Char::isDigit)
 
 /**
  * 把已落库的组补齐成可继续录入的样子：按本次训练的「期望组行数」补空行——

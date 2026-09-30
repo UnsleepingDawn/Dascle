@@ -182,6 +182,20 @@ class RoutineRepositoryImpl(
         )
     }
 
+    override suspend fun updateTargetSetsForExercise(exerciseId: Long, sets: Int) {
+        routineExerciseQueries.updateTargetSetsByExerciseId(
+            target_sets = sets.toLong(),
+            exercise_id = exerciseId,
+        )
+    }
+
+    override suspend fun updateRestSecondsForExercise(exerciseId: Long, seconds: Int) {
+        routineExerciseQueries.updateRestSecondsByExerciseId(
+            rest_seconds = seconds.toLong(),
+            exercise_id = exerciseId,
+        )
+    }
+
     override suspend fun removeExercise(id: Long) {
         database.transaction {
             // 删掉的若是组内最后一个动作，组的「建议做 x 个」要跟着收敛，免得出现「建议做 3 个」只剩 1 个动作。

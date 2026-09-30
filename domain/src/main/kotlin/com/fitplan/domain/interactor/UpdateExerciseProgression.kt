@@ -44,6 +44,26 @@ class UpdateExerciseProgression(
     }
 
     /**
+     * 记录页重填时改了目标组数：只写所有计划（动作库没有「默认组数」这一列）。
+     *
+     * 既然改了目标，顺带清掉该动作的渐进提示暂缓 / 休眠，下次做满新目标还能重新提醒。
+     */
+    suspend fun applySets(exerciseId: Long, newSets: Int) {
+        routineRepository.updateTargetSetsForExercise(exerciseId, newSets)
+        hintRepository.clear(exerciseId)
+    }
+
+    /**
+     * 记录页重填时改了组间休息：只写所有计划（动作库没有「默认休息」这一列）。
+     *
+     * 休息时长与渐进提示无关，但仍走这个唯一的变更出口，免得漏清暂缓 / 休眠。
+     */
+    suspend fun applyRest(exerciseId: Long, newRestSeconds: Int) {
+        routineRepository.updateRestSecondsForExercise(exerciseId, newRestSeconds)
+        hintRepository.clear(exerciseId)
+    }
+
+    /**
      * 用户手动改了某动作的目标重量：只有「变难」才算主动提高目标，解除该动作的暂缓 / 休眠。
      *
      * 辅助类动作（器械辅助引体向上）的重量是助力，调**低**才更难；其余动作调高才更难。

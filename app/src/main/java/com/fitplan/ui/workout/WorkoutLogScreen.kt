@@ -85,6 +85,7 @@ class WorkoutLogScreen(
         val progressTargetInput by screenModel.progressTargetInput.collectAsState()
         val progressTargetConfirm by screenModel.progressTargetConfirm.collectAsState()
         val lowTargetReminder by screenModel.lowTargetReminder.collectAsState()
+        val lowTargetRetry by screenModel.lowTargetRetry.collectAsState()
         val extraNotice by screenModel.extraNotice.collectAsState()
         val collapsedIds by screenModel.collapsedExerciseIds.collectAsState()
         val celebrateTick by screenModel.celebrateTick.collectAsState()
@@ -403,14 +404,28 @@ class WorkoutLogScreen(
             )
         }
 
-        // 低于计划目标：这一组还没记录，先问重填还是照原样记上。
+        // 低于计划目标：这一组还没记录，先问重填还是照原样记上。点遮罩等同放弃重填。
         lowTargetReminder?.let { reminder ->
             exercisesById[reminder.exerciseId]?.let { exercise ->
                 LowTargetReminderDialog(
                     exercise = exercise,
                     onRetry = screenModel::retryLowTargetSet,
                     onKeep = screenModel::keepLowTargetSet,
-                    onDismiss = screenModel::retryLowTargetSet,
+                    onDismiss = screenModel::dismissLowTargetReminder,
+                )
+            }
+        }
+
+        // 选了「重新填一次」：打开设置表单改这一组的数值，顺手还能改计划目标。保存后不自动打勾。
+        lowTargetRetry?.let { retry ->
+            val exercise = exercisesById[retry.exerciseId]
+            val entry = exercise?.sets?.getOrNull(retry.index)
+            if (exercise != null && entry != null) {
+                LowTargetRetryDialog(
+                    exercise = exercise,
+                    entry = entry,
+                    onConfirm = screenModel::applyLowTargetRetry,
+                    onDismiss = screenModel::dismissLowTargetRetry,
                 )
             }
         }

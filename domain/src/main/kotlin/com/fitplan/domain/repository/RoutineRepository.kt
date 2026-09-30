@@ -79,6 +79,12 @@ interface RoutineRepository {
     /** 把某个动作在**所有**计划里的目标时长一起改成 [seconds]，供渐进提示使用。 */
     suspend fun updateTargetSecondsForExercise(exerciseId: Long, seconds: Int)
 
+    /** 把某个动作在**所有**计划里的目标组数一起改成 [sets]，供记录页重填使用。 */
+    suspend fun updateTargetSetsForExercise(exerciseId: Long, sets: Int)
+
+    /** 把某个动作在**所有**计划里的组间休息一起改成 [seconds]，供记录页重填使用。 */
+    suspend fun updateRestSecondsForExercise(exerciseId: Long, seconds: Int)
+
     suspend fun removeExercise(id: Long)
 
     companion object {
