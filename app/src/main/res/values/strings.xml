@@ -29,6 +29,7 @@
     <string name="today_empty">今天没有训练安排\n去「计划」页给训练计划排个日程吧</string>
     <string name="today_exercise_count">%1$d 个动作</string>
     <string name="today_exercise_trained">已练</string>
+    <string name="today_extra_tag">临时</string>
     <string name="today_start_workout">开始训练</string>
     <string name="today_extra_title">还想练？</string>
     <string name="today_start_extra">再来！</string>
@@ -288,9 +289,11 @@
     <string name="workout_progress_confirm_message">从 %1$s 调整到 %2$s，之后的训练都会用这个目标</string>
     <string name="workout_progress_confirm_message_assist">辅助重量从 %1$s 减少到 %2$s，之后的训练都会用这个目标</string>
     <string name="workout_low_target_title">「%1$s」这一组低于计划目标</string>
-    <string name="workout_low_target_message">计划目标是 %1$s。\n\n你可以重新填一次，把数值改成更符合实际的水平；也可以就这样记录下来。</string>
+    <string name="workout_low_target_message">计划目标是 %1$s。\n\n点「重新填一次」可以调整计划目标，这一组会按新目标重填；点「就这样」则照原样记录下来。</string>
     <string name="workout_low_target_retry">重新填一次</string>
     <string name="workout_low_target_keep">就这样</string>
+    <string name="workout_low_target_plan_section">计划目标</string>
+    <string name="workout_low_target_retry_hint">保存后这一组实际做的数值会按上面的目标覆盖，还需要你自己点「做完了」才会记录。</string>
     <string name="unit_kg">kg</string>
     <string name="unit_reps">次</string>
     <string name="unit_seconds">秒</string>

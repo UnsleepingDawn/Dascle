@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
@@ -514,6 +515,162 @@ internal fun LowTargetReminderDialog(
                 Text(text = stringResource(R.string.workout_low_target_keep))
             }
         },
+    )
+}
+
+/**
+ * 低量提醒点「重新填一次」后的设置表单：只填**计划目标**，用户不用再把这一组实际做的数值重填一遍。
+ *
+ * 预填的是这个动作当前的达标基准（计划目标优先，缺失时退回动作库默认值）；「保存」会把这一组的
+ * 实际值直接换成新目标，但**不**打勾，用户确认无误后再自己点「做完了」。
+ *
+ * 目标组数与组间休息只存在计划编排里，计划外动作无处可写，这两行整段隐藏。
+ */
+@Composable
+internal fun LowTargetRetryDialog(
+    exercise: LogExercise,
+    onConfirm: (targets: ExerciseTargetDraft) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val editableSize = exercise.routineExerciseId != null
+
+    var targetSets by remember { mutableStateOf(exercise.targetSets.toString()) }
+    var targetReps by remember { mutableStateOf(exercise.repsBaseline.toString()) }
+    var targetSeconds by remember { mutableStateOf(exercise.secondsBaseline?.toString().orEmpty()) }
+    var targetWeight by remember {
+        mutableStateOf(if (exercise.showsWeight) exercise.weightBaseline.toWeightText() else "")
+    }
+    var restSeconds by remember { mutableStateOf(exercise.restSeconds.toString()) }
+
+    val validTargetWeight = !exercise.showsWeight ||
+        targetWeight.isBlank() ||
+        targetWeight.toDoubleOrNull()?.let { it > 0 } == true
+    val validTargetSize = if (exercise.isTimed) {
+        targetSeconds.toIntOrNull()?.let { it > 0 } == true
+    } else {
+        targetReps.toIntOrNull()?.let { it > 0 } == true
+    }
+    val validSize = !editableSize || (
+        targetSets.toIntOrNull()?.let { it > 0 } == true &&
+            restSeconds.toIntOrNull()?.let { it >= 0 } == true
+        )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = exercise.name) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                Text(
+                    text = stringResource(R.string.workout_low_target_plan_section),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (editableSize) {
+                    LowTargetField(
+                        value = targetSets,
+                        onValueChange = { targetSets = it },
+                        label = stringResource(R.string.field_target_sets),
+                    )
+                }
+                if (exercise.isTimed) {
+                    LowTargetField(
+                        value = targetSeconds,
+                        onValueChange = { targetSeconds = it },
+                        label = stringResource(R.string.field_target_seconds),
+                    )
+                } else {
+                    LowTargetField(
+                        value = targetReps,
+                        onValueChange = { targetReps = it },
+                        label = stringResource(R.string.field_target_reps),
+                    )
+                }
+                if (exercise.showsWeight) {
+                    LowTargetField(
+                        value = targetWeight,
+                        onValueChange = { targetWeight = it },
+                        label = stringResource(
+                            if (exercise.weightIsAssistance) {
+                                R.string.field_target_weight_assist
+                            } else {
+                                R.string.field_target_weight
+                            },
+                        ),
+                        allowDecimal = true,
+                    )
+                }
+                if (editableSize) {
+                    LowTargetField(
+                        value = restSeconds,
+                        onValueChange = { restSeconds = it },
+                        label = stringResource(R.string.field_rest_seconds),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.workout_low_target_retry_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = validTargetSize && validTargetWeight && validSize,
+                onClick = {
+                    onConfirm(
+                        ExerciseTargetDraft(
+                            sets = targetSets.toIntOrNull() ?: exercise.targetSets,
+                            // 计时类动作不需要次数目标，沿用计划里的旧值即可。
+                            reps = if (exercise.isTimed) {
+                                exercise.targetReps
+                            } else {
+                                targetReps.toIntOrNull() ?: return@TextButton
+                            },
+                            weight = if (exercise.showsWeight) targetWeight.toDoubleOrNull() else null,
+                            seconds = if (exercise.isTimed) targetSeconds.toIntOrNull() else null,
+                            restSeconds = restSeconds.toIntOrNull() ?: exercise.restSeconds,
+                        ),
+                    )
+                },
+            ) {
+                Text(text = stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+/** 重填表单里的数字输入框：小数（重量）只留数字与小数点，整数只留数字。 */
+@Composable
+private fun LowTargetField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    allowDecimal: Boolean = false,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { raw ->
+            val filtered = if (allowDecimal) {
+                raw.filter { it.isDigit() || it == '.' }
+            } else {
+                raw.filter(Char::isDigit)
+            }
+            onValueChange(filtered)
+        },
+        label = { Text(text = label) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (allowDecimal) KeyboardType.Decimal else KeyboardType.Number,
+        ),
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 

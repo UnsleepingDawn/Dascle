@@ -60,6 +60,7 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -391,6 +392,16 @@ private fun ScheduledRoutineCard(
                 TodayExerciseBlockRow(block = block, progress = progress)
             }
 
+            // 训练中临时加、且已经练过至少一组的动作：跟在计划动作后面，动作名后标「临时」。
+            progress?.extraExercises?.forEach { exercise ->
+                TodayExerciseRow(
+                    name = exercise.name,
+                    trailing = exercise.volumeText(),
+                    status = TodayExerciseStatus.TRAINED,
+                    isExtra = true,
+                )
+            }
+
             Button(
                 onClick = onClick,
                 enabled = startEnabled,
@@ -527,13 +538,15 @@ private val TrainedCheckSize = 18.dp
  *
  * [TodayExerciseStatus.TRAINED] 动作名前一颗主色（蓝）圆圈勾，表示今天已经练过；
  * [TodayExerciseStatus.NOT_DONE] 只有动作名打删除线并转灰，表示跳过或组内没挑中、今天不用做。
- * 右侧的训练量只跟着变灰，不打删除线。
+ * 右侧的训练量只跟着变灰，不打删除线。[isExtra] 为 true 时动作名后跟一个主色小字「临时」，
+ * 表示这是训练中临时加进来的动作，不在计划编排里。
  */
 @Composable
 private fun TodayExerciseRow(
     name: String,
     trailing: String,
     status: TodayExerciseStatus,
+    isExtra: Boolean = false,
 ) {
     val struck = status == TodayExerciseStatus.NOT_DONE
     Row(
@@ -552,17 +565,33 @@ private fun TodayExerciseRow(
             Spacer(modifier = Modifier.size(TrainedCheckSize))
         }
         Spacer(modifier = Modifier.width(MaterialTheme.padding.small))
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (struck) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            textDecoration = if (struck) TextDecoration.LineThrough else null,
+        // 外层占满剩余宽度，内层两个元素贴靠：让「临时」紧跟动作名，训练量仍然贴右边缘。
+        Row(
             modifier = Modifier.weight(1f),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (struck) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                textDecoration = if (struck) TextDecoration.LineThrough else null,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (isExtra) {
+                Text(
+                    text = stringResource(R.string.today_extra_tag),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                )
+            }
+        }
         Text(
             text = trailing,
             style = MaterialTheme.typography.bodySmall,

@@ -104,6 +104,18 @@ UPDATE routine_exercise
 SET target_seconds = ?
 WHERE exercise_id = ?;
 
+-- 记录页重填时改了目标组数：该动作在所有计划里的目标组数一起改掉。
+updateTargetSetsByExerciseId:
+UPDATE routine_exercise
+SET target_sets = ?
+WHERE exercise_id = ?;
+
+-- 记录页重填时改了组间休息：该动作在所有计划里的休息秒数一起改掉。
+updateRestSecondsByExerciseId:
+UPDATE routine_exercise
+SET rest_seconds = ?
+WHERE exercise_id = ?;
+
 updatePosition:
 UPDATE routine_exercise
 SET position = ?

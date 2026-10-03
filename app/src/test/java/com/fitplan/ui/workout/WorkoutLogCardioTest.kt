@@ -68,6 +68,7 @@ class WorkoutLogCardioTest {
         advanceUntilIdle()
 
         val exercise = model.exercises.value.single()
+        exercise.routineExerciseId shouldBe null
         exercise.targetSets shouldBe 1
         exercise.restSeconds shouldBe 0
         exercise.targetSeconds shouldBe 1200
@@ -103,6 +104,7 @@ class WorkoutLogCardioTest {
 
         val exercise = model.exercises.value.single()
         exercise.isExtra shouldBe false
+        exercise.routineExerciseId shouldBe plannedCardio.id
         exercise.targetSets shouldBe 2
         exercise.restSeconds shouldBe 30
         exercise.targetSeconds shouldBe 600
