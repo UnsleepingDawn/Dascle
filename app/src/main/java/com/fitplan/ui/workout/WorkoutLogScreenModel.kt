@@ -4,8 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitplan.app.BuildConfig
 import com.fitplan.app.data.DataRevision
-import com.fitplan.domain.interactor.ClearRestDay
-import com.fitplan.domain.interactor.RestoreRestDay
 import com.fitplan.domain.interactor.UpdateExerciseProgression
 import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.ExerciseLoadMode
@@ -36,9 +34,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -306,8 +301,6 @@ class WorkoutLogScreenModel(
     private val hintRepository: ExerciseProgressHintRepository,
     private val lowReminderRepository: ExerciseLowReminderRepository,
     private val updateProgress: UpdateExerciseProgression,
-    private val clearRestDay: ClearRestDay,
-    private val restoreRestDay: RestoreRestDay,
     private val widgetManager: WidgetManager,
     private val restNotifier: RestNotifier,
     private val dataRevision: DataRevision,
@@ -489,9 +482,6 @@ class WorkoutLogScreenModel(
                     name = _sessionName.value.ifBlank { fallbackName },
                     startedAt = Clock.System.now(),
                 )
-                // 今天开练了，今天就不再是休息日（休息日的「临时方案」走到这里把标记撤掉；
-                // 有排期的日子本来就不该有休息标记，这里删的是空集）。
-                clearRestDay(today())
                 dataRevision.bump()
                 loadSession(id)
                 widgetManager.updateTodayWidget()
@@ -577,6 +567,8 @@ class WorkoutLogScreenModel(
     /**
      * 减一组：只减还没做的那一组（从最后一行没做的开始减），已经完成的组不动；
      * 一组都没做过时不做任何事。界面负责在「只剩最后一组且没做」时改走跳过确认。
+     *
+     * 减掉的正好是这个动作最后一组没做的（剩下的组都已做完）时，等同做满：自动收起并放礼花。
      */
     fun removeSetRow(exerciseId: Long) {
         val sets = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets ?: return
@@ -588,6 +580,7 @@ class WorkoutLogScreenModel(
         }
         removed.id?.let { setId -> viewModelScope.launch { workoutRepository.deleteSet(setId) } }
         persistSetCount(exerciseId)
+        collapseWhenAllSetsDone(exerciseId)
     }
 
     /**
@@ -841,8 +834,11 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 刚勾完一组：如果这个动作的组已经全部做完，就把卡片自动收起，把列表腾出来，
-     * 并给界面发一次礼花信号；想改自己点「展开」。只在训练进行中生效，编辑已结束的训练时不动卡片。
+     * 一个动作的组全部做完时的收尾：把卡片自动收起，把列表腾出来，并给界面发一次礼花信号；
+     * 想改自己点「展开」。只在训练进行中生效，编辑已结束的训练时不动卡片。
+     *
+     * 两个触发点：勾完最后一组（[completeSet]），以及「减一组」正好减掉最后没做的那组、剩下的都已做完
+     * （[removeSetRow]）。
      *
      * 礼花同一个动作只发第一次：撤销之后重新做满全部组不再重复放（见 [celebratedExerciseIds]）。
      * 自动收起则每次做满都会发生，和礼花是否放无关。
@@ -1132,9 +1128,8 @@ class WorkoutLogScreenModel(
         viewModelScope.launch {
             skipRest()
             currentSessionId?.let { workoutRepository.deleteSession(it) }
-            // 删完今天可能就什么都没剩了（休息日的「临时方案」放弃），这时把今天还原成休息日；
-            // 今天还有排期或还有别的训练时，RestoreRestDay 自己会跳过。
-            restoreRestDay(today())
+            // 删完今天可能就什么都没剩了（休息日的「临时方案」放弃），这天自然又变回休息日
+            // ——休息日由「没有排期也没有训练」推导，不需要再补标记。
             dataRevision.bump()
             widgetManager.updateTodayWidget()
             _exitTick.value += 1
@@ -1319,9 +1314,6 @@ class WorkoutLogScreenModel(
             )
         }
     }
-
-    private fun today(): LocalDate =
-        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
 
     private companion object {
         const val REST_TICK_MILLIS = 1_000L
