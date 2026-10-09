@@ -673,21 +673,21 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 这一组是不是低于计划目标：重量、次数、时长任一项不达基准就算低。
+     * 这一组是不是低于计划目标，用于决定要不要弹重填提醒。
      *
-     * 与 [maybeShowProgressHint] 的达标判定互为反向：辅助类动作重量越大助力越多、越轻松，
-     * 所以「高于基准」才算低；重量留空也算低。
+     * 只比对这个动作的主计量项，不做跨项「任一项不达」：
+     * - 要填重量的动作只看重量（辅助类动作重量越大助力越多、越轻松，所以「高于基准」才算低，
+     *   重量留空也算低）；计划与动作库都没给重量基准时不提醒。
+     * - 计时动作只看时长；其余动作只看次数。
      */
     private fun isBelowTarget(exercise: LogExercise, entry: SetEntry): Boolean {
-        val weightBaseline = exercise.weightBaseline
-        if (exercise.showsWeight && weightBaseline != null) {
-            val weight = entry.weight.toDoubleOrNull()
-            val below = when {
-                weight == null -> true
-                exercise.loadMode == ExerciseLoadMode.ASSISTED -> weight > weightBaseline
+        if (exercise.showsWeight) {
+            val weightBaseline = exercise.weightBaseline ?: return false
+            val weight = entry.weight.toDoubleOrNull() ?: return true
+            return when (exercise.loadMode) {
+                ExerciseLoadMode.ASSISTED -> weight > weightBaseline
                 else -> weight < weightBaseline
             }
-            if (below) return true
         }
         if (exercise.isTimed) {
             val secondsBaseline = exercise.secondsBaseline ?: return false
