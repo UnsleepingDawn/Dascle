@@ -154,7 +154,6 @@ object PlanTab : Tab {
                 onAddPlan = { routineId -> screenModel.addPlan(routineId, day.date) },
                 onMarkRest = screenModel::markRestDay,
                 onRemovePlan = screenModel::removePlan,
-                onRemoveRest = screenModel::removeRestDay,
                 onEditSession = { sessionId ->
                     selectedDate = null
                     navigator.push(WorkoutLogScreen(sessionId = sessionId, editing = true))
@@ -320,18 +319,16 @@ private fun DayCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        // 训练日与休息日共用同一套蓝色，是不是休息由格子里那行「休息」说明，不再靠颜色区分。
-        // 已经过去的日子压淡一档（primaryContainer），今天及以后用饱和的 primary，
-        // 这样仍然能一眼分出「历史」和「待办」。
-        val (dayNumberBackground, dayNumberColor) = when {
-            day.isTrainingDay || day.isRestDay ->
-                if (day.isPast) {
-                    MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-                }
-
-            else -> Color.Transparent to MaterialTheme.colorScheme.onSurfaceVariant
+        // 训练日的日期用蓝色（过去压淡一档 primaryContainer，今天及以后用饱和的 primary，
+        // 一眼分出「历史」和「待办」）；休息日改用中性底色，让训练日更醒目。
+        val (dayNumberBackground, dayNumberColor) = if (day.isTrainingDay) {
+            if (day.isPast) {
+                MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+            }
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
         }
         // 肌群标签：过去的用浅底，今天及以后用反色深底。过去的休息日沿用这一套灰。
         val muscleBackground =
@@ -360,12 +357,12 @@ private fun DayCell(
             )
         }
 
-        if (day.isRestDay && !day.isTrainingDay) {
+        // 休息日没有肌群标签，只在格子里给一行「休息」；过去的日子用灰底灰字，今天及以后保持深绿。
+        if (day.isRestDay) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.extraSmall)
-                    // 过去的休息日跟肌群标签同为灰色；今天及以后的休息日保持原来的深绿。
                     .background(if (day.isPast) muscleBackground else MaterialTheme.colorScheme.tertiary)
                     .padding(vertical = 1.dp),
                 contentAlignment = Alignment.Center,
@@ -420,7 +417,6 @@ private fun DayDetailSheet(
     onAddPlan: (Long) -> Unit,
     onMarkRest: (LocalDate) -> Unit,
     onRemovePlan: (Long) -> Unit,
-    onRemoveRest: (LocalDate) -> Unit,
     onEditSession: (Long) -> Unit,
     onDeleteSession: (CalendarSession) -> Unit,
 ) {
@@ -465,31 +461,10 @@ private fun DayDetailSheet(
                     }
                 }
 
-                // 过去的日子不可能再「规划」，所以只呈现那天到底练没练；休息标记是那天的事实，
-                // 仍留在这里（带取消入口），否则过去标过的休息日就没法撤掉了。
-                if (day.isPast) {
-                    SectionTitle(text = stringResource(R.string.calendar_day_actual))
-                    if (day.actualSessions.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.calendar_day_no_actual),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        day.actualSessions.forEach { session ->
-                            ActualSessionRow(
-                                session = session,
-                                onEdit = { onEditSession(session.sessionId) },
-                                onDelete = { onDeleteSession(session) },
-                            )
-                        }
-                    }
-                    if (day.isRestDay) {
-                        RestDayRow(onRemove = { onRemoveRest(day.date) })
-                    }
-                } else if (day.actualSessions.isNotEmpty()) {
-                    // 今天已经开练（练完或中途退出都算）就只呈现这一次训练：计划已经落在这次训练上，
-                    // 再列一遍「当天计划」只会与上面重复。
+                // 一天非训练即休息：练过就列「实际训练」，今天及以后排了计划就列「当天计划」，
+                // 两者都没有（含过去只剩遗留排期的日子）就是休息日。过去的日子不再「规划」，
+                // 遗留排期也不在这里显示。
+                if (day.actualSessions.isNotEmpty()) {
                     SectionTitle(text = stringResource(R.string.calendar_day_actual))
                     day.actualSessions.forEach { session ->
                         ActualSessionRow(
@@ -498,34 +473,17 @@ private fun DayDetailSheet(
                             onDelete = { onDeleteSession(session) },
                         )
                     }
-                    // 休息标记是那一天的事实，仍留在这里（带取消入口）；正常开练时会撤掉休息日，
-                    // 走到这里的很少，但不至于让标记没法撤。
-                    if (day.isRestDay) {
-                        RestDayRow(onRemove = { onRemoveRest(day.date) })
+                } else if (!day.isPast && day.planned.isNotEmpty()) {
+                    SectionTitle(text = stringResource(R.string.calendar_day_plan))
+                    day.planned.forEach { plan ->
+                        PlannedRoutineRow(
+                            plan = plan,
+                            onClick = { onOpenRoutine(plan.routineId) },
+                            onRemove = { onRemovePlan(plan.entryId) },
+                        )
                     }
                 } else {
-                    // 今天还没练：只列「当天计划」，没有排期也没有休息标记时补一句空态。
-                    SectionTitle(text = stringResource(R.string.calendar_day_plan))
-                    if (day.isRestDay) {
-                        RestDayRow(onRemove = { onRemoveRest(day.date) })
-                    }
-                    if (day.planned.isEmpty()) {
-                        if (!day.isRestDay) {
-                            Text(
-                                text = stringResource(R.string.calendar_day_empty),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else {
-                        day.planned.forEach { plan ->
-                            PlannedRoutineRow(
-                                plan = plan,
-                                onClick = { onOpenRoutine(plan.routineId) },
-                                onRemove = { onRemovePlan(plan.entryId) },
-                            )
-                        }
-                    }
+                    RestDayRow()
                 }
 
                 DayActionsRow(
@@ -548,14 +506,13 @@ private fun SectionTitle(text: String) {
     )
 }
 
-/** 编排出来的休息日：读出来一眼能认，也留一个撤销入口。 */
+/** 休息日：这一天既没有排期也没有训练记录，读出来一眼能认。 */
 @Composable
-private fun RestDayRow(onRemove: () -> Unit) {
+private fun RestDayRow() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // 整行一个底框（用主题里的休息色，和右下角「该天休息」按钮呼应），
-            // 右侧的取消按钮也一起包进来，三个条目的形状才统一。
+            // 整行一个底框（用主题里的休息色，和右下角「该天休息」按钮呼应）。
             .clip(MaterialTheme.shapes.extraSmall)
             .background(MaterialTheme.colorScheme.tertiaryContainer),
         verticalAlignment = Alignment.CenterVertically,
@@ -564,21 +521,12 @@ private fun RestDayRow(onRemove: () -> Unit) {
             text = stringResource(R.string.calendar_rest_day),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
-            modifier = Modifier
-                .weight(1f)
-                .padding(
-                    start = MaterialTheme.padding.small,
-                    top = MaterialTheme.padding.extraSmall,
-                    bottom = MaterialTheme.padding.extraSmall,
-                ),
+            modifier = Modifier.padding(
+                start = MaterialTheme.padding.small,
+                top = MaterialTheme.padding.extraSmall,
+                bottom = MaterialTheme.padding.extraSmall,
+            ),
         )
-        IconButton(onClick = onRemove) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.calendar_remove_rest),
-                tint = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-        }
     }
 }
 
@@ -713,10 +661,11 @@ private fun PlannedRoutineRow(
 }
 
 /**
- * 明细面板右下角的两个快捷操作：给这一天排一个计划，或把这一天标成休息日。
- * 两者互斥——加计划会撤掉休息标记，标休息会撤掉这一天的排期。
+ * 明细面板右下角的两个快捷操作：给这一天排一个计划，或把这一天改成休息日。
+ * 两者互斥——加计划会让这一天成为训练日，标休息会撤掉这一天的排期。
  *
- * 「添加计划」只在既没有排期、也没有实际训练的空白天可用（一天只能有一个训练计划）。
+ * 「添加计划」只在既没有排期、也没有实际训练的空白天可用（一天只能有一个训练计划）；
+ * 「该天休息」只在今天及以后、这天排了计划且还没练过时可用（撤掉排期即可）。
  */
 @Composable
 private fun DayActionsRow(
@@ -733,6 +682,9 @@ private fun DayActionsRow(
     } else {
         day.planned.isEmpty() && day.actualSessions.isEmpty()
     }
+    // 休息日是被推导出来的：这一天没有排期（或已经练过）时本来就不是训练日，
+    // 「该天休息」只在今天及以后排了计划、且还没开练时才有意义（撤掉排期它就变成休息日）。
+    val canMarkRest = !day.isPast && day.planned.isNotEmpty() && day.actualSessions.isEmpty()
     var showPicker by remember { mutableStateOf(false) }
 
     Row(
@@ -757,8 +709,8 @@ private fun DayActionsRow(
         }
         Button(
             onClick = onMarkRest,
-            // 已经是休息日就不再重复标；要取消休息，用上面「休息」条目上的 ×。
-            enabled = !day.isRestDay,
+            // 已经休息的日子不再给这个入口；要变成训练日，用「添加计划」排一个。
+            enabled = canMarkRest,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer,

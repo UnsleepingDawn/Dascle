@@ -72,7 +72,6 @@ import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
-import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.util.Tab
 import com.fitplan.ui.plan.routine.targetText
 import com.fitplan.ui.workout.WorkoutLogScreen
@@ -222,7 +221,9 @@ object TodayTab : Tab {
                     }
                 }
 
-                routines.isNotEmpty() || standaloneUnfinished != null || finishedSession != null -> {
+                // 既没有休息、其余情况都按计划卡片渲染（今天没排期但有训练记录时会走这里的
+                // 「未完成的训练」或「还想练？」卡片）。
+                else -> {
                     LazyColumn(
                         contentPadding = contentPadding,
                         verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
@@ -292,13 +293,6 @@ object TodayTab : Tab {
                         }
                     }
                 }
-
-                loaded -> EmptyScreen(
-                    message = stringResource(R.string.today_empty),
-                    modifier = Modifier.padding(contentPadding),
-                )
-
-                else -> Unit
             }
         }
 

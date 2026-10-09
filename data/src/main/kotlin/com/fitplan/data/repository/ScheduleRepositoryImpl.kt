@@ -2,11 +2,9 @@ package com.fitplan.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
 import app.cash.sqldelight.async.coroutines.awaitAsOne
-import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
-import com.fitplan.data.mapper.toLocalDate
 import com.fitplan.domain.model.ScheduleEntry
 import com.fitplan.domain.repository.ScheduleRepository
 import dev.zacsweers.metro.AppScope
@@ -23,7 +21,6 @@ class ScheduleRepositoryImpl(
 ) : ScheduleRepository {
 
     private val queries get() = database.scheduleEntryQueries
-    private val restQueries get() = database.restDayQueries
     private val utilQueries get() = database.utilQueries
 
     override suspend fun getAll(): List<ScheduleEntry> = queries.selectAll().awaitAsList().map { it.toDomain() }
@@ -43,48 +40,20 @@ class ScheduleRepositoryImpl(
             utilQueries.lastInsertRowId().awaitAsOne()
         }
 
-    override suspend fun getRestDaysBetween(start: LocalDate, endExclusive: LocalDate): List<LocalDate> =
-        restQueries.selectBetween(
-            date = start.toDbValue(),
-            date_ = endExclusive.toDbValue(),
-        ).awaitAsList().map { it.toLocalDate() }
-
-    override suspend fun setRestDay(date: LocalDate) {
-        database.transactionWithResult {
-            // 一天不是训练日就是休息日：标休息的同时把这一天的排期撤掉。
-            queries.deleteOnceOnDate(specific_date = date.toDbValue())
-            restQueries.insert(date = date.toDbValue())
-        }
-    }
-
-    override suspend fun deleteRestDay(date: LocalDate) {
-        restQueries.deleteByDate(date = date.toDbValue())
-    }
-
-    override suspend fun addRestDay(date: LocalDate) {
-        // 只补标记：这里的 insert 是 INSERT OR IGNORE，已标过时也不会出错（用不上 setRestDay 的删排期）。
-        restQueries.insert(date = date.toDbValue())
-    }
-
     override suspend fun applyComposePlan(
         start: LocalDate,
         endExclusive: LocalDate,
         routineDates: Map<LocalDate, Long>,
-        restDates: Set<LocalDate>,
     ) {
         database.transactionWithResult {
+            // 先清掉这一段原有的排期，再按编排写入；没写到的日子自然成为休息日。
             queries.deleteOnceBetween(
                 specific_date = start.toDbValue(),
                 specific_date_ = endExclusive.toDbValue(),
             )
-            restQueries.deleteBetween(
-                date = start.toDbValue(),
-                date_ = endExclusive.toDbValue(),
-            )
             routineDates.forEach { (date, routineId) ->
                 queries.insertOnceIgnore(routine_id = routineId, specific_date = date.toDbValue())
             }
-            restDates.forEach { restQueries.insert(date = it.toDbValue()) }
         }
     }
 
@@ -125,23 +94,7 @@ class ScheduleRepositoryImpl(
                 )
             }
 
-            // 3. 休息日跟着排期一起后移，今天的休息日才不会和搬过来的训练撞在同一天。
-            val upcomingRest = restQueries.selectFrom(date = today.toDbValue()).awaitAsList()
-            restQueries.deleteFrom(date = today.toDbValue())
-            upcomingRest.forEach { day ->
-                restQueries.insert(date = day + offset)
-            }
-
-            // 4. 漏掉区间里本来标着休息的日子也在后面补一份，保持原来的练/休节奏；
-            //    原位置留着不动——那几天当初确实休息了。
-            restQueries.selectBetween(
-                date = from.toDbValue(),
-                date_ = today.toDbValue(),
-            ).awaitAsList().forEach { day ->
-                restQueries.insert(date = day + offset)
-            }
-
-            // 5. 漏掉的计划落到 date + offset 上，正好填满 [今天, 今天 + offset)。
+            // 3. 漏掉的计划落到 date + offset 上，正好填满 [今天, 今天 + offset)。
             missedRoutines.forEach { (date, routineIds) ->
                 routineIds.forEach { routineId ->
                     queries.insertOnceWithEnabled(
@@ -159,14 +112,12 @@ class ScheduleRepositoryImpl(
         if (offset <= 0) return
 
         database.transactionWithResult {
-            // 1. 先把「from 及以后」的排期与休息日读出来，enabled 原样保留。
+            // 1. 先把「from 及以后」的排期读出来，enabled 原样保留。
             val upcoming = queries.selectOnceFrom(specific_date = from.toDbValue()).awaitAsList()
-            val upcomingRest = restQueries.selectFrom(date = from.toDbValue()).awaitAsList()
 
-            // 2. 从今天起整段清掉：今天的休息日、今天到 from 之间的空档与休息日都不再保留，
-            //    腾出来的位置正好由搬过来的安排补上。
+            // 2. 从今天起整段清掉，腾出来的位置正好由搬过来的安排补上；
+            //    没被补上的日子成了空档，也就是休息日。
             queries.deleteOnceFrom(specific_date = start.toDbValue())
-            restQueries.deleteFrom(date = start.toDbValue())
 
             // 3. 整体前移 offset 天：from 那天的安排落到今天，练 / 休节奏连续衔接。
             upcoming.forEach { entry ->
@@ -175,9 +126,6 @@ class ScheduleRepositoryImpl(
                     specific_date = requireNotNull(entry.specific_date) - offset,
                     enabled = entry.enabled,
                 )
-            }
-            upcomingRest.forEach { day ->
-                restQueries.insert(date = day - offset)
             }
         }
     }
@@ -190,12 +138,10 @@ class ScheduleRepositoryImpl(
         }
     }
 
-    override suspend fun getNextRestDay(after: LocalDate): LocalDate? =
-        restQueries.selectNextFrom(date = after.toDbValue()).awaitAsOneOrNull()?.toLocalDate()
-
     override suspend fun postponeAllFrom(date: LocalDate) {
         database.transactionWithResult {
-            // 1. 「今天及以后」的排期整体后移一天，enabled 原样保留。
+            // 「今天及以后」的排期整体后移一天，enabled 原样保留；
+            // 今天腾空后自然成了休息日。
             val upcoming = queries.selectOnceFrom(specific_date = date.toDbValue()).awaitAsList()
             queries.deleteOnceFrom(specific_date = date.toDbValue())
             upcoming.forEach { entry ->
@@ -205,16 +151,6 @@ class ScheduleRepositoryImpl(
                     enabled = entry.enabled,
                 )
             }
-
-            // 2. 休息日跟着一起后移，练 / 休节奏原样保留。
-            val upcomingRest = restQueries.selectFrom(date = date.toDbValue()).awaitAsList()
-            restQueries.deleteFrom(date = date.toDbValue())
-            upcomingRest.forEach { day ->
-                restQueries.insert(date = day + 1)
-            }
-
-            // 3. 今天改成休息日：原来的排期都挪到明天了，这一步不会和搬过来的训练撞上。
-            restQueries.insert(date = date.toDbValue())
         }
     }
 
@@ -222,7 +158,8 @@ class ScheduleRepositoryImpl(
         val start = date.toDbValue()
         val end = restDay.toDbValue()
         database.transactionWithResult {
-            // 1. 只把 [今天, 休息日) 的排期后移一天，之后的安排原地不动。
+            // 只把 [今天, 休息日) 的排期后移一天：这一天让给它前面那天的训练，之后整体衔接；
+            // 今天空出来自然成了休息日，[休息日) 被搬过来的训练占用后也不再是休息日。
             val upcoming = queries.selectOnceBetween(
                 specific_date = start,
                 specific_date_ = end,
@@ -235,10 +172,6 @@ class ScheduleRepositoryImpl(
                     enabled = entry.enabled,
                 )
             }
-
-            // 2. 休息日让位给搬过来的训练：撤掉它的休息标记，今天改成新的休息日。
-            restQueries.deleteByDate(date = end)
-            restQueries.insert(date = start)
         }
     }
 }

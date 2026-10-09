@@ -26,7 +26,6 @@
     <!-- 今日 -->
     <string name="today_title">今日训练</string>
     <string name="today_date">%1$d 月 %2$d 日 · %3$s</string>
-    <string name="today_empty">今天没有训练安排\n去「计划」页给训练计划排个日程吧</string>
     <string name="today_exercise_count">%1$d 个动作</string>
     <string name="today_exercise_trained">已练</string>
     <string name="today_extra_tag">临时</string>
@@ -180,17 +179,14 @@
     <string name="calendar_next_month">下个月</string>
     <string name="calendar_back_to_month">本月</string>
     <string name="calendar_day_actual">实际训练</string>
-    <string name="calendar_day_no_actual">这一天没有进行训练</string>
     <string name="calendar_completed_sets">完成 %1$d 组</string>
     <string name="calendar_day_plan">当天计划</string>
-    <string name="calendar_day_empty">这一天还没有安排训练计划</string>
     <string name="calendar_add_plan">添加计划</string>
     <string name="calendar_pick_routine">选择要排入的计划</string>
     <string name="calendar_no_routine_left">所有计划都已排入这一天</string>
     <string name="calendar_remove_plan">移除排期</string>
     <string name="calendar_rest_day">休息</string>
     <string name="calendar_mark_rest">该天休息</string>
-    <string name="calendar_remove_rest">取消休息日</string>
     <string name="calendar_exercise_count">%1$d 个动作</string>
     <string name="calendar_edit_session">编辑这次训练</string>
     <string name="calendar_delete_session">删除这次训练</string>

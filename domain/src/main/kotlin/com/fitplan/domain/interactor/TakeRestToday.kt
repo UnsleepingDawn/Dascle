@@ -18,12 +18,15 @@ enum class RestTodayMode {
 /**
  * 今日休息：把今天改成休息日，并按 [mode] 顺延之后的排期。
  *
+ * 休息日不单独落库——把今天的排期挪走之后，今天自然就没有安排、成为休息日。
+ *
  * 「顺延直到占用下一个休息日」没有更晚的休息日可占用时什么都不做——界面本来就把这个选项
  * 置灰了，这里只是兜底，免得它悄悄退化成「顺延之后每一天」。
  */
 @Inject
 class TakeRestToday(
     private val scheduleRepository: ScheduleRepository,
+    private val getNextRestDay: GetNextRestDay,
 ) {
 
     suspend operator fun invoke(mode: RestTodayMode) {
@@ -31,7 +34,7 @@ class TakeRestToday(
         when (mode) {
             RestTodayMode.POSTPONE_ALL -> scheduleRepository.postponeAllFrom(today)
             RestTodayMode.POSTPONE_UNTIL_REST_DAY -> {
-                val restDay = scheduleRepository.getNextRestDay(today) ?: return
+                val restDay = getNextRestDay(today) ?: return
                 scheduleRepository.postponeUntilRestDay(today, restDay)
             }
         }

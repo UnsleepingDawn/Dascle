@@ -23,27 +23,9 @@ interface ScheduleRepository {
 
     suspend fun deleteByRoutineId(routineId: Long)
 
-    suspend fun getRestDaysBetween(start: LocalDate, endExclusive: LocalDate): List<LocalDate>
-
     /**
-     * 把 [date] 标成休息日，并撤掉这一天原有的排期——
-     * 一天不是训练日就是休息日，两者不会同时存在。
-     */
-    suspend fun setRestDay(date: LocalDate)
-
-    suspend fun deleteRestDay(date: LocalDate)
-
-    /**
-     * 只补一条休息日标记、不动这一天的排期。
-     *
-     * 与 [setRestDay] 的区别：那个是「把某天改成休息日」（会撤掉这一天的排期），这个只用于把标记
-     * 还原回去——放弃一次临时训练时若用 [setRestDay]，会把用户中途给今天排的计划一起抹掉。
-     */
-    suspend fun addRestDay(date: LocalDate)
-
-    /**
-     * 把编排批量铺到日历上：先清掉 `[start, endExclusive)` 内已有的排期与休息日，
-     * 再按 [routineDates] / [restDates] 把这些天写成训练日或休息日。
+     * 把编排批量铺到日历上：先清掉 `[start, endExclusive)` 内已有的排期，
+     * 再按 [routineDates] 把这些天写成训练日；没写到的日子就是休息日。
      *
      * 整批放在一个事务里——中途出错或被打断时回滚，不会留下铺了一半的日历。
      */
@@ -51,12 +33,11 @@ interface ScheduleRepository {
         start: LocalDate,
         endExclusive: LocalDate,
         routineDates: Map<LocalDate, Long>,
-        restDates: Set<LocalDate>,
     )
 
     /**
      * 顺延漏练：`[from, today)` 里 [missedRoutines] 这些天的排期清掉后写到 `date + offset` 上
-     * （`offset = today - from`），同时把「[today] 及以后」的排期与休息日整体后移 `offset` 天。
+     * （`offset = today - from`），同时把「[today] 及以后」的排期整体后移 `offset` 天。
      *
      * 结果为：漏掉的计划正好落在 `[today, today + offset)`，今天的原安排推到 `today + offset`。
      * 整批放在一个事务里，中途出错不会留下挪了一半的日历。
@@ -68,30 +49,26 @@ interface ScheduleRepository {
     )
 
     /**
-     * 整体提前：把 [from] 及以后的排期与休息日往前搬 `from - start` 天，
-     * 并清掉 `[start, from)` 这一段原本的内容（含休息日）。
+     * 整体提前：把 [from] 及以后的排期往前搬 `from - start` 天，并清掉 `[start, from)`
+     * 这一段原本的内容；搬完留下的空档就是休息日。
      *
      * 结果是 [from] 那天的安排落到 [start]（今天），它原本的位置正好留给明天，练 / 休节奏连续衔接。
      * 整批放在一个事务里，中途出错不会留下挪了一半的日历。
      */
     suspend fun advanceScheduleTo(start: LocalDate, from: LocalDate)
 
-    /** 跳过漏练：清掉 [dates] 这些天的排期；休息日与今天的安排都不动。 */
+    /** 清掉 [dates] 这些天的排期（这些天随即变成休息日）。 */
     suspend fun deletePlansOn(dates: Collection<LocalDate>)
 
-    /** [after] 之后最近的一个休息日；之后不再休息则为 null。 */
-    suspend fun getNextRestDay(after: LocalDate): LocalDate?
-
     /**
-     * 今日休息：把 [date] 及以后的排期与休息日整体后移一天，并把 [date] 标成休息日，
-     * 之后每一天都顺延一格。整批放在一个事务里。
+     * 今日休息：把 [date] 及以后的排期整体后移一天，之后每一天都顺延一格；
+     * [date] 腾空后自然成为休息日。整批放在一个事务里。
      */
     suspend fun postponeAllFrom(date: LocalDate)
 
     /**
      * 今日休息：只把 `[date, restDay)` 内的排期后移一天，让 [restDay] 被训练占用，
-     * [restDay] 之后的排期不动；[date] 标成休息日，[restDay] 原有的休息标记撤掉。
-     * 整批放在一个事务里。
+     * [restDay] 之后的排期不动；[date] 腾空后成为休息日。整批放在一个事务里。
      */
     suspend fun postponeUntilRestDay(date: LocalDate, restDay: LocalDate)
 }

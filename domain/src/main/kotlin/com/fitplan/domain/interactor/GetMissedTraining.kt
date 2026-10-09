@@ -41,7 +41,7 @@ data class MissedTraining(
  * 检查「最近一次训练之后」有没有安排了训练却没练的日子。
  *
  * 某天要同时满足这几条才算漏练：在扫描区间内、当天没有任何训练记录（不看训练有没有结束）、
- * 不是休息日、当天有启用的排期。
+ * 当天有启用的排期（没有排期的日子就是休息日，本就不算漏练）。
  *
  * [handledUntil] 是用户上次处理到哪一天（null 表示从未处理过），它之前的日子不再检查。
  * 完全没有训练记录时返回 null——全新安装不该被问「这段时间怎么没练」。
@@ -73,7 +73,6 @@ class GetMissedTraining(
         val plansByDate = scheduleRepository.getAll()
             .filter { it.enabled && it.specificDate != null }
             .groupBy { it.specificDate }
-        val restDays = scheduleRepository.getRestDaysBetween(from, today).toSet()
         val trainedDates = workoutRepository
             .getSessionsBetween(from.atStartOfDayIn(zone), today.atStartOfDayIn(zone))
             .map { it.startedAt.toLocalDateTime(zone).date }
@@ -82,7 +81,7 @@ class GetMissedTraining(
         val days = generateSequence(from) { it.plus(1, DateTimeUnit.DAY) }
             .takeWhile { it < today }
             .mapNotNull { date ->
-                if (date in trainedDates || date in restDays) return@mapNotNull null
+                if (date in trainedDates) return@mapNotNull null
                 val routineIds = plansByDate[date].orEmpty().map { it.routineId }.distinct()
                 if (routineIds.isEmpty()) return@mapNotNull null
                 MissedTrainingDay(date = date, routineIds = routineIds)

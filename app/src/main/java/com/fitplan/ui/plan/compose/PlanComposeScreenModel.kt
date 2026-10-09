@@ -109,8 +109,8 @@ class PlanComposeScreenModel(
     }
 
     /**
-     * 把编排按天铺到日历上：`[startDate, startDate + days)` 内先清掉已有的排期与休息日，
-     * 再按 [ComposeSlot] 循环逐天写入。整批由数据层放在一个事务里。
+     * 把编排按天铺到日历上：`[startDate, startDate + days)` 内先清掉已有的排期，再按 [ComposeSlot]
+     * 循环逐天写入（休息格不写排期，那天自然就是休息日）。整批由数据层放在一个事务里。
      *
      * 是挂起函数：调用方要等它写完再离开编排页，否则 ViewModel 被清理会打断写库。
      */
@@ -120,14 +120,11 @@ class PlanComposeScreenModel(
         if (days <= 0) return
 
         val routineDates = mutableMapOf<LocalDate, Long>()
-        val restDates = mutableSetOf<LocalDate>()
         var date = startDate
         repeat(days) { index ->
             val slot = cycle[index % cycle.size]
-            when {
-                slot.isRest -> restDates += date
-                slot.routineId != null -> routineDates[date] = slot.routineId
-            }
+            // 休息格不写任何排期：没被写到的日子自然就是休息日。
+            slot.routineId?.let { routineDates[date] = it }
             date = date.plus(1, DateTimeUnit.DAY)
         }
 
@@ -135,7 +132,6 @@ class PlanComposeScreenModel(
             start = startDate,
             endExclusive = startDate.plus(days, DateTimeUnit.DAY),
             routineDates = routineDates,
-            restDates = restDates,
         )
         widgetManager.updateTodayWidget()
     }

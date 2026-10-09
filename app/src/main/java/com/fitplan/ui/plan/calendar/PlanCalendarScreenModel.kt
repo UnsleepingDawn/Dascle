@@ -87,7 +87,6 @@ class PlanCalendarScreenModel(
 
     /**
      * 把计划加到 [date] 这一天：今天及以后写排期；已经过去的日子没法再「排」，直接补记成实际训练。
-     * 无论哪种，这一天原本若标着休息，都把休息标记撤掉。
      *
      * 排期一天只有一条，写排期时会替换掉这一天原有的计划（界面上只在空白日子给「添加计划」入口）。
      */
@@ -98,16 +97,15 @@ class PlanCalendarScreenModel(
             } else {
                 scheduleRepository.replacePlanOn(routineId, date)
             }
-            scheduleRepository.deleteRestDay(date)
             refresh()
             widgetManager.updateTodayWidget()
         }
     }
 
-    /** 把 [date] 标成休息日；这一天原有的排期一并撤掉（一天不是训练日就是休息日）。 */
+    /** 把 [date] 改成休息日：撤掉这一天原有的排期，这天随即没有安排、成为休息日。 */
     fun markRestDay(date: LocalDate) {
         viewModelScope.launch {
-            scheduleRepository.setRestDay(date)
+            scheduleRepository.deletePlansOn(listOf(date))
             refresh()
             widgetManager.updateTodayWidget()
         }
@@ -116,15 +114,6 @@ class PlanCalendarScreenModel(
     fun removePlan(entryId: Long) {
         viewModelScope.launch {
             scheduleRepository.deleteById(entryId)
-            refresh()
-            widgetManager.updateTodayWidget()
-        }
-    }
-
-    /** 取消某天的休息日标记。 */
-    fun removeRestDay(date: LocalDate) {
-        viewModelScope.launch {
-            scheduleRepository.deleteRestDay(date)
             refresh()
             widgetManager.updateTodayWidget()
         }

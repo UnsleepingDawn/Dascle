@@ -151,8 +151,6 @@ class WorkoutLogCardioTest {
         hintRepository = mockk(),
         lowReminderRepository = mockk(),
         updateProgress = mockk(),
-        clearRestDay = mockk(),
-        restoreRestDay = mockk(),
         widgetManager = mockk(),
         restNotifier = mockk(),
         dataRevision = mockk(),

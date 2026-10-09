@@ -40,10 +40,11 @@ data class CalendarSession(
  * [muscleGroups] 是格子里显示的肌群：过去的日子只看实际练到的肌群，今天及以后优先取排期计划里的肌群，
  * 今天已经开练却没有排期时（休息日的「临时方案」）退回实际练到的肌群；
  * [isTrainingDay] 表示这一天算不算训练日：过去看有没有训练记录，今天及以后看有没有排期或者已经开练。
- * [isRestDay] 表示这一天被编排成了休息日。
+ * [isRestDay] 是它的反面——一天非训练即休息，没有第三种状态。
  *
  * 过去的日子里遗留的排期（当时排了却没练）不参与上面两项——过去没法再规划，明细里也不显示
- * 「当天计划」，这种日子在格子里保持空白，免得出现「有肌群却没有任何训练」的格子。
+ * 「当天计划」。这种日子没有实际训练，也就按休息日呈现（格子里不给肌群标签），
+ * 免得出现「有肌群却没有任何训练」的格子。
  * 这些排期仍留在库里，因为它们正是漏练检查（`GetMissedTraining`）的判断依据。
  */
 data class CalendarDay(
@@ -53,7 +54,6 @@ data class CalendarDay(
     val planned: List<CalendarPlan>,
     val actualSessions: List<CalendarSession>,
     val muscleGroups: List<MuscleGroup>,
-    val isRestDay: Boolean = false,
 ) {
     val isTrainingDay: Boolean
         get() = if (isPast) {
@@ -61,6 +61,9 @@ data class CalendarDay(
         } else {
             planned.isNotEmpty() || actualSessions.isNotEmpty()
         }
+
+    /** 没有排期也没有训练记录的一天就是休息日；一天不是训练日就是休息日。 */
+    val isRestDay: Boolean get() = !isTrainingDay
 }
 
 /**
@@ -93,7 +96,6 @@ class GetMonthCalendar(
 
         val entries = scheduleRepository.getAll().filter { it.enabled }
         val onceByDate = entries.filter { it.specificDate != null }.groupBy { it.specificDate }
-        val restDays = scheduleRepository.getRestDaysBetween(firstDay, nextMonth).toSet()
 
         val routines = routineRepository.getAll().associateBy { it.id }
         val exercisesByRoutine = mutableMapOf<Long, List<RoutineExercise>>()
@@ -170,7 +172,6 @@ class GetMonthCalendar(
                 planned = planned,
                 actualSessions = actualSessions,
                 muscleGroups = muscleGroups,
-                isRestDay = date in restDays,
             )
         }
     }
