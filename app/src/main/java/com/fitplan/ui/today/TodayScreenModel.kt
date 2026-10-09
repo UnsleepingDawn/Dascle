@@ -18,6 +18,8 @@ import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.model.pickedExerciseIds
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.WorkoutRepository
+import com.fitplan.reminder.RestState
+import com.fitplan.reminder.RestTimer
 import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -91,6 +93,7 @@ class TodayScreenModel(
     private val exerciseRepository: ExerciseRepository,
     private val widgetManager: WidgetManager,
     private val dataRevision: DataRevision,
+    private val restTimer: RestTimer,
 ) : ViewModel() {
 
     init {
@@ -162,6 +165,15 @@ class TodayScreenModel(
     /** 改完排期后要直接开练的计划 id；界面消费完调 [consumeStartRequest] 清掉，避免返回时又跳一次。 */
     private val _startRoutineRequest = MutableStateFlow<Long?>(null)
     val startRoutineRequest: StateFlow<Long?> = _startRoutineRequest.asStateFlow()
+
+    /**
+     * 组间休息倒计时；非空表示正在休息。由 app 级的 [RestTimer] 共享，
+     * 所以从记录页退出来、切到别的 Tab 之后也照常走，今日页跟着显示进度。
+     */
+    val rest: StateFlow<RestState?> = restTimer.rest
+
+    /** 每自增一次表示休息刚刚结束，界面据此让闹钟摇摆提醒。 */
+    val restFinishedTick: StateFlow<Int> = restTimer.finishedTick
 
     fun refresh() {
         viewModelScope.launch {

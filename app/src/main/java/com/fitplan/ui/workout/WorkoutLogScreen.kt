@@ -1,10 +1,5 @@
 package com.fitplan.ui.workout
 
-import android.content.Context
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -77,7 +71,6 @@ class WorkoutLogScreen(
         val items by screenModel.items.collectAsState()
         val rest by screenModel.rest.collectAsState()
         val summary by screenModel.summary.collectAsState()
-        val restFinishedTick by screenModel.restFinishedTick.collectAsState()
         val exitTick by screenModel.exitTick.collectAsState()
         val allExercises by screenModel.allExercises.collectAsState()
         val progressHint by screenModel.progressHint.collectAsState()
@@ -113,10 +106,6 @@ class WorkoutLogScreen(
             }
         }
 
-        val vibrateOnce = rememberVibrateOnce()
-        LaunchedEffect(restFinishedTick) {
-            if (restFinishedTick > 0) vibrateOnce()
-        }
         LaunchedEffect(exitTick) {
             if (exitTick > 0) navigator.pop()
         }
@@ -498,25 +487,3 @@ private fun ActionBar(content: @Composable () -> Unit) {
         }
     }
 }
-
-/** 休息倒计时归零时震动一下，提醒可以开始下一组。 */
-@Composable
-private fun rememberVibrateOnce(): () -> Unit {
-    val context = LocalContext.current
-    return remember(context) {
-        val vibrate: () -> Unit = { context.vibrateShort() }
-        vibrate
-    }
-}
-
-private fun Context.vibrateShort() {
-    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        getSystemService(VibratorManager::class.java)?.defaultVibrator
-    } else {
-        @Suppress("DEPRECATION")
-        getSystemService(Vibrator::class.java)
-    }
-    vibrator?.vibrate(VibrationEffect.createOneShot(VIBRATION_MILLIS, VibrationEffect.DEFAULT_AMPLITUDE))
-}
-
-private const val VIBRATION_MILLIS = 400L

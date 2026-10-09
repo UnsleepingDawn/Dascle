@@ -3,14 +3,19 @@ package com.fitplan.ui.today
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SelfImprovement
@@ -34,6 +40,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -55,7 +62,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -73,6 +82,7 @@ import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.util.Tab
+import com.fitplan.reminder.RestState
 import com.fitplan.ui.plan.routine.targetText
 import com.fitplan.ui.workout.WorkoutLogScreen
 import com.fitplan.ui.workout.toClockText
@@ -104,6 +114,8 @@ object TodayTab : Tab {
         val upcomingPlan by screenModel.upcomingPlan.collectAsState()
         val nextRestDay by screenModel.nextRestDay.collectAsState()
         val startRoutineRequest by screenModel.startRoutineRequest.collectAsState()
+        val rest by screenModel.rest.collectAsState()
+        val restFinishedTick by screenModel.restFinishedTick.collectAsState()
 
         // 训练卡片右上角「今日休息」的选择框是否展开。
         var showRestDialog by remember { mutableStateOf(false) }
@@ -250,6 +262,10 @@ object TodayTab : Tab {
                                 // 今天这次训练就是照着这张计划练的：标出各动作练到哪了。
                                 progress = todaySessionProgress
                                     ?.takeIf { it.routineId == scheduled.routine.id },
+                                // 组间休息只挂在正在训练的那张计划卡片上；找不到对应卡片的
+                                // 计划外训练不显示（那张卡片本来也不是计划卡片）。
+                                rest = rest.takeIf { todaySessionProgress?.routineId == scheduled.routine.id },
+                                restFinishedTick = restFinishedTick,
                                 onClick = {
                                     if (resumable != null) {
                                         navigator.push(WorkoutLogScreen(sessionId = resumable.id))
@@ -319,6 +335,8 @@ private fun ScheduledRoutineCard(
     restEnabled: Boolean,
     onRestToday: () -> Unit,
     progress: TodaySessionProgress?,
+    rest: RestState?,
+    restFinishedTick: Int,
     onClick: () -> Unit,
 ) {
     ElevatedCard(
@@ -333,42 +351,27 @@ private fun ScheduledRoutineCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
         ) {
-            // 方案名占满整行，右上角留给「今日休息」；名字太长时只挤自己，不把按钮顶出卡片。
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = scheduled.routine.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                if (restEnabled) {
-                    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比方案名高出一截；
-                    // 这里把两者一起收到 36dp，与计划卡片上的紧凑操作按钮同规格。
-                    CompositionLocalProvider(
-                        LocalMinimumInteractiveComponentSize provides TODAY_REST_BUTTON_HEIGHT,
-                    ) {
-                        FilledTonalButton(
-                            onClick = onRestToday,
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = RestTodayColor,
-                                contentColor = Color.White,
-                            ),
-                            contentPadding = PaddingValues(
-                                horizontal = MaterialTheme.padding.small,
-                                vertical = MaterialTheme.padding.extraSmall,
-                            ),
-                            modifier = Modifier.heightIn(min = TODAY_REST_BUTTON_HEIGHT),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.today_rest_button),
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                }
-            }
+            // 方案名占满整行，右侧留给「今日休息」或休息中的「进度条 + 闹钟」；
+            // 名字太长时只挤自己，不把右端顶出卡片。
+            CardTitleRow(
+                reserveTrailing = restEnabled || rest != null,
+                title = {
+                    Text(
+                        text = scheduled.routine.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                trailing = {
+                    RestSlot(
+                        rest = rest,
+                        finishedTick = restFinishedTick,
+                        restEnabled = restEnabled,
+                        onRestToday = onRestToday,
+                    )
+                },
+            )
             if (scheduled.routine.note.isNotBlank()) {
                 Text(
                     text = scheduled.routine.note,
@@ -412,6 +415,164 @@ private fun ScheduledRoutineCard(
                     ),
                 )
             }
+        }
+    }
+}
+
+/**
+ * 计划卡片标题行：左边方案名，右边一块**贴右边缘**的区域（休息中的「进度条 + 闹钟」或「今日休息」按钮）。
+ *
+ * 不能直接用 `Row` + 两个 `weight(1f)`：标题用不完的那一半不会自动让给右端，右端只拿到自己那半，
+ * 进度条与闹钟就停在行中间、到不了右边。这里先量标题的自然宽度（最多占「整行减去右端最小宽度」），
+ * 右端再占满剩下的整段宽度，于是闹钟始终顶格、进度条正好铺在标题与闹钟之间。
+ *
+ * [reserveTrailing] 为 false（没有右端内容）时只铺标题，不白白留出右端那截。
+ */
+@Composable
+private fun CardTitleRow(
+    reserveTrailing: Boolean,
+    title: @Composable () -> Unit,
+    trailing: @Composable () -> Unit,
+) {
+    if (!reserveTrailing) {
+        Box(modifier = Modifier.fillMaxWidth()) { title() }
+        return
+    }
+    Layout(
+        content = {
+            Box { title() }
+            trailing()
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) { measurables, constraints ->
+        val maxWidth = constraints.maxWidth
+        val titleMax = (maxWidth - CARD_TRAILING_MIN_WIDTH.roundToPx()).coerceAtLeast(0)
+        val titlePlaceable = measurables[0].measure(constraints.copy(minWidth = 0, maxWidth = titleMax))
+        val trailingWidth = (maxWidth - titlePlaceable.width).coerceAtLeast(0)
+        val trailingPlaceable = measurables[1].measure(
+            constraints.copy(minWidth = trailingWidth, maxWidth = trailingWidth),
+        )
+        val height = maxOf(titlePlaceable.height, trailingPlaceable.height)
+        layout(maxWidth, height) {
+            titlePlaceable.placeRelative(0, (height - titlePlaceable.height) / 2)
+            trailingPlaceable.placeRelative(titlePlaceable.width, (height - trailingPlaceable.height) / 2)
+        }
+    }
+}
+
+/**
+ * 计划卡片标题行右端的那块区域：休息中显示「进度条 + 闹钟」，否则给「今日休息」按钮。
+ *
+ * [rest] 由 app 级的休息计时器共享，所以从训练记录页退出来之后这里仍能看到倒计时在走。
+ * 归零后计时器还会保留约两秒「休息结束」的状态，期间闹钟摇摆；等状态真的清空，
+ * [AnimatedVisibility] 的退场把整块缩小淡化收掉，收干净了（[MutableTransitionState.isIdle]）
+ * 「今日休息」才重新出现，免得两者叠在一起。
+ */
+@Composable
+private fun RestSlot(
+    rest: RestState?,
+    finishedTick: Int,
+    restEnabled: Boolean,
+    onRestToday: () -> Unit,
+) {
+    val visibleState = remember { MutableTransitionState(false) }
+    visibleState.targetState = rest != null
+
+    // 退场期间 rest 已经变成 null，但内容还要继续按最后一个非空值渲染，所以缓存下来。
+    var lastRest by remember { mutableStateOf(rest) }
+    if (rest != null) lastRest = rest
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        AnimatedVisibility(
+            visibleState = visibleState,
+            enter = fadeIn(tween(REST_INDICATOR_ENTER_MILLIS)),
+            exit = fadeOut(tween(REST_INDICATOR_EXIT_MILLIS)) +
+                scaleOut(tween(REST_INDICATOR_EXIT_MILLIS), targetScale = REST_INDICATOR_EXIT_SCALE),
+        ) {
+            lastRest?.let { RestIndicator(rest = it, finishedTick = finishedTick) }
+        }
+        if (restEnabled && rest == null && visibleState.isIdle) {
+            RestTodayButton(onRestToday)
+        }
+    }
+}
+
+/**
+ * 休息指示：一段从满到空的进度条，右端一颗闹钟。进度条占满标题与闹钟之间的区域。
+ *
+ * 归零（[finishedTick] 自增）时闹钟左右摇摆约两秒提醒休息结束。
+ */
+@Composable
+private fun RestIndicator(
+    rest: RestState,
+    finishedTick: Int,
+) {
+    val angle = remember { Animatable(0f) }
+    // 记下进来时的归零计数：同一场休息反复组合时不要重放摇摆，只在计数真的变化时摇。
+    var seenTick by remember { mutableIntStateOf(finishedTick) }
+    LaunchedEffect(finishedTick) {
+        if (finishedTick == seenTick) return@LaunchedEffect
+        seenTick = finishedTick
+        angle.snapTo(0f)
+        repeat(REST_WOBBLE_SWINGS) { index ->
+            angle.animateTo(
+                targetValue = if (index % 2 == 0) REST_WOBBLE_ANGLE else -REST_WOBBLE_ANGLE,
+                animationSpec = tween(REST_WOBBLE_SWING_MILLIS, easing = LinearEasing),
+            )
+        }
+        angle.animateTo(0f, animationSpec = tween(REST_WOBBLE_SWING_MILLIS, easing = LinearEasing))
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LinearProgressIndicator(
+            progress = {
+                if (rest.totalSeconds <= 0) 0f else rest.remainingSeconds.toFloat() / rest.totalSeconds
+            },
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = MaterialTheme.padding.small),
+        )
+        Icon(
+            imageVector = Icons.Filled.Alarm,
+            contentDescription = stringResource(R.string.today_rest_counting),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(REST_ALARM_SIZE)
+                .graphicsLayer { rotationZ = angle.value },
+        )
+    }
+}
+
+/** 卡片标题行右端的「今日休息」按钮。 */
+@Composable
+private fun RestTodayButton(onClick: () -> Unit) {
+    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比方案名高出一截；
+    // 这里把两者一起收到 36dp，与计划卡片上的紧凑操作按钮同规格。
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides TODAY_REST_BUTTON_HEIGHT,
+    ) {
+        FilledTonalButton(
+            onClick = onClick,
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = RestTodayColor,
+                contentColor = Color.White,
+            ),
+            contentPadding = PaddingValues(
+                horizontal = MaterialTheme.padding.small,
+                vertical = MaterialTheme.padding.extraSmall,
+            ),
+            modifier = Modifier.heightIn(min = TODAY_REST_BUTTON_HEIGHT),
+        ) {
+            Text(
+                text = stringResource(R.string.today_rest_button),
+                maxLines = 1,
+            )
         }
     }
 }
@@ -937,3 +1098,27 @@ private val RestTodayColor = Color(0xFF2E7D32)
 
 /** 「今日休息」按钮的高度：容器与最小触控区一起收到这个值，比 M3 默认的 40dp / 48dp 矮一截。 */
 private val TODAY_REST_BUTTON_HEIGHT = 36.dp
+
+/** 休息指示淡入的时长（毫秒）。 */
+private const val REST_INDICATOR_ENTER_MILLIS = 200
+
+/** 休息指示缩小淡出（闹钟摇完）的时长（毫秒）。 */
+private const val REST_INDICATOR_EXIT_MILLIS = 300
+
+/** 休息指示退场时缩到多小：缩小并淡化消失。 */
+private const val REST_INDICATOR_EXIT_SCALE = 0.5f
+
+/** 闹钟摇摆的单侧摆幅（度）。 */
+private const val REST_WOBBLE_ANGLE = 14f
+
+/** 闹钟从一侧摆到另一侧的时长（毫秒）；与 [REST_WOBBLE_SWINGS] 配合约两秒。 */
+private const val REST_WOBBLE_SWING_MILLIS = 200
+
+/** 闹钟摇摆的次数；约两秒，正好接上休息结束状态的保留时间。 */
+private const val REST_WOBBLE_SWINGS = 9
+
+/** 卡片标题行里闹钟图标的尺寸。 */
+private val REST_ALARM_SIZE = 20.dp
+
+/** 标题行右端至少留出的宽度：约「闹钟 + 一小段进度条」，保证长方案名下闹钟与进度条仍在。 */
+private val CARD_TRAILING_MIN_WIDTH = 96.dp

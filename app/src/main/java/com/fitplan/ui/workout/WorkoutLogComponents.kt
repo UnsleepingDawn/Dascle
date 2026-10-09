@@ -66,6 +66,7 @@ import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.presentation.core.components.material.padding
+import com.fitplan.reminder.RestState
 import com.fitplan.ui.exercise.label
 import com.fitplan.ui.exercise.muscleLabels
 import kotlinx.datetime.TimeZone

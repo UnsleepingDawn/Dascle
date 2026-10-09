@@ -13,10 +13,13 @@ import com.fitplan.domain.model.WorkoutSet
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.WorkoutRepository
+import com.fitplan.reminder.RestTimer
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -32,6 +35,12 @@ class WorkoutLogCardioTest {
     private val workoutRepository = mockk<WorkoutRepository>()
     private val routineRepository = mockk<RoutineRepository>()
     private val exerciseRepository = mockk<ExerciseRepository>()
+
+    /** 休息计时是 app 级单例，模型构造时就会读它的两个状态流，这里给两个空流顶住。 */
+    private val restTimer = mockk<RestTimer> {
+        every { rest } returns MutableStateFlow(null)
+        every { finishedTick } returns MutableStateFlow(0)
+    }
 
     @BeforeEach
     fun setUp() {
@@ -152,7 +161,7 @@ class WorkoutLogCardioTest {
         lowReminderRepository = mockk(),
         updateProgress = mockk(),
         widgetManager = mockk(),
-        restNotifier = mockk(),
+        restTimer = restTimer,
         dataRevision = mockk(),
     )
 

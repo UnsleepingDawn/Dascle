@@ -18,7 +18,8 @@ import com.fitplan.domain.repository.ExerciseProgressHintRepository
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.WorkoutRepository
-import com.fitplan.reminder.RestNotifier
+import com.fitplan.reminder.RestState
+import com.fitplan.reminder.RestTimer
 import com.fitplan.ui.exercise.DEFAULT_REST_SECONDS
 import com.fitplan.ui.exercise.DEFAULT_TARGET_SETS
 import com.fitplan.ui.exercise.defaultTargets
@@ -28,14 +29,11 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** 记录页的三个阶段，由 `workout_session.finished_at` 决定。 */
@@ -206,13 +204,6 @@ sealed interface ExtraExerciseNotice {
     data class InGroup(override val name: String, val groupName: String?) : ExtraExerciseNotice
 }
 
-/** 组间休息倒计时；[remainingSeconds] 为 0 表示刚刚结束。 */
-data class RestState(
-    val exerciseName: String,
-    val totalSeconds: Int,
-    val remainingSeconds: Int,
-)
-
 /** 一次已结束训练的汇总。 */
 data class WorkoutSummary(
     val completedSets: Int,
@@ -302,7 +293,7 @@ class WorkoutLogScreenModel(
     private val lowReminderRepository: ExerciseLowReminderRepository,
     private val updateProgress: UpdateExerciseProgression,
     private val widgetManager: WidgetManager,
-    private val restNotifier: RestNotifier,
+    private val restTimer: RestTimer,
     private val dataRevision: DataRevision,
 ) : ViewModel() {
 
@@ -336,12 +327,11 @@ class WorkoutLogScreenModel(
     private val _items = MutableStateFlow<List<LogItem>>(emptyList())
     val items: StateFlow<List<LogItem>> = _items.asStateFlow()
 
-    private val _rest = MutableStateFlow<RestState?>(null)
-    val rest: StateFlow<RestState?> = _rest.asStateFlow()
-
-    /** 每自增一次表示倒计时归零，界面据此震动一次。 */
-    private val _restFinishedTick = MutableStateFlow(0)
-    val restFinishedTick: StateFlow<Int> = _restFinishedTick.asStateFlow()
+    /**
+     * 组间休息的倒计时状态；由 app 级的 [RestTimer] 共享，退出记录页后仍继续走，
+     * 「今日」页也读同一份状态。
+     */
+    val rest: StateFlow<RestState?> = restTimer.rest
 
     /** 每自增一次表示训练已经结束或放弃，界面据此退出记录页。 */
     private val _exitTick = MutableStateFlow(0)
@@ -409,8 +399,6 @@ class WorkoutLogScreenModel(
 
     /** true 表示正在编辑一次已经结束的训练：输入框解锁，改动即时落库。 */
     private var editing = false
-
-    private var restJob: Job? = null
 
     /**
      * [sessionId] 用于继续或回看一次训练；否则按 [routineId] 展示计划预览。
@@ -1136,43 +1124,13 @@ class WorkoutLogScreenModel(
         }
     }
 
+    /** 跳过休息：撤掉 app 级的休息计时（后台通知与到点闹钟一并撤销）。 */
     fun skipRest() {
-        restJob?.cancel()
-        restJob = null
-        _rest.value = null
-        restNotifier.cancel()
+        restTimer.cancel()
     }
 
     private fun startRest(exerciseName: String, seconds: Int) {
-        restJob?.cancel()
-        if (seconds <= 0) {
-            _rest.value = null
-            restNotifier.cancel()
-            return
-        }
-
-        // 以截止时刻为准，而不是累加 delay：进程被系统冻结时回到前台也能算出正确剩余。
-        val endAt = Clock.System.now() + seconds.seconds
-        // 前台由本协程刷新界面；退到后台后由通知栏的系统倒计时接管。
-        restNotifier.start(exerciseName, endAt)
-        restJob = viewModelScope.launch {
-            while (true) {
-                val remaining = remainingSeconds(endAt)
-                _rest.value = RestState(exerciseName, seconds, remaining)
-                if (remaining <= 0) break
-                delay(REST_TICK_MILLIS)
-            }
-            _restFinishedTick.value += 1
-            // 留一会儿「休息结束」，然后自动收起。
-            delay(REST_DONE_MILLIS)
-            _rest.value = null
-        }
-    }
-
-    /** 按截止时刻反算剩余秒数（向上取整，避免显示比实际少一秒）。 */
-    private fun remainingSeconds(endAt: Instant): Int {
-        val millis = (endAt - Clock.System.now()).inWholeMilliseconds
-        return if (millis <= 0) 0 else ((millis + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).toInt()
+        restTimer.start(exerciseName, seconds)
     }
 
     private suspend fun loadSession(id: Long) {
@@ -1313,12 +1271,6 @@ class WorkoutLogScreenModel(
                 sets = exercise.sets.mapIndexed { i, entry -> if (i == index) transform(entry) else entry },
             )
         }
-    }
-
-    private companion object {
-        const val REST_TICK_MILLIS = 1_000L
-        const val REST_DONE_MILLIS = 2_500L
-        const val MILLIS_PER_SECOND = 1_000L
     }
 }
 
