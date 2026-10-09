@@ -13,14 +13,17 @@ internal data class RoutineTargets(
 )
 
 /** 有氧默认连续练 1 组、不设组间休息；其余动作默认 3 组、休息 90 秒。 */
-internal fun Exercise.defaultTargets(): RoutineTargets = RoutineTargets(
-    sets = if (muscleGroup == MuscleGroup.CARDIO) 1 else DEFAULT_TARGET_SETS,
-    reps = repsOrDefault,
-    restSeconds = if (muscleGroup == MuscleGroup.CARDIO) 0 else DEFAULT_REST_SECONDS,
-    // 纯自重动作不预填重量；计时动作用动作库的默认时长。
-    weight = if (showsWeight) defaultWeight else null,
-    seconds = if (isTimed) defaultDurationSeconds else null,
-)
+internal fun Exercise.defaultTargets(): RoutineTargets {
+    val isCardio = muscleGroup == MuscleGroup.CARDIO
+    return RoutineTargets(
+        sets = if (isCardio) 1 else DEFAULT_TARGET_SETS,
+        reps = repsOrDefault,
+        restSeconds = if (isCardio) 0 else DEFAULT_REST_SECONDS,
+        // 纯自重动作不预填重量；计时动作用动作库的默认时长。
+        weight = if (showsWeight) defaultWeight else null,
+        seconds = if (isTimed) defaultDurationSeconds else null,
+    )
+}
 
 internal const val DEFAULT_TARGET_SETS = 3
 internal const val DEFAULT_REST_SECONDS = 90

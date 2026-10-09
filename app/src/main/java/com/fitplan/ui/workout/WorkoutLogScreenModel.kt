@@ -155,8 +155,8 @@ data class LogExercise(
     /** 达标与提示用的重量基准：计划目标重量优先，没设就用动作库默认重量。 */
     val weightBaseline: Double? get() = targetWeight ?: defaultWeight
 
-    /** 达标与提示用的次数基准；都缺失时退回 [DEFAULT_TARGET_REPS]。 */
-    val repsBaseline: Int get() = targetReps.takeIf { it > 0 } ?: defaultReps ?: DEFAULT_TARGET_REPS
+    /** 达标与提示用的次数基准；都缺失时退回动作库的兜底次数 [Exercise.DEFAULT_REPS]。 */
+    val repsBaseline: Int get() = targetReps.takeIf { it > 0 } ?: defaultReps ?: Exercise.DEFAULT_REPS
 
     /** 达标与提示用的时长基准；计划与动作库都没标时为空，此时不提示加时间。 */
     val secondsBaseline: Int? get() = targetSeconds ?: defaultDurationSeconds
@@ -1216,7 +1216,8 @@ class WorkoutLogScreenModel(
         _exercises.value = exerciseIds.map { exerciseId ->
             val routineExercise = planByExercise[exerciseId]
             val libraryExercise = exercisesById[exerciseId]
-            val defaultTargets = libraryExercise?.defaultTargets()
+            // 计划内动作一律以计划设置为准；只有计划外动作才回落到动作库的默认目标。
+            val libraryDefaults = if (routineExercise == null) libraryExercise?.defaultTargets() else null
             val ownSets = sets.filter { it.exerciseId == exerciseId }.sortedBy { it.setIndex }
             // 计量方式 / 负重方式一律以动作库为准；动作库查不到时退回计划编排上的值。
             val metric = libraryExercise?.metric ?: routineExercise?.metric ?: ExerciseMetric.DEFAULT
@@ -1225,15 +1226,21 @@ class WorkoutLogScreenModel(
                 exerciseId = exerciseId,
                 name = routineExercise?.exerciseName ?: libraryExercise?.name.orEmpty(),
                 routineExerciseId = routineExercise?.id,
-                targetSets = routineExercise?.targetSets ?: defaultTargets?.sets ?: DEFAULT_TARGET_SETS,
-                targetReps = routineExercise?.targetReps ?: defaultTargets?.reps ?: DEFAULT_TARGET_REPS,
-                restSeconds = routineExercise?.restSeconds ?: defaultTargets?.restSeconds ?: DEFAULT_REST_SECONDS,
+                targetSets = routineExercise?.targetSets ?: libraryDefaults?.sets ?: DEFAULT_TARGET_SETS,
+                targetReps = routineExercise?.targetReps ?: libraryDefaults?.reps ?: Exercise.DEFAULT_REPS,
+                restSeconds = routineExercise?.restSeconds ?: libraryDefaults?.restSeconds ?: DEFAULT_REST_SECONDS,
                 isExtra = routineExercise == null,
                 metric = metric,
                 loadMode = loadMode,
                 // 只有计划外动作取动作库默认值；计划内动作保留用户设置，包括未填写的目标。
-                targetWeight = if (routineExercise != null) routineExercise.targetWeight else defaultTargets?.weight,
-                targetSeconds = if (routineExercise != null) routineExercise.targetSeconds else defaultTargets?.seconds,
+                targetWeight = if (routineExercise != null) routineExercise.targetWeight else libraryDefaults?.weight,
+                targetSeconds = if (routineExercise !=
+                    null
+                ) {
+                    routineExercise.targetSeconds
+                } else {
+                    libraryDefaults?.seconds
+                },
                 defaultWeight = libraryExercise?.defaultWeight,
                 defaultReps = libraryExercise?.defaultReps,
                 defaultDurationSeconds = libraryExercise?.defaultDurationSeconds,
@@ -1325,9 +1332,6 @@ class WorkoutLogScreenModel(
         const val MILLIS_PER_SECOND = 1_000L
     }
 }
-
-/** 计划外动作与各类兜底用的默认目标次数。 */
-private const val DEFAULT_TARGET_REPS = 10
 
 private fun RoutineExercise.toLogExercise(): LogExercise {
     val exercise = LogExercise(
