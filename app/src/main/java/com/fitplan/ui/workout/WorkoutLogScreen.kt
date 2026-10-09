@@ -122,7 +122,6 @@ class WorkoutLogScreen(
             if (exitTick > 0) navigator.pop()
         }
 
-        var showFinishDialog by remember { mutableStateOf(false) }
         var showAbandonDialog by remember { mutableStateOf(false) }
         var showExtraDialog by remember { mutableStateOf(false) }
 
@@ -249,7 +248,7 @@ class WorkoutLogScreen(
                                 screenModel.loadExercises()
                                 showExtraDialog = true
                             },
-                            onConfirm = { showFinishDialog = true },
+                            onConfirm = { screenModel.finishWorkout() },
                         )
                     }
                 }
@@ -332,16 +331,6 @@ class WorkoutLogScreen(
                     screenModel.abandonWorkout()
                 },
                 onDismiss = { showAbandonDialog = false },
-            )
-        }
-
-        if (showFinishDialog) {
-            FinishWorkoutDialog(
-                onConfirm = { note ->
-                    showFinishDialog = false
-                    screenModel.finishWorkout(note)
-                },
-                onDismiss = { showFinishDialog = false },
             )
         }
 

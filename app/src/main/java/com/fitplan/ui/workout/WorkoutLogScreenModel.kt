@@ -1113,13 +1113,10 @@ class WorkoutLogScreenModel(
         }
     }
 
-    fun finishWorkout(note: String) {
+    fun finishWorkout() {
         val currentSessionId = sessionId ?: return
         viewModelScope.launch {
             skipRest()
-            if (note.isNotBlank()) {
-                workoutRepository.updateSessionNote(currentSessionId, note.trim())
-            }
             workoutRepository.finishSession(currentSessionId, Clock.System.now())
             // 今日页与日历可能已经取过数，结束训练要让它们重算（否则还会显示「继续训练」）。
             dataRevision.bump()

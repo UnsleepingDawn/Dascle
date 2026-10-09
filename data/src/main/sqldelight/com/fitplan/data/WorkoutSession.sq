@@ -3,8 +3,7 @@ CREATE TABLE workout_session (
     routine_id  INTEGER REFERENCES routine(id) ON DELETE SET NULL,
     name        TEXT NOT NULL DEFAULT '',
     started_at  INTEGER NOT NULL,
-    finished_at INTEGER,
-    note        TEXT NOT NULL DEFAULT ''
+    finished_at INTEGER
 );
 
 CREATE INDEX workout_session_started_at ON workout_session(started_at);
@@ -73,8 +72,8 @@ FROM workout_session
 WHERE finished_at IS NOT NULL;
 
 insert:
-INSERT INTO workout_session(routine_id, name, started_at, finished_at, note)
-VALUES (?, ?, ?, ?, ?);
+INSERT INTO workout_session(routine_id, name, started_at, finished_at)
+VALUES (?, ?, ?, ?);
 
 finish:
 UPDATE workout_session
@@ -90,11 +89,6 @@ WHERE id = ?;
 updateName:
 UPDATE workout_session
 SET name = ?
-WHERE id = ?;
-
-updateNote:
-UPDATE workout_session
-SET note = ?
 WHERE id = ?;
 
 deleteById:

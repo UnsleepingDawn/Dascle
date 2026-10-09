@@ -59,8 +59,6 @@ interface WorkoutRepository {
 
     suspend fun updateSessionName(id: Long, name: String)
 
-    suspend fun updateSessionNote(id: Long, note: String)
-
     suspend fun deleteSession(id: Long)
 
     suspend fun getSets(sessionId: Long): List<WorkoutSet>

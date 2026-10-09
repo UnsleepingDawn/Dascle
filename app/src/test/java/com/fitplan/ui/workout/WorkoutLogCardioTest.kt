@@ -177,7 +177,6 @@ class WorkoutLogCardioTest {
         name = "有氧训练",
         startedAt = cardio.createdAt,
         finishedAt = null,
-        note = "",
     )
 
     private val completedSet = WorkoutSet(

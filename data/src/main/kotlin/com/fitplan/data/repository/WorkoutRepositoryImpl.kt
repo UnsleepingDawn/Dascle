@@ -82,7 +82,6 @@ class WorkoutRepositoryImpl(
                 name = name,
                 started_at = startedAt.toDbValue(),
                 finished_at = null,
-                note = "",
             )
             utilQueries.lastInsertRowId().awaitAsOne()
         }
@@ -99,7 +98,6 @@ class WorkoutRepositoryImpl(
             name = name,
             started_at = startedAt.toDbValue(),
             finished_at = finishedAt.toDbValue(),
-            note = "",
         )
         val sessionId = utilQueries.lastInsertRowId().awaitAsOne()
         sets.forEach { set ->
@@ -126,10 +124,6 @@ class WorkoutRepositoryImpl(
 
     override suspend fun updateSessionName(id: Long, name: String) {
         sessionQueries.updateName(name = name, id = id)
-    }
-
-    override suspend fun updateSessionNote(id: Long, note: String) {
-        sessionQueries.updateNote(note = note, id = id)
     }
 
     override suspend fun deleteSession(id: Long) {

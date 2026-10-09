@@ -8,7 +8,6 @@ data class WorkoutSession(
     val name: String,
     val startedAt: Instant,
     val finishedAt: Instant?,
-    val note: String,
 ) {
     val isFinished: Boolean get() = finishedAt != null
 }

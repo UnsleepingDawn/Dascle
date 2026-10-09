@@ -158,24 +158,22 @@ private fun workoutSession(
     name: String,
     startedAt: Long,
     finishedAt: Long?,
-    note: String,
 ): WorkoutSession = WorkoutSession(
     id = id,
     routineId = routineId,
     name = name,
     startedAt = startedAt.toInstant(),
     finishedAt = finishedAt?.toInstant(),
-    note = note,
 )
 
 internal fun WorkoutSessionRow.toDomain(): WorkoutSession =
-    workoutSession(id, routine_id, name, started_at, finished_at, note)
+    workoutSession(id, routine_id, name, started_at, finished_at)
 
 internal fun FinishedSessionRow.toDomain(): WorkoutSession =
-    workoutSession(id, routine_id, name, started_at, finished_at, note)
+    workoutSession(id, routine_id, name, started_at, finished_at)
 
 internal fun FinishedSessionBetweenRow.toDomain(): WorkoutSession =
-    workoutSession(id, routine_id, name, started_at, finished_at, note)
+    workoutSession(id, routine_id, name, started_at, finished_at)
 
 internal fun SelectFinishedWithSummary.toDomain(): WorkoutHistoryItem = WorkoutHistoryItem(
     sessionId = id,

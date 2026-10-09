@@ -1142,38 +1142,6 @@ private fun FilterChipRow(content: @Composable () -> Unit) {
     }
 }
 
-/** 结束训练前填备注的弹窗。 */
-@Composable
-internal fun FinishWorkoutDialog(
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var note by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.workout_finish)) },
-        text = {
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text(text = stringResource(R.string.workout_note_label)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(note) }) {
-                Text(text = stringResource(R.string.action_ok))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
-    )
-}
-
 /** 放弃训练前的确认：本次记录会被删除，避免误触。 */
 @Composable
 internal fun AbandonWorkoutDialog(

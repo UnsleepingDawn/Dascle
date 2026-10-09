@@ -216,7 +216,6 @@
     <string name="workout_start">开始训练</string>
     <string name="workout_continue">继续训练</string>
     <string name="workout_finish">结束训练</string>
-    <string name="workout_note_label">备注（可选）</string>
     <string name="workout_plan_hint">按顺序练，练完一组点一次「做完了」，点完自动开始组间休息；撤销也只能从最后一组往回退。</string>
     <string name="workout_plan_empty">这个计划还没有动作\n开始后可以临时添加</string>
     <string name="workout_add_extra">计划外动作</string>
