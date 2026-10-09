@@ -1,6 +1,7 @@
 package com.fitplan.ui.exercise
 
 import com.fitplan.domain.model.Exercise
+import com.fitplan.domain.model.MuscleGroup
 
 /** 加入计划 / 动作组时的目标值：次数取动作库默认次数，重量与时长按动作类型预填。 */
 internal data class RoutineTargets(
@@ -11,11 +12,11 @@ internal data class RoutineTargets(
     val seconds: Int?,
 )
 
-/** 新排进计划的动作默认 3 组、休息 90 秒。 */
+/** 有氧默认连续练 1 组、不设组间休息；其余动作默认 3 组、休息 90 秒。 */
 internal fun Exercise.defaultTargets(): RoutineTargets = RoutineTargets(
-    sets = DEFAULT_TARGET_SETS,
+    sets = if (muscleGroup == MuscleGroup.CARDIO) 1 else DEFAULT_TARGET_SETS,
     reps = repsOrDefault,
-    restSeconds = DEFAULT_REST_SECONDS,
+    restSeconds = if (muscleGroup == MuscleGroup.CARDIO) 0 else DEFAULT_REST_SECONDS,
     // 纯自重动作不预填重量；计时动作用动作库的默认时长。
     weight = if (showsWeight) defaultWeight else null,
     seconds = if (isTimed) defaultDurationSeconds else null,

@@ -10,6 +10,9 @@ enum class MuscleGroup {
     LEG,
     GLUTE,
 
+    /** 有氧运动分类，不作为肌群参与组数分布统计。 */
+    CARDIO,
+
     /**
      * 兼容旧数据：早期只有笼统的「手臂」，自建动作无法判定属于二头还是三头，统一归到这里。
      * 内置动作在迁移与种子里都已经拆成 [BICEPS] / [TRICEPS]，不会落在这个分组。
@@ -22,7 +25,7 @@ enum class MuscleGroup {
          * 统计页「肌群组数分布」的横轴顺序：按人体从上到下摆。
          *
          * [ARM_OTHER] 只是兼容旧数据的兜底分组，新数据都会落到 [BICEPS] / [TRICEPS]，
-         * 所以不进球图，横轴上不会出现它。
+         * 所以不进球图，横轴上不会出现它。[CARDIO] 不是肌群，同样不进入这张图。
          */
         val chartOrder: List<MuscleGroup> = listOf(
             SHOULDER,
