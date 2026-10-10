@@ -363,7 +363,19 @@
 
     <!-- 我的 / 设置 -->
     <string name="settings_title">设置</string>
-    <string name="settings_reminder_heading">训练提醒</string>
+    <string name="settings_group_notifications">通知</string>
+    <string name="settings_group_appearance">主题与个性化</string>
+    <string name="settings_group_other">其他</string>
+    <string name="settings_theme_color">主题配色</string>
+    <string name="settings_theme_color_default">默认</string>
+    <string name="settings_theme_color_green_apple">青苹果</string>
+    <string name="settings_theme_color_monochrome">单色</string>
+    <string name="settings_dark_mode">深色模式</string>
+    <string name="settings_dark_mode_follow_system">跟随系统</string>
+    <string name="settings_dark_mode_light">浅色</string>
+    <string name="settings_dark_mode_dark">深色</string>
+    <string name="settings_amoled">AMOLED 纯黑</string>
+    <string name="settings_amoled_desc">深色模式下用纯黑背景，OLED 屏更省电</string>
     <string name="settings_reminder_switch">开启训练提醒</string>
     <string name="settings_reminder_switch_desc">到点提醒你当天的训练安排；当天已经练过或没有排期时不会打扰</string>
     <string name="settings_reminder_time">提醒时间 · %1$s</string>
@@ -372,7 +384,6 @@
     <string name="settings_reminder_grant_notifications">开启通知</string>
     <string name="settings_reminder_exact_off">未授予「闹钟与提醒」权限，提醒可能会有几分钟延迟</string>
     <string name="settings_reminder_grant_exact">去开启</string>
-    <string name="settings_update_heading">版本更新</string>
     <string name="settings_update_auto_check">启动时自动检查更新</string>
     <string name="settings_update_auto_check_desc">每天最多查一次 GitHub 上的最新版本，有新版本才提示</string>
     <string name="settings_update_mirror">镜像地址（可选）</string>

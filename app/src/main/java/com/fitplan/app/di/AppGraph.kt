@@ -11,6 +11,7 @@ import com.fitplan.app.App
 import com.fitplan.app.ui.main.MainActivity
 import com.fitplan.core.metro.IsDebugBuild
 import com.fitplan.data.Database
+import com.fitplan.presentation.theme.ThemePreferences
 import com.fitplan.reminder.ReminderScheduler
 import com.fitplan.reminder.RestNotifier
 import com.fitplan.widget.WidgetManager
@@ -46,6 +47,9 @@ interface AppGraph : ViewModelGraph {
 
     /** 组间休息的后台倒计时通知，供记录页与到点闹钟使用。 */
     val restNotifier: RestNotifier
+
+    /** 主题与个性化偏好，供根组合的 [com.fitplan.presentation.theme.FitPlanTheme] 与设置页读写。 */
+    val themePreferences: ThemePreferences
 
     @DependencyGraph.Factory
     fun interface Factory {

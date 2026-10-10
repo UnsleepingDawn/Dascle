@@ -11,7 +11,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -42,8 +44,12 @@ import androidx.compose.ui.res.stringResource
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
+import com.fitplan.domain.ui.model.AppDarkMode
+import com.fitplan.domain.ui.model.AppTheme
 import com.fitplan.presentation.core.components.CheckboxItem
+import com.fitplan.presentation.core.components.HeadingItem
 import com.fitplan.presentation.core.components.IconItem
+import com.fitplan.presentation.core.components.SelectItem
 import com.fitplan.presentation.core.components.SettingsItemsPaddings
 import com.fitplan.presentation.core.components.TextItem
 import com.fitplan.presentation.core.components.material.Scaffold
@@ -52,7 +58,12 @@ import com.fitplan.presentation.core.util.secondaryItemAlpha
 import com.fitplan.presentation.util.Screen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
-/** 设置页：目前只有训练提醒；没有权限时给出降级提示与一键授权入口。 */
+/**
+ * 设置页，分三组：
+ * 1. 通知：训练提醒（开关、时间、通知与精确闹钟权限的降级提示）；
+ * 2. 主题与个性化：配色、深色模式、AMOLED 纯黑；
+ * 3. 其他：版本更新的自动检查与镜像地址。
+ */
 object SettingsScreen : Screen() {
 
     @Composable
@@ -64,6 +75,21 @@ object SettingsScreen : Screen() {
         val hour by screenModel.reminderHour.collectAsState()
         val minute by screenModel.reminderMinute.collectAsState()
         val autoCheck by screenModel.updateAutoCheck.collectAsState()
+        val appTheme by screenModel.appTheme.collectAsState()
+        val darkMode by screenModel.darkMode.collectAsState()
+        val amoled by screenModel.amoled.collectAsState()
+
+        // 下拉框的显示文案：下标与枚举 ordinal 一一对应，选中后按下标回写枚举。
+        val themeColorOptions = arrayOf(
+            stringResource(R.string.settings_theme_color_default),
+            stringResource(R.string.settings_theme_color_green_apple),
+            stringResource(R.string.settings_theme_color_monochrome),
+        )
+        val darkModeOptions = arrayOf(
+            stringResource(R.string.settings_dark_mode_follow_system),
+            stringResource(R.string.settings_dark_mode_light),
+            stringResource(R.string.settings_dark_mode_dark),
+        )
 
         // 输入框用本地状态，避免「打字 → 写偏好 → 回流」导致的光标跳动。
         var mirrorText by remember { mutableStateOf(screenModel.updateMirrorPrefix.value) }
@@ -102,16 +128,8 @@ object SettingsScreen : Screen() {
                     .verticalScroll(rememberScrollState())
                     .padding(contentPadding),
             ) {
-                Text(
-                    text = stringResource(R.string.settings_reminder_heading),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(
-                        start = SettingsItemsPaddings.Horizontal,
-                        end = SettingsItemsPaddings.Horizontal,
-                        top = MaterialTheme.padding.medium,
-                    ),
-                )
+                // 1. 通知
+                HeadingItem(text = stringResource(R.string.settings_group_notifications))
 
                 CheckboxItem(
                     label = stringResource(R.string.settings_reminder_switch),
@@ -173,16 +191,43 @@ object SettingsScreen : Screen() {
                     }
                 }
 
-                Text(
-                    text = stringResource(R.string.settings_update_heading),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(
-                        start = SettingsItemsPaddings.Horizontal,
-                        end = SettingsItemsPaddings.Horizontal,
-                        top = MaterialTheme.padding.extraLarge,
-                    ),
+                SettingsGroupGap()
+
+                // 2. 主题与个性化
+                HeadingItem(text = stringResource(R.string.settings_group_appearance))
+
+                SelectItem(
+                    label = stringResource(R.string.settings_theme_color),
+                    options = themeColorOptions,
+                    selectedIndex = appTheme.ordinal,
+                    onSelect = { screenModel.setAppTheme(AppTheme.entries[it]) },
                 )
+                SelectItem(
+                    label = stringResource(R.string.settings_dark_mode),
+                    options = darkModeOptions,
+                    selectedIndex = darkMode.ordinal,
+                    onSelect = { screenModel.setDarkMode(AppDarkMode.entries[it]) },
+                )
+                CheckboxItem(
+                    label = stringResource(R.string.settings_amoled),
+                    checked = amoled,
+                    onClick = { screenModel.setAmoled(!amoled) },
+                )
+                Text(
+                    text = stringResource(R.string.settings_amoled_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .padding(
+                            start = SettingsItemsPaddings.Horizontal,
+                            end = SettingsItemsPaddings.Horizontal,
+                        )
+                        .secondaryItemAlpha(),
+                )
+
+                SettingsGroupGap()
+
+                // 3. 其他（版本更新）
+                HeadingItem(text = stringResource(R.string.settings_group_other))
 
                 CheckboxItem(
                     label = stringResource(R.string.settings_update_auto_check),
@@ -283,3 +328,9 @@ private fun ReminderHint(
 private fun appNotificationSettingsIntent(context: Context): Intent = Intent(
     Settings.ACTION_APP_NOTIFICATION_SETTINGS,
 ).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+
+/** 三个分组之间的竖直间隔，比组内条目间距大一档。 */
+@Composable
+private fun SettingsGroupGap() {
+    Spacer(modifier = Modifier.height(MaterialTheme.padding.large))
+}
