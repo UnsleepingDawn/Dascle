@@ -381,18 +381,23 @@ private fun ScheduledRoutineCard(
                     )
                 },
             )
+            val blocks = scheduled.exercises.todayBlocksForCard(progress)
+            val extraExercises = progress?.extraExercises.orEmpty()
             Text(
-                text = stringResource(R.string.today_exercise_count, scheduled.exercises.size),
+                text = stringResource(
+                    R.string.today_exercise_count,
+                    blocks.sumOf { it.exercises.size } + extraExercises.size,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            scheduled.exercises.toTodayBlocks().forEach { block ->
+            blocks.forEach { block ->
                 TodayExerciseBlockRow(block = block, progress = progress)
             }
 
             // 训练中临时加、且已经练过至少一组的动作：跟在计划动作后面，动作名后标「临时」。
-            progress?.extraExercises?.forEach { exercise ->
+            extraExercises.forEach { exercise ->
                 TodayExerciseRow(
                     name = exercise.name,
                     trailing = exercise.volumeText(),
@@ -649,7 +654,7 @@ private fun RestTodayButton(onClick: () -> Unit) {
 
 /**
  * 今日卡片里一个动作的训练状态：
- * [TRAINED] 练过（有已完成组），[NOT_DONE] 跳过或动作组里没挑中，[PLANNED] 计划里还没轮到。
+ * [TRAINED] 练过（有已完成组），[NOT_DONE] 单独排列的动作被「跳过动作」，[PLANNED] 计划里还没轮到。
  */
 private enum class TodayExerciseStatus { TRAINED, NOT_DONE, PLANNED }
 
@@ -696,6 +701,26 @@ private fun List<RoutineExercise>.toTodayBlocks(): List<TodayExerciseBlock> {
         blocks += TodayExerciseBlock(members)
     }
     return blocks
+}
+
+/**
+ * 计划卡片最终要渲染的动作块：在 [toTodayBlocks] 切好块之后，把训练中被「移除」的动作剔掉，
+ * 再交回去逐块绘制。组被剔空就整块不要，单独排的动作被移除也整块不要。
+ *
+ * `progress` 为 null（今天还没照着这张计划开练）时原样返回。调用方保证 `progress` 只在这张
+ * 卡片确实对应今天这场训练时传进来（`routineId` 对上），所以这里不用再比对计划 id。
+ */
+private fun List<RoutineExercise>.todayBlocksForCard(
+    progress: TodaySessionProgress?,
+): List<TodayExerciseBlock> {
+    val blocks = toTodayBlocks()
+    if (progress == null || progress.excludedExerciseIds.isEmpty()) return blocks
+    return blocks.mapNotNull { block ->
+        block.exercises
+            .filterNot { it.exerciseId in progress.excludedExerciseIds }
+            .takeIf { it.isNotEmpty() }
+            ?.let { TodayExerciseBlock(it) }
+    }
 }
 
 /**
@@ -763,7 +788,7 @@ private val TrainedCheckSize = 18.dp
  * 今日页一个动作一行：左边动作名、右边目标或实际训练量。
  *
  * [TodayExerciseStatus.TRAINED] 动作名前一颗主色（蓝）圆圈勾，表示今天已经练过；
- * [TodayExerciseStatus.NOT_DONE] 只有动作名打删除线并转灰，表示跳过或组内没挑中、今天不用做。
+ * [TodayExerciseStatus.NOT_DONE] 只有动作名打删除线并转灰，表示这个单独排列的动作被「跳过动作」、今天不用做。
  * 右侧的训练量只跟着变灰，不打删除线。[isExtra] 为 true 时动作名后跟一个主色小字「临时」，
  * 表示这是训练中临时加进来的动作，不在计划编排里。
  */

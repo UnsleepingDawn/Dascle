@@ -15,7 +15,6 @@ import com.fitplan.domain.interactor.TakeRestToday
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
 import com.fitplan.domain.interactor.UseUpcomingTrainingPlanForToday
 import com.fitplan.domain.model.WorkoutSession
-import com.fitplan.domain.model.pickedExerciseIds
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.WorkoutRepository
 import com.fitplan.reminder.RestState
@@ -69,8 +68,12 @@ data class TodaySessionProgress(
     val completedExerciseIds: Set<Long>,
     /** 被「跳过动作」的动作。 */
     val skippedExerciseIds: Set<Long>,
-    /** 动作组里挑中要练的动作；单独排列的动作不在这个集合里，判定时不用管。 */
-    val pickedExerciseIds: Set<Long>,
+    /**
+     * 训练中被左滑「移除」的动作，可能是计划里的单独动作，也可能是某个动作组的成员。
+     * 计划卡片据此把它们从渲染里剔掉（组被剔空就整组不显示），免得训练时删了动作、
+     * 回到今日页还挂着一条。
+     */
+    val excludedExerciseIds: Set<Long> = emptySet(),
     /**
      * 练过、但不在本次计划编排里的动作，也就是训练中临时加的那些，
      * 供计划卡片在计划动作之后补出来并标上「临时」；没练过（一组都没勾）的不算。
@@ -140,7 +143,7 @@ class TodayScreenModel(
     val todaySessionExercises: StateFlow<List<TodaySessionExercise>> = _todaySessionExercises.asStateFlow()
 
     /**
-     * 今天这场训练里各动作的状态（练过 / 跳过 / 组内挑中），训练中也算，
+     * 今天这场训练里各动作的状态（练过 / 跳过 / 组内挑中 / 被移除），训练中也算，
      * 供今日页计划卡片标注进度；今天还没开练时为 null。
      */
     private val _todaySessionProgress = MutableStateFlow<TodaySessionProgress?>(null)
@@ -272,13 +275,15 @@ class TodayScreenModel(
         extraExercises: List<TodaySessionExercise>,
     ): TodaySessionProgress {
         val sets = workoutRepository.getSets(session.id)
-        // 已经从本次训练里移除的动作（记录页左滑删除）不算进度：跳过与挑中都不作数。
-        val states = workoutRepository.getExerciseStates(session.id).filterNot { it.excluded }
+        val allStates = workoutRepository.getExerciseStates(session.id)
+        // 已经从本次训练里移除的动作（记录页左滑删除）不算进度：跳过与挑中都不作数，
+        // 但要把 id 单独带出去，让今日卡片把它们整个从渲染里剔掉。
+        val states = allStates.filterNot { it.excluded }
         return TodaySessionProgress(
             routineId = session.routineId,
             completedExerciseIds = sets.filter { it.completed }.map { it.exerciseId }.toSet(),
             skippedExerciseIds = states.filter { it.skipped }.map { it.exerciseId }.toSet(),
-            pickedExerciseIds = pickedExerciseIds(sets.map { it.exerciseId }.distinct(), states),
+            excludedExerciseIds = allStates.filter { it.excluded }.map { it.exerciseId }.toSet(),
             extraExercises = extraExercises,
         )
     }
