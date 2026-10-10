@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,12 +88,12 @@ fun TodayRestDialog(
             title = { Text(text = stringResource(R.string.today_rest_dialog_discard_title)) },
             text = { Text(text = stringResource(R.string.today_rest_dialog_discard_message)) },
             confirmButton = {
-                TextButton(onClick = { onConfirm(mode) }) {
+                OutlinedButton(onClick = { onConfirm(mode) }) {
                     Text(text = stringResource(R.string.today_rest_dialog_discard_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) {
+                OutlinedButton(onClick = onDismiss) {
                     Text(text = stringResource(R.string.action_cancel))
                 }
             },

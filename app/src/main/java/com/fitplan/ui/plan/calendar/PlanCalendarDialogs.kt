@@ -15,11 +15,11 @@ import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -162,10 +162,10 @@ fun DeleteSelectionDialog(
     }
 }
 
-/** 弹窗里的「取消」：无底色、整宽居中、蓝色字，高度与上方操作按钮一致。 */
+/** 弹窗里的「取消」：描边样式、整宽居中，高度与上方操作按钮一致。 */
 @Composable
 private fun DialogCancelButton(onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Text(text = stringResource(R.string.action_cancel))
     }
 }

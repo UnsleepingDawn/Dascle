@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -199,7 +200,7 @@ object RoutineListScreen : Screen() {
                 title = { Text(text = stringResource(R.string.plan_delete)) },
                 text = { Text(text = stringResource(R.string.plan_delete_confirm, routine.name)) },
                 confirmButton = {
-                    TextButton(
+                    OutlinedButton(
                         onClick = {
                             screenModel.delete(routine.id)
                             deleteTarget = null
@@ -209,7 +210,7 @@ object RoutineListScreen : Screen() {
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { deleteTarget = null }) {
+                    OutlinedButton(onClick = { deleteTarget = null }) {
                         Text(text = stringResource(R.string.action_cancel))
                     }
                 },
@@ -433,7 +434,7 @@ private fun RoutineDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            OutlinedButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim(), note.trim()) },
             ) {
@@ -441,7 +442,7 @@ private fun RoutineDetailDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },

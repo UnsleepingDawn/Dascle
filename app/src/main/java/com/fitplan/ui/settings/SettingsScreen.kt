@@ -22,6 +22,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -232,7 +233,7 @@ object SettingsScreen : Screen() {
                 title = { Text(text = stringResource(R.string.settings_reminder_time_pick)) },
                 text = { TimePicker(state = timePickerState) },
                 confirmButton = {
-                    TextButton(
+                    OutlinedButton(
                         onClick = {
                             screenModel.setReminderTime(timePickerState.hour, timePickerState.minute)
                             showTimePicker = false
@@ -242,7 +243,7 @@ object SettingsScreen : Screen() {
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showTimePicker = false }) {
+                    OutlinedButton(onClick = { showTimePicker = false }) {
                         Text(text = stringResource(R.string.action_cancel))
                     }
                 },

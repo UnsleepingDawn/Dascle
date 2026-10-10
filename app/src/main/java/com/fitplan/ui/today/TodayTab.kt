@@ -46,7 +46,6 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -1138,7 +1137,7 @@ private fun RestDayBlock(
                 )
             },
             confirmButton = {
-                TextButton(
+                OutlinedButton(
                     onClick = {
                         showUpcomingDialog = false
                         onUseUpcoming()
@@ -1148,7 +1147,7 @@ private fun RestDayBlock(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showUpcomingDialog = false }) {
+                OutlinedButton(onClick = { showUpcomingDialog = false }) {
                     Text(text = stringResource(R.string.action_cancel))
                 }
             },

@@ -43,6 +43,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -472,12 +473,12 @@ internal fun SkipLastSetDialog(
         title = { Text(text = stringResource(R.string.workout_last_set_title)) },
         text = { Text(text = stringResource(R.string.workout_last_set_message)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            OutlinedButton(onClick = onConfirm) {
                 Text(text = stringResource(R.string.workout_skip))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },
@@ -507,12 +508,12 @@ internal fun LowTargetReminderDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onRetry) {
+            OutlinedButton(onClick = onRetry) {
                 Text(text = stringResource(R.string.workout_low_target_retry))
             }
         },
         dismissButton = {
-            TextButton(onClick = onKeep) {
+            OutlinedButton(onClick = onKeep) {
                 Text(text = stringResource(R.string.workout_low_target_keep))
             }
         },
@@ -618,7 +619,7 @@ internal fun LowTargetRetryDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            OutlinedButton(
                 enabled = validTargetSize && validTargetWeight && validSize,
                 onClick = {
                     onConfirm(
@@ -628,7 +629,7 @@ internal fun LowTargetRetryDialog(
                             reps = if (exercise.isTimed) {
                                 exercise.targetReps
                             } else {
-                                targetReps.toIntOrNull() ?: return@TextButton
+                                targetReps.toIntOrNull() ?: return@OutlinedButton
                             },
                             weight = if (exercise.showsWeight) targetWeight.toDoubleOrNull() else null,
                             seconds = if (exercise.isTimed) targetSeconds.toIntOrNull() else null,
@@ -641,7 +642,7 @@ internal fun LowTargetRetryDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },
@@ -1087,7 +1088,7 @@ internal fun ExtraExerciseDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },
@@ -1124,7 +1125,7 @@ internal fun ExtraExerciseNoticeDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_understood))
             }
         },
@@ -1154,15 +1155,15 @@ internal fun AbandonWorkoutDialog(
         title = { Text(text = stringResource(R.string.workout_abandon_confirm_title)) },
         text = { Text(text = stringResource(R.string.workout_abandon_confirm_message)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(
-                    text = stringResource(R.string.workout_abandon),
-                    color = MaterialTheme.colorScheme.error,
-                )
+            OutlinedButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text(text = stringResource(R.string.workout_abandon))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },

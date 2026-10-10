@@ -13,10 +13,10 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -199,7 +199,7 @@ private fun BirthdayPickerDialog(
         confirmButton = {
             Row {
                 if (initial != null) {
-                    TextButton(
+                    OutlinedButton(
                         onClick = {
                             onPick(null)
                             onDismiss()
@@ -208,7 +208,7 @@ private fun BirthdayPickerDialog(
                         Text(text = stringResource(R.string.action_clear))
                     }
                 }
-                TextButton(
+                OutlinedButton(
                     onClick = {
                         state.selectedDateMillis?.let { onPick(it.toUtcDate()) }
                         onDismiss()
@@ -219,7 +219,7 @@ private fun BirthdayPickerDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },
@@ -257,7 +257,7 @@ private fun ActivityLevelPickerDialog(
         },
         confirmButton = {
             if (initial != null) {
-                TextButton(
+                OutlinedButton(
                     onClick = {
                         onPick(null)
                         onDismiss()
@@ -268,7 +268,7 @@ private fun ActivityLevelPickerDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },

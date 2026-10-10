@@ -31,6 +31,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -359,7 +360,7 @@ private fun SlotPickerDialog(
         },
         confirmButton = {
             if (picking) {
-                TextButton(
+                OutlinedButton(
                     enabled = picked != null,
                     onClick = { picked?.let(onPickRoutine) },
                 ) {
@@ -390,17 +391,17 @@ private fun SlotPickerDialog(
         },
         dismissButton = {
             if (picking) {
-                TextButton(onClick = { picking = false }) {
+                OutlinedButton(onClick = { picking = false }) {
                     Text(text = stringResource(R.string.action_back))
                 }
             } else {
                 Row {
                     if (slot != null && !slot.isEmpty) {
-                        TextButton(onClick = onClear) {
+                        OutlinedButton(onClick = onClear) {
                             Text(text = stringResource(R.string.plan_compose_remove_day))
                         }
                     }
-                    TextButton(onClick = onDismiss) {
+                    OutlinedButton(onClick = onDismiss) {
                         Text(text = stringResource(R.string.action_cancel))
                     }
                 }
@@ -494,7 +495,7 @@ private fun ApplyDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            OutlinedButton(
                 enabled = days > 0 && untilValid,
                 onClick = { onConfirm(startDate, pickedCycles, pickedUntil) },
             ) {
@@ -502,7 +503,7 @@ private fun ApplyDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },
@@ -515,7 +516,7 @@ private fun ApplyDialog(
         DatePickerDialog(
             onDismissRequest = { picking = null },
             confirmButton = {
-                TextButton(
+                OutlinedButton(
                     onClick = {
                         state.selectedDateMillis?.let { millis ->
                             val date = millis.toUtcDate()
@@ -528,7 +529,7 @@ private fun ApplyDialog(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { picking = null }) {
+                OutlinedButton(onClick = { picking = null }) {
                     Text(text = stringResource(R.string.action_cancel))
                 }
             },

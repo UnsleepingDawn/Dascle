@@ -7,9 +7,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,13 +54,13 @@ internal fun ProgressHintDialog(
                             Text(text = increaseLabel(hint = hint, kind = kind))
                         }
                     }
-                    TextButton(
+                    OutlinedButton(
                         onClick = onLater,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(text = stringResource(R.string.workout_progress_hint_later))
                     }
-                    TextButton(
+                    OutlinedButton(
                         onClick = onSnooze,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -166,12 +166,12 @@ internal fun ProgressTargetDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { target?.let(onConfirm) }, enabled = harder) {
+            OutlinedButton(onClick = { target?.let(onConfirm) }, enabled = harder) {
                 Text(text = stringResource(R.string.action_ok))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },
@@ -208,12 +208,12 @@ internal fun ProgressConfirmDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            OutlinedButton(onClick = onConfirm) {
                 Text(text = stringResource(R.string.action_ok))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
             }
         },
