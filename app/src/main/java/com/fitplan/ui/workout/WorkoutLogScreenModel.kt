@@ -405,12 +405,15 @@ class WorkoutLogScreenModel(
      * [editing] 为 true 时把已结束的训练当作可编辑状态打开（从训练日历的「编辑」进入）。
      * [reopen] 为 true 时先把已结束的训练重新置为进行中（从今日页的「还想练？」进入），
      * 之后加的动作与组都追加到同一次训练上。
+     * [autoStartName] 非空时（休息日「临时加一个方案」）在计划预览铺好后立刻开一场计划外训练，
+     * 省掉用户再点一次「开始训练」；名字用作 session 名，由界面传入字符串资源。
      */
     fun load(
         sessionId: Long? = null,
         routineId: Long? = null,
         editing: Boolean = false,
         reopen: Boolean = false,
+        autoStartName: String? = null,
     ) {
         this.routineId = routineId
         this.editing = editing
@@ -444,6 +447,9 @@ class WorkoutLogScreenModel(
                 val items = routineId?.let { routineRepository.getItems(it) }.orEmpty()
                 _items.value = items.map { it.toLogItem(pickedIds = emptySet()) }
                 _exercises.value = items.flatMap { it.exercises }.map { it.toLogExercise() }
+                // 状态就绪后再开练：`startWorkout` 的守卫依赖 `_phase` 已置回 NOT_STARTED，
+                // 且 session 名要用上面刚写好的 `_sessionName`，所以必须在这之后调用。
+                if (autoStartName != null) startWorkout(autoStartName)
             }
         }
     }

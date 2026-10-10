@@ -88,9 +88,21 @@ class WorkoutLogScreen(
         val scrollTracker = remember { WorkoutScrollTracker() }
         var revealRequest by remember { mutableStateOf<RevealRequest?>(null) }
 
+        // 计划外训练的名字：休息日的「临时加一个方案」用「临时方案」，其余用「自由训练」。
+        val freeName = stringResource(
+            if (tempPlan) R.string.today_rest_temp_plan else R.string.workout_free,
+        )
+
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
+        // 「临时加一个方案」进来时直接带上名字自动开练，省掉再点一次「开始训练」。
         LaunchedEffect(sessionId, routineId, editing, reopen) {
-            screenModel.load(sessionId, routineId, editing, reopen)
+            screenModel.load(
+                sessionId = sessionId,
+                routineId = routineId,
+                editing = editing,
+                reopen = reopen,
+                autoStartName = freeName.takeIf { tempPlan },
+            )
         }
 
         // 进入训练中：等这一场铺出来以后，平滑滚到第一个还没做完的动作；只滚一次。
@@ -116,9 +128,6 @@ class WorkoutLogScreen(
         // 非空表示「减一组」减到最后一组，正在问要不要直接跳过这个动作。
         var lastSetSkipId by remember { mutableStateOf<Long?>(null) }
 
-        val freeName = stringResource(
-            if (tempPlan) R.string.today_rest_temp_plan else R.string.workout_free,
-        )
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
 
         // 一张动作卡：单独排的动作直接用它，动作组里挑中的动作作为子卡（nested）用它。
