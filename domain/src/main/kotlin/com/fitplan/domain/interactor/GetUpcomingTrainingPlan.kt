@@ -5,7 +5,7 @@ import dev.zacsweers.metro.Inject
 import kotlinx.datetime.LocalDate
 
 /**
- * [today] 之后最近的一次训练安排，用于休息日「使用明天的方案」。
+ * [today] 之后最近的一次训练安排，用于休息日「使用明天的计划」。
  *
  * [dayOffset] 是它离今天还有几天：把这段排期整体提前这么多天，今天就能直接练上，
  * 而它原本的位置正好落给明天。
@@ -19,7 +19,7 @@ data class UpcomingTrainingPlan(
 
 /**
  * 找今天之后最近的一个训练日。之后完全没有启用排期时返回 null——
- * 那种情况下「使用明天的方案」没有内容可搬，只能走临时加方案。
+ * 那种情况下「使用明天的计划」没有内容可搬，只能走临时加一场训练。
  */
 @Inject
 class GetUpcomingTrainingPlan(

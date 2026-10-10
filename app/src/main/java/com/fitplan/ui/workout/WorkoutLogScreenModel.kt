@@ -187,7 +187,7 @@ sealed interface LogItem {
 }
 
 /**
- * 「计划外动作」里选中了一个今天方案里已经有的动作时的提醒。
+ * 「计划外动作」里选中了一个今天计划里已经有的动作时的提醒。
  *
  * 同一个动作在同一次训练里重复排进去，记录页会冒出两张同名卡、动作记录被拆成两处，
  * 所以这里只提醒、不真的添加：要么去那张已有的卡片上加组，要么去对应的动作组里挑中它。
@@ -197,10 +197,10 @@ sealed interface ExtraExerciseNotice {
     /** 用户选中的动作名。 */
     val name: String
 
-    /** 这个动作在今天的方案里是单独排的一个动作。 */
+    /** 这个动作在今天的计划里是单独排的一个动作。 */
     data class AlreadyInWorkout(override val name: String) : ExtraExerciseNotice
 
-    /** 这个动作属于今天方案里的某个动作组；[groupName] 为空表示这个组没起过名字。 */
+    /** 这个动作属于今天计划里的某个动作组；[groupName] 为空表示这个组没起过名字。 */
     data class InGroup(override val name: String, val groupName: String?) : ExtraExerciseNotice
 }
 
@@ -372,7 +372,7 @@ class WorkoutLogScreenModel(
     private val _lowTargetRetry = MutableStateFlow<LowTargetRetry?>(null)
     val lowTargetRetry: StateFlow<LowTargetRetry?> = _lowTargetRetry.asStateFlow()
 
-    /** 非空表示选了一个今天方案里已经有的计划外动作，正在提醒用户去原处操作。 */
+    /** 非空表示选了一个今天计划里已经有的计划外动作，正在提醒用户去原处操作。 */
     private val _extraNotice = MutableStateFlow<ExtraExerciseNotice?>(null)
     val extraNotice: StateFlow<ExtraExerciseNotice?> = _extraNotice.asStateFlow()
 
@@ -411,7 +411,7 @@ class WorkoutLogScreenModel(
      * [editing] 为 true 时把已结束的训练当作可编辑状态打开（从训练日历的「编辑」进入）。
      * [reopen] 为 true 时先把已结束的训练重新置为进行中（从今日页的「还想练？」进入），
      * 之后加的动作与组都追加到同一次训练上。
-     * [autoStartName] 非空时（休息日「临时加一个方案」）在计划预览铺好后立刻开一场计划外训练，
+     * [autoStartName] 非空时（休息日「临时加一场训练」）在计划预览铺好后立刻开一场计划外训练，
      * 省掉用户再点一次「开始训练」；名字用作 session 名，由界面传入字符串资源。
      */
     fun load(
@@ -1105,9 +1105,9 @@ class WorkoutLogScreenModel(
     /**
      * 用户从「计划外动作」里选中一个动作。
      *
-     * 这个动作今天已经排在方案里时（单独排列，或属于某个动作组），重复加进来会让记录页出现
+     * 这个动作今天已经排在计划里时（单独排列，或属于某个动作组），重复加进来会让记录页出现
      * 两张同名卡、动作记录被拆成两处，所以只弹一句提醒、让用户去原处操作，不落库；
-     * 只在动作确实不在方案里时才真的按计划外动作加进本次训练。
+     * 只在动作确实不在计划里时才真的按计划外动作加进本次训练。
      */
     fun requestExtraExercise(exerciseId: Long) {
         val items = _items.value
@@ -1130,7 +1130,7 @@ class WorkoutLogScreenModel(
         if (notice == null) addExtraExercise(exerciseId)
     }
 
-    /** 点掉「这个动作已经在今天的方案里」的提醒。 */
+    /** 点掉「这个动作已经在今天的计划里」的提醒。 */
     fun dismissExtraNotice() {
         _extraNotice.value = null
     }
@@ -1181,7 +1181,7 @@ class WorkoutLogScreenModel(
         viewModelScope.launch {
             skipRest()
             currentSessionId?.let { workoutRepository.deleteSession(it) }
-            // 删完今天可能就什么都没剩了（休息日的「临时方案」放弃），这天自然又变回休息日
+            // 删完今天可能就什么都没剩了（休息日的「临时训练」放弃），这天自然又变回休息日
             // ——休息日由「没有排期也没有训练」推导，不需要再补标记。
             dataRevision.bump()
             widgetManager.updateTodayWidget()

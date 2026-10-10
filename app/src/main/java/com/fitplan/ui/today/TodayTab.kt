@@ -126,7 +126,7 @@ object TodayTab : Tab {
         // 从训练记录页返回时本组合会重建，顺带刷新一次。
         LaunchedEffect(Unit) { screenModel.refresh() }
 
-        // 休息日改用之后最近的方案之后，直接进训练记录页把今天的训练开起来。
+        // 休息日改用之后最近的计划之后，直接进训练记录页把今天的训练开起来。
         LaunchedEffect(startRoutineRequest) {
             val routineId = startRoutineRequest ?: return@LaunchedEffect
             screenModel.consumeStartRequest()
@@ -147,7 +147,7 @@ object TodayTab : Tab {
             routines.none { it.routine.id == session.routineId }
         }
 
-        // 今天这次已结束的训练没有对应的计划卡片（休息日「临时加一个方案」这类计划外训练）时，
+        // 今天这次已结束的训练没有对应的计划卡片（休息日「临时加一场训练」这类计划外训练）时，
         // 页面原本只剩鼓励语，看不到今天到底练了什么，这里补一张总结卡片放在鼓励语上面。
         // 练完的动作一条都没记录（组数全没勾）时不给空卡片。
         val standaloneFinished = finishedSession?.takeIf { session ->
@@ -360,7 +360,7 @@ private fun ScheduledRoutineCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
         ) {
-            // 方案名占满整行，右侧留给「今日休息」或休息中的「进度条 + 闹钟」；
+            // 计划名占满整行，右侧留给「今日休息」或休息中的「进度条 + 闹钟」；
             // 名字太长时只挤自己，不把右端顶出卡片。
             CardTitleRow(
                 reserveTrailing = restEnabled || rest != null,
@@ -422,7 +422,7 @@ private fun ScheduledRoutineCard(
 }
 
 /**
- * 计划卡片标题行：左边方案名，右边一块**贴右边缘**的区域（休息中的「进度条 + 闹钟」或「今日休息」按钮）。
+ * 计划卡片标题行：左边计划名，右边一块**贴右边缘**的区域（休息中的「进度条 + 闹钟」或「今日休息」按钮）。
  *
  * 不能直接用 `Row` + 两个 `weight(1f)`：标题用不完的那一半不会自动让给右端，右端只拿到自己那半，
  * 进度条与闹钟就停在行中间、到不了右边。这里先量标题的自然宽度（最多占「整行减去右端最小宽度」），
@@ -598,7 +598,7 @@ private fun RestIndicator(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    // 左右各留出间距，别贴着方案名、也别贴着闹钟。
+                    // 左右各留出间距，别贴着计划名、也别贴着闹钟。
                     .padding(horizontal = MaterialTheme.padding.small)
                     .graphicsLayer { alpha = barAlpha.value },
             )
@@ -625,7 +625,7 @@ private fun RestIndicator(
 /** 卡片标题行右端的「今日休息」按钮。 */
 @Composable
 private fun RestTodayButton(onClick: () -> Unit) {
-    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比方案名高出一截，还会在出现 / 消失时
+    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比计划名高出一截，还会在出现 / 消失时
     // 顶动整张卡片的高度。这里连容器带最小触控区一起收到 [TODAY_CARD_HEADER_HEIGHT]。
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides TODAY_CARD_HEADER_HEIGHT,
@@ -826,9 +826,9 @@ private fun TodayExerciseRow(
 }
 
 /**
- * 今天这场训练没有对应的计划卡片（休息日「临时加一个方案」这类计划外训练的入口是「开始训练」，
+ * 今天这场训练没有对应的计划卡片（休息日「临时加一场训练」这类计划外训练的入口是「开始训练」，
  * 练完之后原先只在页面上留一句鼓励语）时，在鼓励语上面补一张总结卡片，
- * 让用户看得到今天到底练了什么：方案名 + 动作数 + 每个动作的实际训练量。
+ * 让用户看得到今天到底练了什么：计划名 + 动作数 + 每个动作的实际训练量。
  *
  * 版式与计划卡片同规格，但只展示、不给入口。[progress] 非空表示这张卡就是今天这场训练的总结，
  * 卡里列的都是练过的动作，整行按「已训练」带勾渲染，与计划卡片的标记一致。
@@ -934,9 +934,9 @@ private fun ExtraWorkoutCard(
 }
 
 /**
- * 还没结束的训练（含休息日「临时加一个方案」这类计划外训练），点一下接着练。
+ * 还没结束的训练（含休息日「临时加一场训练」这类计划外训练），点一下接着练。
  *
- * 与计划卡片**同地位**：标题就是这次训练的名字（计划外训练叫「临时方案」），
+ * 与计划卡片**同地位**：标题就是这次训练的名字（计划外训练叫「临时训练」），
  * 右侧同样能放下组间休息的「进度条 + 闹钟」；已经练过的动作照计划卡片的样式铺出来。
  */
 @Composable
@@ -959,7 +959,7 @@ private fun UnfinishedSessionCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
         ) {
-            // 方案名占满整行，右侧留给休息中的「进度条 + 闹钟」；名字太长时只挤自己。
+            // 计划名占满整行，右侧留给休息中的「进度条 + 闹钟」；名字太长时只挤自己。
             CardTitleRow(
                 reserveTrailing = rest != null,
                 title = {
@@ -1015,7 +1015,7 @@ private fun UnfinishedSessionCard(
  *
  * [interactive] 为 true（今天还没开练）时，小人图标可以连点三下「升级」——
  * 图标 →「不想休息？」→「还想练？」→「开练！」，字号一步步变大，最后浮出两个开练的出口：
- * 「使用明天的方案」把之后最近一次训练挪到今天，或「临时加一个方案」直接开一场计划外训练。
+ * 「使用明天的计划」把之后最近一次训练挪到今天，或「临时加一场训练」直接开一场计划外训练。
  * 不满足条件时退回静态的休息页，不摆这些出口。
  */
 @Composable
@@ -1125,7 +1125,7 @@ private fun RestDayBlock(
             ) {
                 Button(
                     onClick = { showUpcomingDialog = true },
-                    // 之后没有训练安排时没东西可搬，只能走下面的临时方案。
+                    // 之后没有训练安排时没东西可搬，只能走下面的临时训练。
                     enabled = upcomingPlan != null,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -1200,7 +1200,7 @@ private val RestTodayColor = Color(0xFF2E7D32)
 /**
  * 卡片标题行的高度（也是「今日休息」按钮的容器与最小触控区高度）。
  *
- * 取值只求「比 M3 默认的 40dp / 48dp 矮、又不比方案名的行高（24dp）高出太多」。
+ * 取值只求「比 M3 默认的 40dp / 48dp 矮、又不比计划名的行高（24dp）高出太多」。
  * 关键是它同时用在 [CardTitleRow] 的 `heightIn(min = ...)` 上：休息中右端是约 20dp 的
  * 「进度条 + 闹钟」，结束后换成这个高度的按钮，两边行高都被抬到同一个下限，
  * 于是按钮出现 / 消失不会改变卡片高度。
@@ -1244,5 +1244,5 @@ private const val REST_WOBBLE_SWINGS = 5
 /** 卡片标题行里闹钟图标的尺寸。 */
 private val REST_ALARM_SIZE = 20.dp
 
-/** 标题行右端至少留出的宽度：约「闹钟 + 一小段进度条」，保证长方案名下闹钟与进度条仍在。 */
+/** 标题行右端至少留出的宽度：约「闹钟 + 一小段进度条」，保证长计划名下闹钟与进度条仍在。 */
 private val CARD_TRAILING_MIN_WIDTH = 96.dp

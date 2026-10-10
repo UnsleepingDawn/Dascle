@@ -161,7 +161,7 @@ class PlanCalendarScreenModel(
     /**
      * 改完排期后的收尾：刷新日历、通知其它页面重算、刷新桌面组件。
      *
-     * [DataRevision] 必须通知——今日页的「使用之后的方案 / 今日休息」都依赖未来排期，
+     * [DataRevision] 必须通知——今日页的「使用之后的计划 / 今日休息」都依赖未来排期，
      * 它们可能已经取过数了。
      */
     private suspend fun afterScheduleChange() {

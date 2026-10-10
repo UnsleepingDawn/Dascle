@@ -50,7 +50,7 @@ class PlanScreenModel(
         }
     }
 
-    /** 新建后把新方案 id 回调出去，方便调用方直接跳到动作编排页。 */
+    /** 新建后把新计划 id 回调出去，方便调用方直接跳到动作编排页。 */
     fun create(name: String, onCreated: (Long) -> Unit) {
         viewModelScope.launch {
             val id = routineRepository.insert(name = name, createdAt = Clock.System.now())

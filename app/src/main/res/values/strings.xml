@@ -35,13 +35,13 @@
     <string name="today_rest_ask_one">不想休息？</string>
     <string name="today_rest_ask_two">还想练？</string>
     <string name="today_rest_go">开练！</string>
-    <string name="today_rest_use_upcoming">使用明天的方案</string>
-    <string name="today_rest_start_free">临时加一个方案</string>
-    <string name="today_rest_temp_plan">临时方案</string>
+    <string name="today_rest_use_upcoming">使用明天的计划</string>
+    <string name="today_rest_start_free">临时加一场训练</string>
+    <string name="today_rest_temp_plan">临时训练</string>
     <string name="today_rest_counting">休息中</string>
-    <string name="today_rest_upcoming_title">使用明天的方案</string>
+    <string name="today_rest_upcoming_title">使用明天的计划</string>
     <string name="today_rest_upcoming_message">把「%1$s」（%2$s）挪到今天开练，之后的计划与休息日整体提前 %3$d 天。</string>
-    <string name="today_rest_no_upcoming">之后还没有安排训练，先用「临时加一个方案」开练吧</string>
+    <string name="today_rest_no_upcoming">之后还没有安排训练，先用「临时加一场训练」开练吧</string>
 
     <!-- 今日休息（顺延排期） -->
     <string name="today_rest_button">今日休息</string>
@@ -82,9 +82,9 @@
     </string-array>
 
     <!-- 计划 -->
-    <string name="plan_title">设置单日方案</string>
-    <string name="plan_empty">还没有可以被编排的单日方案！\n新建一个，然后在里面添加你的动作！</string>
-    <string name="plan_new">新增单日方案</string>
+    <string name="plan_title">设置单日计划</string>
+    <string name="plan_empty">还没有可以被编排的单日计划！\n新建一个，然后在里面添加你的动作！</string>
+    <string name="plan_new">新增单日计划</string>
     <string name="plan_rename">编辑名称</string>
     <string name="plan_delete">删除计划</string>
     <string name="plan_delete_confirm">「%1$s」及其动作编排、日程安排都会一并删除。</string>
@@ -103,7 +103,7 @@
     <string name="plan_compose_empty">先给 Day 1 安排训练或休息</string>
     <string name="plan_compose_pick_title">Day %1$d 安排</string>
     <string name="plan_compose_pick_hint">选一个训练计划，或把这一天设为休息日。</string>
-    <string name="plan_compose_pick_empty">还没有训练计划\n先到「设置单日方案」里新建一个</string>
+    <string name="plan_compose_pick_empty">还没有训练计划\n先到「设置单日计划」里新建一个</string>
     <string name="plan_compose_remove_day">移除这一天</string>
     <string name="plan_compose_apply_title">应用编排</string>
     <string name="plan_compose_start_date">起始日期</string>
@@ -161,7 +161,7 @@
     <string name="group_preset_title">预设动作组</string>
     <string name="group_preset_empty">没有符合条件的预设动作组</string>
     <string name="group_preset_member_count">%1$d 个动作 · 建议做 %2$d 个</string>
-    <string name="group_preset_add">加入方案</string>
+    <string name="group_preset_add">加入计划</string>
     <string name="group_preset_member_added">已添加</string>
     <string name="group_preset_expand">展开动作</string>
     <string name="group_preset_collapse">收起动作</string>
@@ -170,7 +170,7 @@
     <string name="plan_calendar">日历</string>
     <string name="calendar_title">训练日历</string>
     <!-- 顶栏右上角的两个入口：改单个计划的内容 / 批量铺多日循环 -->
-    <string name="calendar_entry_routine_list">设置单日方案</string>
+    <string name="calendar_entry_routine_list">设置单日计划</string>
     <string name="calendar_entry_compose">编排多日循环</string>
     <string name="calendar_month">%1$d 年 %2$d 月</string>
     <string name="calendar_prev_month">上个月</string>
@@ -240,9 +240,9 @@
     <string name="workout_plan_empty">这个计划还没有动作\n开始后可以临时添加</string>
     <string name="workout_add_extra">计划外动作</string>
     <string name="workout_extra">计划外</string>
-    <string name="workout_extra_present">今天的方案里有</string>
+    <string name="workout_extra_present">今天的计划里有</string>
     <string name="workout_extra_notice_title">这个动作今天已经排了</string>
-    <string name="workout_extra_notice_standalone">%1$s 已经单独排在今天的方案里，回到那张卡片上点「加一组」就行，不用再重复添加。</string>
+    <string name="workout_extra_notice_standalone">%1$s 已经单独排在今天的计划里，回到那张卡片上点「加一组」就行，不用再重复添加。</string>
     <string name="workout_extra_notice_group">%1$s 是今天「%2$s」里的动作，去那个组里挑中它就能练，不用再重复添加。</string>
     <string name="workout_group_title">动作组</string>
     <string name="workout_group_picks">建议 %1$d 个</string>

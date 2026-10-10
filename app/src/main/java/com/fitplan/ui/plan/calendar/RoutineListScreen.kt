@@ -111,7 +111,7 @@ object RoutineListScreen : Screen() {
                 )
             },
             bottomBar = {
-                // 整条铺满的「新增单日方案」，比右下角的加号更容易被发现。
+                // 整条铺满的「新增单日计划」，比右下角的加号更容易被发现。
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,

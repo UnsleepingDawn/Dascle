@@ -59,7 +59,7 @@ data class TodaySessionExercise(
  * 今天这场训练里各动作的状态，供今日页的计划卡片标注：
  * 练过的动作整行反色底，跳过与动作组里没挑中的动作打删除线并变灰。
  *
- * [routineId] 是这次训练对应的计划 id；null 表示计划外训练（休息日「临时加一个方案」），
+ * [routineId] 是这次训练对应的计划 id；null 表示计划外训练（休息日「临时加一场训练」），
  * 没有计划卡片可以标注。
  */
 data class TodaySessionProgress(
@@ -133,7 +133,7 @@ class TodayScreenModel(
 
     /**
      * 今天这次已结束训练练了哪些动作、各自练了多少，供今日页在没有对应计划卡片时
-     * （休息日「临时加一个方案」这类计划外训练）补一张总结卡片；其余情况为空列表。
+     * （休息日「临时加一场训练」这类计划外训练）补一张总结卡片；其余情况为空列表。
      */
     private val _todaySessionExercises = MutableStateFlow<List<TodaySessionExercise>>(emptyList())
     val todaySessionExercises: StateFlow<List<TodaySessionExercise>> = _todaySessionExercises.asStateFlow()
@@ -149,7 +149,7 @@ class TodayScreenModel(
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
 
     /**
-     * 今天之后最近的一次训练安排，休息日的「使用明天的方案」用它。
+     * 今天之后最近的一次训练安排，休息日的「使用明天的计划」用它。
      * 之后完全没有排期时为 null，那个入口只能置灰。
      */
     private val _upcomingPlan = MutableStateFlow<UpcomingTrainingPlan?>(null)
@@ -194,7 +194,7 @@ class TodayScreenModel(
                 .takeIf { todaySession?.isFinished != true }
 
             // 今天照哪张计划练：找得到当天的排期卡片才谈得上「计划内 / 临时」，找不到
-            // （休息日「临时加一个方案」这类计划外训练）就没有计划编排可比。
+            // （休息日「临时加一场训练」这类计划外训练）就没有计划编排可比。
             val plannedExerciseIds = todaySession?.routineId
                 ?.let { routineId -> routines.firstOrNull { it.routine.id == routineId } }
                 ?.exercises

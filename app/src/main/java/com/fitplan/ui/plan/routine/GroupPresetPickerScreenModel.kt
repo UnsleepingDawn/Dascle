@@ -17,12 +17,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** 一个预设动作组，连同它解析出的全部成员、以及当前还能加入方案的成员。 */
+/** 一个预设动作组，连同它解析出的全部成员、以及当前还能加入计划的成员。 */
 data class GroupPresetItem(
     val preset: GroupPreset,
-    /** 预设里解析出的全部动作，按 json 顺序；已排进方案的也保留，界面按「已添加」置灰。 */
+    /** 预设里解析出的全部动作，按 json 顺序；已排进计划的也保留，界面按「已添加」置灰。 */
     val members: List<Exercise>,
-    /** 还没排进方案的动作，点「加入方案」时带上。 */
+    /** 还没排进计划的动作，点「加入计划」时带上。 */
     val addable: List<Exercise>,
 )
 
