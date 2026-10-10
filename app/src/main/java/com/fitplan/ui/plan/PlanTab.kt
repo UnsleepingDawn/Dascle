@@ -1,8 +1,10 @@
 package com.fitplan.ui.plan
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -67,8 +70,12 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.util.Tab
 import com.fitplan.ui.exercise.label
+import com.fitplan.ui.plan.calendar.DeleteSelectionDialog
+import com.fitplan.ui.plan.calendar.InsertDialog
+import com.fitplan.ui.plan.calendar.InsertRestDialog
 import com.fitplan.ui.plan.calendar.PlanCalendarScreenModel
 import com.fitplan.ui.plan.calendar.RoutineListScreen
+import com.fitplan.ui.plan.calendar.RoutinePickerDialog
 import com.fitplan.ui.plan.compose.PlanComposeScreen
 import com.fitplan.ui.plan.routine.RoutineEditScreen
 import com.fitplan.ui.workout.WorkoutLogScreen
@@ -100,24 +107,66 @@ object PlanTab : Tab {
         val selectedDay = selectedDate?.let { date -> days.firstOrNull { it.date == date } }
         var deleteSessionTarget by remember { mutableStateOf<CalendarSession?>(null) }
 
+        // 编辑模式：长按未来日子进入。勾选按日期保存，所以切到别的月份继续勾也不丢。
+        var editing by remember { mutableStateOf(false) }
+        // 值表示这一天有没有排期，删除弹窗按「有排期」的天数选用单日还是多日措辞。
+        var selection by remember { mutableStateOf<Map<LocalDate, Boolean>>(emptyMap()) }
+        var showDeleteDialog by remember { mutableStateOf(false) }
+        var showInsertDialog by remember { mutableStateOf(false) }
+        var showInsertRestDialog by remember { mutableStateOf(false) }
+        var routinePickerTarget by remember { mutableStateOf<RoutinePickerTarget?>(null) }
+
+        val singleSelected = selection.keys.singleOrNull()
+        val plannedSelectedCount = selection.values.count { it }
+
+        fun exitEdit() {
+            editing = false
+            selection = emptyMap()
+        }
+
+        fun toggleSelection(day: CalendarDay) {
+            selection = if (selection.containsKey(day.date)) {
+                selection - day.date
+            } else {
+                selection + (day.date to day.planned.isNotEmpty())
+            }
+        }
+
+        // 编辑模式里按返回键先退出编辑，而不是直接切走 Tab。
+        BackHandler(enabled = editing) { exitEdit() }
+
         Scaffold(
             topBar = { scrollBehavior ->
                 TopAppBar(
-                    title = { Text(text = stringResource(R.string.calendar_title)) },
-                    // 两个入口摆在「训练日历」右侧，日历本身占满整个页面。
+                    title = {
+                        Text(
+                            text = if (editing) {
+                                stringResource(R.string.calendar_edit_selected, selection.size)
+                            } else {
+                                stringResource(R.string.calendar_title)
+                            },
+                        )
+                    },
                     actions = {
-                        CalendarEntryButton(
-                            text = stringResource(R.string.calendar_entry_routine_list),
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            onClick = { navigator.push(RoutineListScreen) },
-                        )
-                        CalendarEntryButton(
-                            text = stringResource(R.string.calendar_entry_compose),
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            onClick = { navigator.push(PlanComposeScreen) },
-                        )
+                        if (editing) {
+                            TextButton(onClick = { exitEdit() }) {
+                                Text(text = stringResource(R.string.calendar_edit_done))
+                            }
+                        } else {
+                            // 两个入口摆在「训练日历」右侧，日历本身占满整个页面。
+                            CalendarEntryButton(
+                                text = stringResource(R.string.calendar_entry_routine_list),
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                onClick = { navigator.push(RoutineListScreen) },
+                            )
+                            CalendarEntryButton(
+                                text = stringResource(R.string.calendar_entry_compose),
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                onClick = { navigator.push(PlanComposeScreen) },
+                            )
+                        }
                     },
                     scrollBehavior = scrollBehavior,
                 )
@@ -137,28 +186,119 @@ object PlanTab : Tab {
                 WeekdayHeader()
                 MonthGrid(
                     days = days,
-                    onDayClick = { day -> selectedDate = if (selectedDate == day.date) null else day.date },
+                    editing = editing,
+                    selection = selection,
+                    modifier = Modifier.weight(1f),
+                    onDayClick = { day ->
+                        when {
+                            !editing -> selectedDate = if (selectedDate == day.date) null else day.date
+                            isEditableDate(day) -> toggleSelection(day)
+                        }
+                    },
+                    onDayLongClick = { day ->
+                        when {
+                            !isEditableDate(day) -> Unit
+                            editing -> toggleSelection(day)
+                            else -> {
+                                editing = true
+                                selection = mapOf(day.date to day.planned.isNotEmpty())
+                                selectedDate = null
+                            }
+                        }
+                    },
+                )
+                if (editing) {
+                    EditActionBar(
+                        insertEnabled = singleSelected != null,
+                        planEnabled = singleSelected != null && selection[singleSelected] == false,
+                        deleteEnabled = plannedSelectedCount > 0,
+                        onInsert = { showInsertDialog = true },
+                        onPlan = { routinePickerTarget = RoutinePickerTarget.ADD_PLAN },
+                        onDelete = { showDeleteDialog = true },
+                    )
+                }
+            }
+        }
+
+        // 编辑模式下不再弹日明细，避免两种交互叠在一起。
+        if (!editing) {
+            selectedDay?.let { day ->
+                DayDetailSheet(
+                    day = day,
+                    routines = routines,
+                    onDismiss = { selectedDate = null },
+                    onOpenRoutine = { routineId ->
+                        selectedDate = null
+                        navigator.push(RoutineEditScreen(routineId))
+                    },
+                    onAddPlan = { routineId -> screenModel.addPlan(routineId, day.date) },
+                    onMarkRest = screenModel::markRestDay,
+                    onRemovePlan = screenModel::removePlan,
+                    onEditSession = { sessionId ->
+                        selectedDate = null
+                        navigator.push(WorkoutLogScreen(sessionId = sessionId, editing = true))
+                    },
+                    onDeleteSession = { session -> deleteSessionTarget = session },
                 )
             }
         }
 
-        selectedDay?.let { day ->
-            DayDetailSheet(
-                day = day,
+        if (showDeleteDialog) {
+            DeleteSelectionDialog(
+                plannedCount = plannedSelectedCount,
+                onRest = {
+                    screenModel.removePlansOn(selection.keys.toList())
+                    showDeleteDialog = false
+                    selection = emptyMap()
+                },
+                onFlow = {
+                    screenModel.compactPlansAfterRemoving(selection.keys.toList())
+                    showDeleteDialog = false
+                    selection = emptyMap()
+                },
+                onDismiss = { showDeleteDialog = false },
+            )
+        }
+
+        if (showInsertDialog) {
+            InsertDialog(
+                onRest = {
+                    showInsertDialog = false
+                    showInsertRestDialog = true
+                },
+                onTraining = {
+                    showInsertDialog = false
+                    routinePickerTarget = RoutinePickerTarget.INSERT_PLAN
+                },
+                onDismiss = { showInsertDialog = false },
+            )
+        }
+
+        if (showInsertRestDialog) {
+            InsertRestDialog(
+                onConfirm = { count ->
+                    singleSelected?.let { date -> screenModel.insertRestDaysBefore(date, count) }
+                    showInsertRestDialog = false
+                    selection = emptyMap()
+                },
+                onDismiss = { showInsertRestDialog = false },
+            )
+        }
+
+        routinePickerTarget?.let { target ->
+            RoutinePickerDialog(
                 routines = routines,
-                onDismiss = { selectedDate = null },
-                onOpenRoutine = { routineId ->
-                    selectedDate = null
-                    navigator.push(RoutineEditScreen(routineId))
+                onPick = { routineId ->
+                    singleSelected?.let { date ->
+                        when (target) {
+                            RoutinePickerTarget.ADD_PLAN -> screenModel.addPlan(routineId, date)
+                            RoutinePickerTarget.INSERT_PLAN -> screenModel.insertPlanBefore(routineId, date)
+                        }
+                    }
+                    routinePickerTarget = null
+                    selection = emptyMap()
                 },
-                onAddPlan = { routineId -> screenModel.addPlan(routineId, day.date) },
-                onMarkRest = screenModel::markRestDay,
-                onRemovePlan = screenModel::removePlan,
-                onEditSession = { sessionId ->
-                    selectedDate = null
-                    navigator.push(WorkoutLogScreen(sessionId = sessionId, editing = true))
-                },
-                onDeleteSession = { session -> deleteSessionTarget = session },
+                onDismiss = { routinePickerTarget = null },
             )
         }
 
@@ -263,7 +403,11 @@ private fun WeekdayHeader() {
 @Composable
 private fun MonthGrid(
     days: List<CalendarDay>,
+    editing: Boolean,
+    selection: Map<LocalDate, Boolean>,
+    modifier: Modifier = Modifier,
     onDayClick: (CalendarDay) -> Unit,
+    onDayLongClick: (CalendarDay) -> Unit,
 ) {
     if (days.isEmpty()) return
 
@@ -275,8 +419,7 @@ private fun MonthGrid(
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MaterialTheme.padding.small, vertical = MaterialTheme.padding.extraSmall),
         verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
@@ -293,7 +436,11 @@ private fun MonthGrid(
                     } else {
                         DayCell(
                             day = day,
+                            editing = editing,
+                            selected = day.date in selection,
+                            selectable = isEditableDate(day),
                             onClick = { onDayClick(day) },
+                            onLongClick = { onDayLongClick(day) },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight(),
@@ -308,13 +455,23 @@ private fun MonthGrid(
 @Composable
 private fun DayCell(
     day: CalendarDay,
+    editing: Boolean,
+    selected: Boolean,
+    selectable: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
+            // 编辑模式下「今天 / 过去」不可选，压暗一档，一眼看出哪些能接着勾。
+            .alpha(if (editing && !selectable) DISABLED_CELL_ALPHA else 1f)
             .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
             .padding(vertical = MaterialTheme.padding.extraSmall, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -341,10 +498,19 @@ private fun DayCell(
                 .clip(MaterialTheme.shapes.extraSmall)
                 .background(dayNumberBackground)
                 .then(
-                    if (day.isToday) {
-                        Modifier.border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.extraSmall)
-                    } else {
-                        Modifier
+                    when {
+                        // 选中比「今天」的描边更醒目，两者同时出现时以选中为准。
+                        selected -> Modifier.border(
+                            width = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = MaterialTheme.shapes.extraSmall,
+                        )
+                        day.isToday -> Modifier.border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = MaterialTheme.shapes.extraSmall,
+                        )
+                        else -> Modifier
                     },
                 )
                 .padding(vertical = 2.dp),
@@ -721,47 +887,80 @@ private fun DayActionsRow(
     }
 
     if (showPicker) {
-        AlertDialog(
-            onDismissRequest = { showPicker = false },
-            title = { Text(text = stringResource(R.string.calendar_pick_routine)) },
-            text = {
-                if (routines.isEmpty()) {
-                    Text(text = stringResource(R.string.calendar_no_routine_left))
-                } else {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        routines.forEach { routine ->
-                            Text(
-                                text = routine.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        showPicker = false
-                                        onAddPlan(routine.id)
-                                    }
-                                    .padding(vertical = MaterialTheme.padding.small),
-                            )
-                        }
-                    }
-                }
+        RoutinePickerDialog(
+            routines = routines,
+            onPick = { routineId ->
+                showPicker = false
+                onAddPlan(routineId)
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showPicker = false }) {
-                    Text(text = stringResource(R.string.action_cancel))
-                }
-            },
+            onDismiss = { showPicker = false },
         )
     }
 }
+
+/** 日历编辑模式底部的三个动作：插入（单一日子）、计划（单一休息日）、删除（至少一天有排期）。 */
+@Composable
+private fun EditActionBar(
+    insertEnabled: Boolean,
+    planEnabled: Boolean,
+    deleteEnabled: Boolean,
+    onInsert: () -> Unit,
+    onPlan: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.small, vertical = MaterialTheme.padding.small),
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Button(
+            onClick = onInsert,
+            enabled = insertEnabled,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text(text = stringResource(R.string.calendar_edit_insert))
+        }
+        Button(
+            onClick = onPlan,
+            enabled = planEnabled,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+        ) {
+            Text(text = stringResource(R.string.calendar_edit_plan))
+        }
+        Button(
+            onClick = onDelete,
+            enabled = deleteEnabled,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            ),
+        ) {
+            Text(text = stringResource(R.string.calendar_edit_delete))
+        }
+    }
+}
+
+/** 编辑模式只能选「今天之后」的未来日子：今天和过去都不可选。 */
+private fun isEditableDate(day: CalendarDay): Boolean = !day.isPast && !day.isToday
+
+/** 「计划 / 插入 → 训练计划」共用一个计划选择弹窗，用它区分选中之后干什么。 */
+private enum class RoutinePickerTarget { ADD_PLAN, INSERT_PLAN }
 
 /** 弹窗内容最高占这么高，再高就滚动，避免小屏顶到状态栏。 */
 private val SHEET_MAX_HEIGHT = 480.dp
 
 /** 日历格子最多显示几个肌群标签，多出来的用「+N」表示。 */
 private const val MAX_CELL_MUSCLES = 3
+
+/** 编辑模式下不可选的日子（今天与过去）压暗到这个透明度。 */
+private const val DISABLED_CELL_ALPHA = 0.38f
 
 @Suppress("ConstPropertyName")
 private const val TABLET_UI_MIN_SCREEN_WIDTH_DP = 600

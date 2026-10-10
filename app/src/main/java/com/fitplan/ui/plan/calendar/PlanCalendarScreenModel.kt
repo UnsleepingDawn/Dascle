@@ -41,7 +41,7 @@ class PlanCalendarScreenModel(
     private val routineRepository: RoutineRepository,
     private val workoutRepository: WorkoutRepository,
     private val widgetManager: WidgetManager,
-    dataRevision: DataRevision,
+    private val dataRevision: DataRevision,
 ) : ViewModel() {
 
     init {
@@ -106,9 +106,57 @@ class PlanCalendarScreenModel(
     fun markRestDay(date: LocalDate) {
         viewModelScope.launch {
             scheduleRepository.deletePlansOn(listOf(date))
-            refresh()
-            widgetManager.updateTodayWidget()
+            afterScheduleChange()
         }
+    }
+
+    /**
+     * 编辑模式里「该日休息 / 这几日休息」：只撤掉 [dates] 这些天的排期，之后的安排原地不动。
+     */
+    fun removePlansOn(dates: Collection<LocalDate>) {
+        viewModelScope.launch {
+            scheduleRepository.deletePlansOn(dates)
+            afterScheduleChange()
+        }
+    }
+
+    /**
+     * 编辑模式里「顺着用未来计划 / 已有计划流入」：清掉 [dates] 这些训练日的排期，
+     * 并让它们之后的训练日依次前顶进腾出来的位置，末尾多出休息日。
+     */
+    fun compactPlansAfterRemoving(dates: Collection<LocalDate>) {
+        viewModelScope.launch {
+            scheduleRepository.deleteAndCompactPlans(dates)
+            afterScheduleChange()
+        }
+    }
+
+    /** 在 [date] 之前插入 [count] 天休息：[date] 及以后的排期整体后移，腾出来的日子成为休息日。 */
+    fun insertRestDaysBefore(date: LocalDate, count: Int) {
+        viewModelScope.launch {
+            scheduleRepository.insertRestDaysBefore(date, count)
+            afterScheduleChange()
+        }
+    }
+
+    /** 在 [date] 之前插入一个训练日：[date] 及以后的排期整体后移一天，[routineId] 落在 [date]。 */
+    fun insertPlanBefore(routineId: Long, date: LocalDate) {
+        viewModelScope.launch {
+            scheduleRepository.insertPlanBefore(routineId, date)
+            afterScheduleChange()
+        }
+    }
+
+    /**
+     * 改完排期后的收尾：刷新日历、通知其它页面重算、刷新桌面组件。
+     *
+     * [DataRevision] 必须通知——今日页的「使用之后的方案 / 今日休息」都依赖未来排期，
+     * 它们可能已经取过数了。
+     */
+    private suspend fun afterScheduleChange() {
+        refresh()
+        dataRevision.bump()
+        widgetManager.updateTodayWidget()
     }
 
     fun removePlan(entryId: Long) {

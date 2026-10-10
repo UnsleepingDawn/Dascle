@@ -195,6 +195,26 @@
     <string name="calendar_delete_session_message">「%1$s」以及这次训练记录的所有组都会被删除，无法恢复。</string>
     <string name="calendar_more_muscles">+%1$d</string>
 
+    <!-- 日历编辑模式：长按未来日子进入，可跨月多选后批量删除 / 单日计划 / 单日插入 -->
+    <string name="calendar_edit_selected">已选 %1$d 天</string>
+    <string name="calendar_edit_done">完成</string>
+    <string name="calendar_edit_delete">删除</string>
+    <string name="calendar_edit_plan">计划</string>
+    <string name="calendar_edit_insert">插入</string>
+    <string name="calendar_delete_dialog_title_one">删除这天的计划？</string>
+    <string name="calendar_delete_dialog_title_many">删除这几天的计划？</string>
+    <string name="calendar_delete_dialog_message_one">该日休息：只撤掉这天的计划，之后的安排原地不动。\n顺着用未来计划：把之后最近一次训练顶到这天，后面的安排依次往前补。</string>
+    <string name="calendar_delete_dialog_message_many">这几日休息：只撤掉这些天的计划，之后的安排原地不动。\n已有计划流入：把这些天之后的训练依次往前顶，补上撤掉的位置。</string>
+    <string name="calendar_delete_dialog_rest_one">该日休息</string>
+    <string name="calendar_delete_dialog_flow_one">顺着用未来计划</string>
+    <string name="calendar_delete_dialog_rest_many">这几日休息</string>
+    <string name="calendar_delete_dialog_flow_many">已有计划流入</string>
+    <string name="calendar_insert_title">在该日之前插入…</string>
+    <string name="calendar_insert_rest">休息</string>
+    <string name="calendar_insert_training">训练计划</string>
+    <string name="calendar_insert_rest_title">插入几天休息？</string>
+    <string name="calendar_insert_rest_label">休息天数</string>
+
     <string-array name="weekday_short_names">
         <item>一</item>
         <item>二</item>

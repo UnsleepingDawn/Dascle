@@ -61,6 +61,27 @@ interface ScheduleRepository {
     suspend fun deletePlansOn(dates: Collection<LocalDate>)
 
     /**
+     * 压缩删除：把 [dates] 这些训练日的排期清掉，并让它们之后的训练日依次前顶进腾出来的位置，
+     * 末尾多出休息日；休息日自身不动。
+     *
+     * 例：`10/12、10/14、10/16` 只删 `10/14`，结果是 `10/12、10/14（原 10/16）`，`10/16` 变休息。
+     * 整批放在一个事务里，中途出错不会留下删了一半、没顶上的日历。
+     */
+    suspend fun deleteAndCompactPlans(dates: Collection<LocalDate>)
+
+    /**
+     * 在 [date] 之前插入 [count] 天休息：[date] 及以后的排期整体后移 [count] 天，
+     * 腾出来的 `[date, date + count)` 就是休息日。整批放在一个事务里。
+     */
+    suspend fun insertRestDaysBefore(date: LocalDate, count: Int)
+
+    /**
+     * 在 [date] 之前插入一个训练日：[date] 及以后的排期整体后移一天，
+     * [routineId] 落在 [date]，它原本的安排顺移到次日。整批放在一个事务里。
+     */
+    suspend fun insertPlanBefore(routineId: Long, date: LocalDate)
+
+    /**
      * 今日休息：把 [date] 及以后的排期整体后移一天，之后每一天都顺延一格；
      * [date] 腾空后自然成为休息日。整批放在一个事务里。
      */

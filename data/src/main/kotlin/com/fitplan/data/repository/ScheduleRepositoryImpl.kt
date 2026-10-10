@@ -5,6 +5,7 @@ import app.cash.sqldelight.async.coroutines.awaitAsOne
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
+import com.fitplan.domain.interactor.compactTrainingDateMoves
 import com.fitplan.domain.model.ScheduleEntry
 import com.fitplan.domain.repository.ScheduleRepository
 import dev.zacsweers.metro.AppScope
@@ -135,6 +136,69 @@ class ScheduleRepositoryImpl(
             dates.forEach { date ->
                 queries.deleteOnceOnDate(specific_date = date.toDbValue())
             }
+        }
+    }
+
+    override suspend fun deleteAndCompactPlans(dates: Collection<LocalDate>) {
+        val firstChanged = dates.minOrNull() ?: return
+        database.transactionWithResult {
+            // 这一段一天最多一条排期：按日期读出来，压缩后才知道各条落到哪一天。
+            val upcoming = queries.selectOnceFrom(specific_date = firstChanged.toDbValue()).awaitAsList()
+            val entryByDate = upcoming.associateBy { requireNotNull(it.specific_date) }
+            val moves = compactTrainingDateMoves(
+                scheduledDates = entryByDate.keys.sorted().map(LocalDate::fromEpochDays),
+                deletedDates = dates.toSet(),
+            )
+            // 只动真正挪位的那些：先把被删的训练日与挪位条目的原位置一起清掉，再写到新位置。
+            // 原地不动的排期完全不碰，也就不会撞上 specific_date 的唯一索引。
+            (dates + moves.map { it.first }).forEach { date ->
+                queries.deleteOnceOnDate(specific_date = date.toDbValue())
+            }
+            moves.forEach { (from, to) ->
+                val entry = entryByDate.getValue(from.toDbValue())
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = to.toDbValue(),
+                    enabled = entry.enabled,
+                )
+            }
+        }
+    }
+
+    override suspend fun insertRestDaysBefore(date: LocalDate, count: Int) {
+        if (count <= 0) return
+        database.transactionWithResult {
+            // [date] 及以后的排期整体后移 count 天；腾出来的 [date, date + count) 不写排期，即休息日。
+            val upcoming = queries.selectOnceFrom(specific_date = date.toDbValue()).awaitAsList()
+            queries.deleteOnceFrom(specific_date = date.toDbValue())
+            upcoming.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = requireNotNull(entry.specific_date) + count,
+                    enabled = entry.enabled,
+                )
+            }
+        }
+    }
+
+    override suspend fun insertPlanBefore(routineId: Long, date: LocalDate) {
+        database.transactionWithResult {
+            // [date] 及以后的排期整体后移一天，原本这天的安排顺移到次日。
+            val upcoming = queries.selectOnceFrom(specific_date = date.toDbValue()).awaitAsList()
+            queries.deleteOnceFrom(specific_date = date.toDbValue())
+            upcoming.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = requireNotNull(entry.specific_date) + 1,
+                    enabled = entry.enabled,
+                )
+            }
+            // 新计划落在插入的这一天。
+            queries.insert(
+                routine_id = routineId,
+                specific_date = date.toDbValue(),
+                enabled = 1L,
+            )
         }
     }
 
