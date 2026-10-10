@@ -84,6 +84,9 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.util.Tab
 import com.fitplan.reminder.RestState
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.plan.routine.targetText
 import com.fitplan.ui.workout.WorkoutLogScreen
 import com.fitplan.ui.workout.toClockText
@@ -1194,30 +1197,28 @@ private fun RestDayBlock(
             onDismissRequest = { showUpcomingDialog = false },
             title = { Text(text = stringResource(R.string.today_rest_upcoming_title)) },
             text = {
-                Text(
-                    text = stringResource(
-                        R.string.today_rest_upcoming_message,
-                        plan.routineName,
-                        stringResource(R.string.date_month_day, plan.date.month.ordinal + 1, plan.date.day),
-                        plan.dayOffset,
-                    ),
-                )
-            },
-            confirmButton = {
-                OutlinedButton(
-                    onClick = {
-                        showUpcomingDialog = false
-                        onUseUpcoming()
-                    },
-                ) {
-                    Text(text = stringResource(R.string.action_ok))
+                Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                    Text(
+                        text = stringResource(
+                            R.string.today_rest_upcoming_message,
+                            plan.routineName,
+                            stringResource(R.string.date_month_day, plan.date.month.ordinal + 1, plan.date.day),
+                            plan.dayOffset,
+                        ),
+                    )
+                    DialogButtonColumn {
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.action_ok),
+                            onClick = {
+                                showUpcomingDialog = false
+                                onUseUpcoming()
+                            },
+                        )
+                        DialogCancelButton(onClick = { showUpcomingDialog = false })
+                    }
                 }
             },
-            dismissButton = {
-                OutlinedButton(onClick = { showUpcomingDialog = false }) {
-                    Text(text = stringResource(R.string.action_cancel))
-                }
-            },
+            confirmButton = {},
         )
     }
 }

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +18,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import com.fitplan.app.R
 import com.fitplan.presentation.core.components.material.padding
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.profile.fieldLabel
 import com.fitplan.ui.profile.filterDecimalInput
 import com.fitplan.ui.profile.invalidMessage
@@ -72,20 +74,16 @@ internal fun BodyMetricInputDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_save),
+                        onClick = { onConfirm(text) },
+                        enabled = value != null,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        confirmButton = {
-            OutlinedButton(
-                enabled = value != null,
-                onClick = { onConfirm(text) },
-            ) {
-                Text(text = stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }

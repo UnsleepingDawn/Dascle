@@ -47,7 +47,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -77,6 +76,10 @@ import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.reminder.RestState
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogDestructiveButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.exercise.label
 import com.fitplan.ui.exercise.muscleLabels
 import kotlinx.coroutines.launch
@@ -307,20 +310,19 @@ internal fun RemoveGroupDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.workout_remove_group_confirm_title)) },
-        text = { Text(text = stringResource(R.string.workout_remove_group_confirm_message)) },
-        confirmButton = {
-            OutlinedButton(
-                onClick = onConfirm,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) {
-                Text(text = stringResource(R.string.action_delete))
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.workout_remove_group_confirm_message))
+                DialogButtonColumn {
+                    DialogDestructiveButton(
+                        text = stringResource(R.string.action_delete),
+                        onClick = onConfirm,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 
@@ -615,17 +617,19 @@ internal fun SkipLastSetDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.workout_last_set_title)) },
-        text = { Text(text = stringResource(R.string.workout_last_set_message)) },
-        confirmButton = {
-            OutlinedButton(onClick = onConfirm) {
-                Text(text = stringResource(R.string.workout_skip))
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.workout_last_set_message))
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.workout_skip),
+                        onClick = onConfirm,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 
@@ -644,23 +648,26 @@ internal fun LowTargetReminderDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.workout_low_target_title, exercise.name)) },
         text = {
-            Text(
-                text = stringResource(
-                    R.string.workout_low_target_message,
-                    exercise.targetHint(),
-                ),
-            )
-        },
-        confirmButton = {
-            OutlinedButton(onClick = onRetry) {
-                Text(text = stringResource(R.string.workout_low_target_retry))
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(
+                    text = stringResource(
+                        R.string.workout_low_target_message,
+                        exercise.targetHint(),
+                    ),
+                )
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.workout_low_target_retry),
+                        onClick = onRetry,
+                    )
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.workout_low_target_keep),
+                        onClick = onKeep,
+                    )
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onKeep) {
-                Text(text = stringResource(R.string.workout_low_target_keep))
-            }
-        },
+        confirmButton = {},
     )
 }
 
@@ -760,36 +767,32 @@ internal fun LowTargetRetryDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-        },
-        confirmButton = {
-            OutlinedButton(
-                enabled = validTargetSize && validTargetWeight && validSize,
-                onClick = {
-                    onConfirm(
-                        ExerciseTargetDraft(
-                            sets = targetSets.toIntOrNull() ?: exercise.targetSets,
-                            // 计时类动作不需要次数目标，沿用计划里的旧值即可。
-                            reps = if (exercise.isTimed) {
-                                exercise.targetReps
-                            } else {
-                                targetReps.toIntOrNull() ?: return@OutlinedButton
-                            },
-                            weight = if (exercise.showsWeight) targetWeight.toDoubleOrNull() else null,
-                            seconds = if (exercise.isTimed) targetSeconds.toIntOrNull() else null,
-                            restSeconds = restSeconds.toIntOrNull() ?: exercise.restSeconds,
-                        ),
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_save),
+                        enabled = validTargetSize && validTargetWeight && validSize,
+                        onClick = {
+                            onConfirm(
+                                ExerciseTargetDraft(
+                                    sets = targetSets.toIntOrNull() ?: exercise.targetSets,
+                                    // 计时类动作不需要次数目标，沿用计划里的旧值即可。
+                                    reps = if (exercise.isTimed) {
+                                        exercise.targetReps
+                                    } else {
+                                        targetReps.toIntOrNull() ?: return@DialogPrimaryButton
+                                    },
+                                    weight = if (exercise.showsWeight) targetWeight.toDoubleOrNull() else null,
+                                    seconds = if (exercise.isTimed) targetSeconds.toIntOrNull() else null,
+                                    restSeconds = restSeconds.toIntOrNull() ?: exercise.restSeconds,
+                                ),
+                            )
+                        },
                     )
-                },
-            ) {
-                Text(text = stringResource(R.string.action_save))
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 
@@ -1228,14 +1231,10 @@ internal fun ExtraExerciseDialog(
                         }
                     }
                 }
+                DialogCancelButton(onClick = onDismiss)
             }
         },
         confirmButton = {},
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
     )
 }
 
@@ -1253,26 +1252,30 @@ internal fun ExtraExerciseNoticeDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.workout_extra_notice_title)) },
         text = {
-            Text(
-                text = when (notice) {
-                    is ExtraExerciseNotice.AlreadyInWorkout -> stringResource(
-                        R.string.workout_extra_notice_standalone,
-                        notice.name,
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(
+                    text = when (notice) {
+                        is ExtraExerciseNotice.AlreadyInWorkout -> stringResource(
+                            R.string.workout_extra_notice_standalone,
+                            notice.name,
+                        )
 
-                    is ExtraExerciseNotice.InGroup -> stringResource(
-                        R.string.workout_extra_notice_group,
-                        notice.name,
-                        notice.groupName ?: stringResource(R.string.workout_group_title),
+                        is ExtraExerciseNotice.InGroup -> stringResource(
+                            R.string.workout_extra_notice_group,
+                            notice.name,
+                            notice.groupName ?: stringResource(R.string.workout_group_title),
+                        )
+                    },
+                )
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_understood),
+                        onClick = onDismiss,
                     )
-                },
-            )
-        },
-        confirmButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_understood))
+                }
             }
         },
+        confirmButton = {},
     )
 }
 
@@ -1297,20 +1300,19 @@ internal fun AbandonWorkoutDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.workout_abandon_confirm_title)) },
-        text = { Text(text = stringResource(R.string.workout_abandon_confirm_message)) },
-        confirmButton = {
-            OutlinedButton(
-                onClick = onConfirm,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) {
-                Text(text = stringResource(R.string.workout_abandon))
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.workout_abandon_confirm_message))
+                DialogButtonColumn {
+                    DialogDestructiveButton(
+                        text = stringResource(R.string.workout_abandon),
+                        onClick = onConfirm,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 

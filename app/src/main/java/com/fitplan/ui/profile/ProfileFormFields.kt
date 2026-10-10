@@ -9,11 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -33,6 +30,10 @@ import com.fitplan.domain.model.ActivityLevel
 import com.fitplan.domain.model.Gender
 import com.fitplan.domain.model.ageOn
 import com.fitplan.presentation.core.components.material.padding
+import com.fitplan.ui.common.DatePickerButtonsDialog
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -194,37 +195,24 @@ private fun BirthdayPickerDialog(
         initialSelectedDateMillis = (initial ?: today).toUtcMillis(),
     )
 
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Row {
-                if (initial != null) {
-                    OutlinedButton(
-                        onClick = {
-                            onPick(null)
-                            onDismiss()
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.action_clear))
-                    }
-                }
-                OutlinedButton(
-                    onClick = {
-                        state.selectedDateMillis?.let { onPick(it.toUtcDate()) }
-                        onDismiss()
-                    },
-                ) {
-                    Text(text = stringResource(R.string.action_ok))
-                }
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
-    ) {
-        DatePicker(state = state, showModeToggle = false)
+    DatePickerButtonsDialog(state = state, onDismissRequest = onDismiss) {
+        if (initial != null) {
+            DialogPrimaryButton(
+                text = stringResource(R.string.action_clear),
+                onClick = {
+                    onPick(null)
+                    onDismiss()
+                },
+            )
+        }
+        DialogPrimaryButton(
+            text = stringResource(R.string.action_ok),
+            onClick = {
+                state.selectedDateMillis?.let { onPick(it.toUtcDate()) }
+                onDismiss()
+            },
+        )
+        DialogCancelButton(onClick = onDismiss)
     }
 }
 
@@ -253,25 +241,21 @@ private fun ActivityLevelPickerDialog(
                         },
                     )
                 }
-            }
-        },
-        confirmButton = {
-            if (initial != null) {
-                OutlinedButton(
-                    onClick = {
-                        onPick(null)
-                        onDismiss()
-                    },
-                ) {
-                    Text(text = stringResource(R.string.action_clear))
+                DialogButtonColumn {
+                    if (initial != null) {
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.action_clear),
+                            onClick = {
+                                onPick(null)
+                                onDismiss()
+                            },
+                        )
+                    }
+                    DialogCancelButton(onClick = onDismiss)
                 }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 

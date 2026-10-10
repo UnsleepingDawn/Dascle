@@ -2,22 +2,22 @@ package com.fitplan.ui.today
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.fitplan.app.R
 import com.fitplan.domain.interactor.RestTodayMode
 import com.fitplan.presentation.core.components.material.padding
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogDestructiveButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import kotlinx.datetime.LocalDate
 
 /**
@@ -56,20 +56,16 @@ fun TodayRestDialog(
                         )
                     }
                     // 按钮放在 text 槽位里：confirmButton 那一行不给宽度约束，fillMaxWidth 会失效。
-                    Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                        Button(
+                    DialogButtonColumn {
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.today_rest_dialog_postpone_all),
                             onClick = { choose(RestTodayMode.POSTPONE_ALL) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(text = stringResource(R.string.today_rest_dialog_postpone_all))
-                        }
-                        Button(
+                        )
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.today_rest_dialog_until_rest),
                             onClick = { choose(RestTodayMode.POSTPONE_UNTIL_REST_DAY) },
                             enabled = nextRestDay != null,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(text = stringResource(R.string.today_rest_dialog_until_rest))
-                        }
+                        )
                     }
                     if (nextRestDay == null) {
                         Text(
@@ -86,17 +82,20 @@ fun TodayRestDialog(
         else -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(text = stringResource(R.string.today_rest_dialog_discard_title)) },
-            text = { Text(text = stringResource(R.string.today_rest_dialog_discard_message)) },
-            confirmButton = {
-                OutlinedButton(onClick = { onConfirm(mode) }) {
-                    Text(text = stringResource(R.string.today_rest_dialog_discard_confirm))
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                    Text(text = stringResource(R.string.today_rest_dialog_discard_message))
+                    // 作废这次训练是破坏性操作，用与「结束训练」同款的红底按钮。
+                    DialogButtonColumn {
+                        DialogDestructiveButton(
+                            text = stringResource(R.string.today_rest_dialog_discard_confirm),
+                            onClick = { onConfirm(mode) },
+                        )
+                        DialogCancelButton(onClick = onDismiss)
+                    }
                 }
             },
-            dismissButton = {
-                OutlinedButton(onClick = onDismiss) {
-                    Text(text = stringResource(R.string.action_cancel))
-                }
-            },
+            confirmButton = {},
         )
     }
 }

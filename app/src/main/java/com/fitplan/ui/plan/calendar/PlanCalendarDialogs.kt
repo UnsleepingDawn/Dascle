@@ -12,10 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
@@ -34,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import com.fitplan.app.R
 import com.fitplan.domain.model.Routine
 import com.fitplan.presentation.core.components.material.padding
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 
 /**
  * 编辑模式各弹窗共用的紧凑外框。
@@ -93,8 +94,8 @@ private fun CompactDialog(
  * 后续排期整体提前（[onRemoveRests]），没有「撤掉计划」一说；大于 0 时按恰好一天用单日措辞
  * （该日休息 / 顺着用未来计划）、多天用多日措辞（这几日休息 / 已有计划流入），二者都保留。
  *
- * 操作按钮整宽竖排：Material3 的按钮行不给宽度约束，`fillMaxWidth` 会失效，整宽按钮会缩成
- * 各自文字的宽度、宽窄不一。
+ * 操作按钮用 [DialogButtonColumn] 整宽竖排：Material3 的按钮行不给宽度约束，`fillMaxWidth` 会失效，
+ * 整宽按钮会缩成各自文字的宽度、宽窄不一。
  */
 @Composable
 fun DeleteSelectionDialog(
@@ -128,45 +129,36 @@ fun DeleteSelectionDialog(
                 },
             ),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+        DialogButtonColumn {
             if (restOnly) {
-                Button(onClick = onRemoveRests, modifier = Modifier.fillMaxWidth()) {
-                    Text(text = stringResource(R.string.action_ok))
-                }
+                DialogPrimaryButton(
+                    text = stringResource(R.string.action_ok),
+                    onClick = onRemoveRests,
+                )
             } else {
-                Button(onClick = onRest, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = stringResource(
-                            if (single) {
-                                R.string.calendar_delete_dialog_rest_one
-                            } else {
-                                R.string.calendar_delete_dialog_rest_many
-                            },
-                        ),
-                    )
-                }
-                Button(onClick = onFlow, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = stringResource(
-                            if (single) {
-                                R.string.calendar_delete_dialog_flow_one
-                            } else {
-                                R.string.calendar_delete_dialog_flow_many
-                            },
-                        ),
-                    )
-                }
+                DialogPrimaryButton(
+                    text = stringResource(
+                        if (single) {
+                            R.string.calendar_delete_dialog_rest_one
+                        } else {
+                            R.string.calendar_delete_dialog_rest_many
+                        },
+                    ),
+                    onClick = onRest,
+                )
+                DialogPrimaryButton(
+                    text = stringResource(
+                        if (single) {
+                            R.string.calendar_delete_dialog_flow_one
+                        } else {
+                            R.string.calendar_delete_dialog_flow_many
+                        },
+                    ),
+                    onClick = onFlow,
+                )
             }
             DialogCancelButton(onClick = onDismiss)
         }
-    }
-}
-
-/** 弹窗里的「取消」：描边样式、整宽居中，高度与上方操作按钮一致。 */
-@Composable
-private fun DialogCancelButton(onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Text(text = stringResource(R.string.action_cancel))
     }
 }
 
@@ -186,13 +178,15 @@ fun InsertDialog(
         onDismissRequest = onDismiss,
         title = stringResource(R.string.calendar_insert_title),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-            Button(onClick = onRest, modifier = Modifier.fillMaxWidth()) {
-                Text(text = stringResource(R.string.calendar_insert_rest))
-            }
-            Button(onClick = onTraining, modifier = Modifier.fillMaxWidth()) {
-                Text(text = stringResource(R.string.calendar_insert_training))
-            }
+        DialogButtonColumn {
+            DialogPrimaryButton(
+                text = stringResource(R.string.calendar_insert_rest),
+                onClick = onRest,
+            )
+            DialogPrimaryButton(
+                text = stringResource(R.string.calendar_insert_training),
+                onClick = onTraining,
+            )
             DialogCancelButton(onClick = onDismiss)
         }
     }
@@ -219,14 +213,12 @@ fun InsertRestDialog(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-            Button(
+        DialogButtonColumn {
+            DialogPrimaryButton(
+                text = stringResource(R.string.action_ok),
                 onClick = { count?.let(onConfirm) },
                 enabled = count != null && count >= 1,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(text = stringResource(R.string.action_ok))
-            }
+            )
             DialogCancelButton(onClick = onDismiss)
         }
     }

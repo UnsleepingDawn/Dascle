@@ -34,7 +34,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -70,6 +69,9 @@ import com.fitplan.presentation.core.components.AdaptiveSheet
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.util.Tab
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogDestructiveButton
 import com.fitplan.ui.exercise.label
 import com.fitplan.ui.plan.calendar.DeleteSelectionDialog
 import com.fitplan.ui.plan.calendar.InsertDialog
@@ -803,20 +805,19 @@ private fun DeleteSessionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.calendar_delete_session_title)) },
-        text = { Text(text = stringResource(R.string.calendar_delete_session_message, sessionName)) },
-        confirmButton = {
-            OutlinedButton(
-                onClick = onConfirm,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) {
-                Text(text = stringResource(R.string.action_delete))
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.calendar_delete_session_message, sessionName))
+                DialogButtonColumn {
+                    DialogDestructiveButton(
+                        text = stringResource(R.string.action_delete),
+                        onClick = onConfirm,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 

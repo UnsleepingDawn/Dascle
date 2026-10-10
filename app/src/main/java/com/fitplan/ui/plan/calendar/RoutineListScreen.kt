@@ -31,7 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,6 +63,10 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.util.Screen
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogDestructiveButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.plan.PlanScreenModel
 import com.fitplan.ui.plan.RoutineListItem
 import com.fitplan.ui.plan.routine.RoutineEditScreen
@@ -196,22 +199,22 @@ object RoutineListScreen : Screen() {
             AlertDialog(
                 onDismissRequest = { deleteTarget = null },
                 title = { Text(text = stringResource(R.string.plan_delete)) },
-                text = { Text(text = stringResource(R.string.plan_delete_confirm, routine.name)) },
-                confirmButton = {
-                    OutlinedButton(
-                        onClick = {
-                            screenModel.delete(routine.id)
-                            deleteTarget = null
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.action_delete))
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                        Text(text = stringResource(R.string.plan_delete_confirm, routine.name))
+                        DialogButtonColumn {
+                            DialogDestructiveButton(
+                                text = stringResource(R.string.action_delete),
+                                onClick = {
+                                    screenModel.delete(routine.id)
+                                    deleteTarget = null
+                                },
+                            )
+                            DialogCancelButton(onClick = { deleteTarget = null })
+                        }
                     }
                 },
-                dismissButton = {
-                    OutlinedButton(onClick = { deleteTarget = null }) {
-                        Text(text = stringResource(R.string.action_cancel))
-                    }
-                },
+                confirmButton = {},
             )
         }
     }
@@ -403,27 +406,25 @@ private fun RoutineDetailDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text(text = stringResource(R.string.field_routine_name)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            OutlinedButton(
-                enabled = name.isNotBlank(),
-                onClick = { onConfirm(name.trim()) },
-            ) {
-                Text(text = stringResource(R.string.action_save))
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(text = stringResource(R.string.field_routine_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_save),
+                        onClick = { onConfirm(name.trim()) },
+                        enabled = name.isNotBlank(),
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 

@@ -24,14 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -74,6 +69,10 @@ import com.fitplan.presentation.core.components.LabeledCheckbox
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.util.Screen
+import com.fitplan.ui.common.DatePickerButtonsDialog
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.exercise.muscleLabels
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
@@ -338,75 +337,56 @@ private fun SlotPickerDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.plan_compose_pick_title, dayIndex)) },
         text = {
-            if (!picking) {
-                Text(text = stringResource(R.string.plan_compose_pick_hint))
-            } else if (routines.isEmpty()) {
-                Text(text = stringResource(R.string.plan_compose_pick_empty))
-            } else {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = PICKER_MAX_HEIGHT)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    routines.forEach { routine ->
-                        LabeledCheckbox(
-                            label = routine.name,
-                            checked = routine.id == selectedId,
-                            onCheckedChange = { selectedId = routine.id },
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            if (picking) {
-                OutlinedButton(
-                    enabled = picked != null,
-                    onClick = { picked?.let(onPickRoutine) },
-                ) {
-                    Text(text = stringResource(R.string.action_save))
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                    Button(
-                        onClick = { picking = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                when {
+                    !picking -> Text(text = stringResource(R.string.plan_compose_pick_hint))
+                    routines.isEmpty() -> Text(text = stringResource(R.string.plan_compose_pick_empty))
+                    else -> Column(
+                        modifier = Modifier
+                            .heightIn(max = PICKER_MAX_HEIGHT)
+                            .verticalScroll(rememberScrollState()),
                     ) {
-                        Text(text = stringResource(R.string.plan_compose_training))
-                    }
-                    Button(
-                        onClick = onRest,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        ),
-                    ) {
-                        Text(text = stringResource(R.string.plan_compose_rest))
-                    }
-                }
-            }
-        },
-        dismissButton = {
-            if (picking) {
-                OutlinedButton(onClick = { picking = false }) {
-                    Text(text = stringResource(R.string.action_back))
-                }
-            } else {
-                Row {
-                    if (slot != null && !slot.isEmpty) {
-                        OutlinedButton(onClick = onClear) {
-                            Text(text = stringResource(R.string.plan_compose_remove_day))
+                        routines.forEach { routine ->
+                            LabeledCheckbox(
+                                label = routine.name,
+                                checked = routine.id == selectedId,
+                                onCheckedChange = { selectedId = routine.id },
+                            )
                         }
                     }
-                    OutlinedButton(onClick = onDismiss) {
-                        Text(text = stringResource(R.string.action_cancel))
+                }
+                DialogButtonColumn {
+                    if (picking) {
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.action_save),
+                            onClick = { picked?.let(onPickRoutine) },
+                            enabled = picked != null,
+                        )
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.action_back),
+                            onClick = { picking = false },
+                        )
+                    } else {
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.plan_compose_training),
+                            onClick = { picking = true },
+                        )
+                        DialogPrimaryButton(
+                            text = stringResource(R.string.plan_compose_rest),
+                            onClick = onRest,
+                        )
+                        if (slot != null && !slot.isEmpty) {
+                            DialogPrimaryButton(
+                                text = stringResource(R.string.plan_compose_remove_day),
+                                onClick = onClear,
+                            )
+                        }
+                        DialogCancelButton(onClick = onDismiss)
                     }
                 }
             }
         },
+        confirmButton = {},
     )
 }
 
@@ -492,49 +472,35 @@ private fun ApplyDialog(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_ok),
+                        onClick = { onConfirm(startDate, pickedCycles, pickedUntil) },
+                        enabled = days > 0 && untilValid,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        confirmButton = {
-            OutlinedButton(
-                enabled = days > 0 && untilValid,
-                onClick = { onConfirm(startDate, pickedCycles, pickedUntil) },
-            ) {
-                Text(text = stringResource(R.string.action_ok))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 
     picking?.let { field ->
         val state = rememberDatePickerState(
             initialSelectedDateMillis = (if (field == DateField.START) startDate else until).toUtcMillis(),
         )
-        DatePickerDialog(
-            onDismissRequest = { picking = null },
-            confirmButton = {
-                OutlinedButton(
-                    onClick = {
-                        state.selectedDateMillis?.let { millis ->
-                            val date = millis.toUtcDate()
-                            if (field == DateField.START) startDate = date else until = date
-                        }
-                        picking = null
-                    },
-                ) {
-                    Text(text = stringResource(R.string.action_ok))
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { picking = null }) {
-                    Text(text = stringResource(R.string.action_cancel))
-                }
-            },
-        ) {
-            DatePicker(state = state)
+        DatePickerButtonsDialog(state = state, onDismissRequest = { picking = null }) {
+            DialogPrimaryButton(
+                text = stringResource(R.string.action_ok),
+                onClick = {
+                    state.selectedDateMillis?.let { millis ->
+                        val date = millis.toUtcDate()
+                        if (field == DateField.START) startDate = date else until = date
+                    }
+                    picking = null
+                },
+            )
+            DialogCancelButton(onClick = { picking = null })
         }
     }
 }

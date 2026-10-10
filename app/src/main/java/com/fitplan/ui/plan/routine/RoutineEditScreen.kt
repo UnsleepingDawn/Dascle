@@ -24,7 +24,6 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -52,6 +51,9 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.util.Screen
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.exercise.ExercisePickerScreen
 import com.fitplan.ui.workout.toWeightText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -178,12 +180,18 @@ private fun WeightIntroDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.routine_edit_weight_intro_title)) },
-        text = { Text(text = stringResource(R.string.routine_edit_weight_intro_message)) },
-        confirmButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.routine_edit_weight_intro_ok))
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.routine_edit_weight_intro_message))
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.routine_edit_weight_intro_ok),
+                        onClick = onDismiss,
+                    )
+                }
             }
         },
+        confirmButton = {},
     )
 }
 
@@ -197,17 +205,22 @@ private fun GroupActionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.routine_edit_group_title)) },
-        text = { Text(text = stringResource(R.string.routine_edit_group_dialog_message)) },
-        confirmButton = {
-            OutlinedButton(onClick = onAddEmptyGroup) {
-                Text(text = stringResource(R.string.routine_edit_group_add_empty))
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.routine_edit_group_dialog_message))
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.routine_edit_group_add_empty),
+                        onClick = onAddEmptyGroup,
+                    )
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.routine_edit_group_add_preset),
+                        onClick = onPickPreset,
+                    )
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onPickPreset) {
-                Text(text = stringResource(R.string.routine_edit_group_add_preset))
-            }
-        },
+        confirmButton = {},
     )
 }
 
@@ -224,24 +237,24 @@ private fun GroupRenameDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.routine_edit_group_rename)) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text(text = stringResource(R.string.field_group_name)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            OutlinedButton(onClick = { onConfirm(name.trim()) }) {
-                Text(text = stringResource(R.string.action_save))
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(text = stringResource(R.string.field_group_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_save),
+                        onClick = { onConfirm(name.trim()) },
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 
@@ -670,32 +683,28 @@ private fun TargetsDialog(
                     onValueChange = { rest = it },
                     label = stringResource(R.string.field_rest_seconds),
                 )
-            }
-        },
-        confirmButton = {
-            OutlinedButton(
-                enabled = valid,
-                onClick = {
-                    val parsedSets = setsValue ?: return@OutlinedButton
-                    val parsedRest = restValue ?: return@OutlinedButton
-                    // 计时类动作不需要次数目标，计数类动作不需要时长目标，顺手清掉另一侧的旧值。
-                    onConfirm(
-                        parsedSets,
-                        if (timed) exercise.targetReps else (repsValue ?: return@OutlinedButton),
-                        parsedRest,
-                        if (showsWeight) weightValue else null,
-                        if (timed) secondsValue else null,
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_save),
+                        enabled = valid,
+                        onClick = {
+                            val parsedSets = setsValue ?: return@DialogPrimaryButton
+                            val parsedRest = restValue ?: return@DialogPrimaryButton
+                            // 计时类动作不需要次数目标，计数类动作不需要时长目标，顺手清掉另一侧的旧值。
+                            onConfirm(
+                                parsedSets,
+                                if (timed) exercise.targetReps else (repsValue ?: return@DialogPrimaryButton),
+                                parsedRest,
+                                if (showsWeight) weightValue else null,
+                                if (timed) secondsValue else null,
+                            )
+                        },
                     )
-                },
-            ) {
-                Text(text = stringResource(R.string.action_save))
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 

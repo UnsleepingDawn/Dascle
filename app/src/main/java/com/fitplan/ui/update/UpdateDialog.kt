@@ -2,14 +2,11 @@ package com.fitplan.ui.update
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -18,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import com.fitplan.app.R
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.util.secondaryItemAlpha
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.updater.AppRelease
 
 /**
@@ -55,19 +54,15 @@ fun UpdateDialog(
                     modifier = Modifier.secondaryItemAlpha(),
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                    Button(
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.update_dialog_download),
                         onClick = onDownload,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(text = stringResource(R.string.update_dialog_download))
-                    }
-                    OutlinedButton(
+                    )
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.update_dialog_later),
                         onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(text = stringResource(R.string.update_dialog_later))
-                    }
+                    )
                 }
             }
         },

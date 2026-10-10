@@ -24,7 +24,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -56,6 +55,9 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.util.secondaryItemAlpha
 import com.fitplan.presentation.util.Screen
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
@@ -276,22 +278,22 @@ object SettingsScreen : Screen() {
             AlertDialog(
                 onDismissRequest = { showTimePicker = false },
                 title = { Text(text = stringResource(R.string.settings_reminder_time_pick)) },
-                text = { TimePicker(state = timePickerState) },
-                confirmButton = {
-                    OutlinedButton(
-                        onClick = {
-                            screenModel.setReminderTime(timePickerState.hour, timePickerState.minute)
-                            showTimePicker = false
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.action_ok))
+                text = {
+                    Column {
+                        TimePicker(state = timePickerState)
+                        DialogButtonColumn {
+                            DialogPrimaryButton(
+                                text = stringResource(R.string.action_ok),
+                                onClick = {
+                                    screenModel.setReminderTime(timePickerState.hour, timePickerState.minute)
+                                    showTimePicker = false
+                                },
+                            )
+                            DialogCancelButton(onClick = { showTimePicker = false })
+                        }
                     }
                 },
-                dismissButton = {
-                    OutlinedButton(onClick = { showTimePicker = false }) {
-                        Text(text = stringResource(R.string.action_cancel))
-                    }
-                },
+                confirmButton = {},
             )
         }
     }

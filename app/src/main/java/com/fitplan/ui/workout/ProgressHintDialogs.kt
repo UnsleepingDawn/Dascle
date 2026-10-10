@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +19,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.fitplan.app.R
 import com.fitplan.domain.model.ExerciseLoadMode
 import com.fitplan.presentation.core.components.material.padding
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogCancelButton
+import com.fitplan.ui.common.DialogPrimaryButton
 
 /**
  * 渐进提示的第一步：这个动作已经按当前目标做满目标组了，要不要把目标提高一点。
@@ -45,27 +46,21 @@ internal fun ProgressHintDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
                 Text(text = stringResource(R.string.workout_progress_hint_message, hint.completedSets))
-                Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                DialogButtonColumn {
                     hint.kinds.forEach { kind ->
-                        Button(
+                        DialogPrimaryButton(
+                            text = increaseLabel(hint = hint, kind = kind),
                             onClick = { onIncrease(kind) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(text = increaseLabel(hint = hint, kind = kind))
-                        }
+                        )
                     }
-                    OutlinedButton(
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.workout_progress_hint_later),
                         onClick = onLater,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(text = stringResource(R.string.workout_progress_hint_later))
-                    }
-                    OutlinedButton(
+                    )
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.workout_progress_hint_snooze),
                         onClick = onSnooze,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(text = stringResource(R.string.workout_progress_hint_snooze))
-                    }
+                    )
                 }
             }
         },
@@ -163,18 +158,17 @@ internal fun ProgressTargetDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_ok),
+                        onClick = { target?.let(onConfirm) },
+                        enabled = harder,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        confirmButton = {
-            OutlinedButton(onClick = { target?.let(onConfirm) }, enabled = harder) {
-                Text(text = stringResource(R.string.action_ok))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 
@@ -195,28 +189,28 @@ internal fun ProgressConfirmDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.workout_progress_confirm_title, hint.name)) },
         text = {
-            Text(
-                text = stringResource(
-                    if (assisted) {
-                        R.string.workout_progress_confirm_message_assist
-                    } else {
-                        R.string.workout_progress_confirm_message
-                    },
-                    baselineText(hint = hint, kind = kind),
-                    targetText(hint = hint, kind = kind, target = confirm.target),
-                ),
-            )
-        },
-        confirmButton = {
-            OutlinedButton(onClick = onConfirm) {
-                Text(text = stringResource(R.string.action_ok))
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(
+                    text = stringResource(
+                        if (assisted) {
+                            R.string.workout_progress_confirm_message_assist
+                        } else {
+                            R.string.workout_progress_confirm_message
+                        },
+                        baselineText(hint = hint, kind = kind),
+                        targetText(hint = hint, kind = kind, target = confirm.target),
+                    ),
+                )
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_ok),
+                        onClick = onConfirm,
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_cancel))
-            }
-        },
+        confirmButton = {},
     )
 }
 

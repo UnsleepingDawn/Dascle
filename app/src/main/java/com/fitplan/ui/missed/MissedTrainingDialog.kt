@@ -2,17 +2,16 @@ package com.fitplan.ui.missed
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.fitplan.app.R
 import com.fitplan.domain.interactor.MissedTraining
 import com.fitplan.presentation.core.components.material.padding
+import com.fitplan.ui.common.DialogButtonColumn
+import com.fitplan.ui.common.DialogPrimaryButton
 import kotlinx.datetime.LocalDate
 
 /**
@@ -85,14 +84,9 @@ fun MissedHandleDialog(
 private fun ChoiceBody(message: String, choices: List<Pair<String, () -> Unit>>) {
     Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
         Text(text = message)
-        Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+        DialogButtonColumn {
             choices.forEach { (text, onClick) ->
-                Button(
-                    onClick = onClick,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(text = text)
-                }
+                DialogPrimaryButton(text = text, onClick = onClick)
             }
         }
     }
