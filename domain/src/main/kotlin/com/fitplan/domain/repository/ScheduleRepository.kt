@@ -70,6 +70,15 @@ interface ScheduleRepository {
     suspend fun deleteAndCompactPlans(dates: Collection<LocalDate>)
 
     /**
+     * 删除休息日：把 [dates] 这些休息日从时间线上抽掉，晚于它们的排期各自提前「被抽掉的休息日个数」天，
+     * 于是被删的休息日被后面的训练补上、末尾的休息日随之增多；[dates] 之前的排期不受影响。
+     *
+     * 例：排期为 `10/12、10/14、10/16`，休息日为 `10/13、10/15`，删掉 `10/13` 后变成
+     * `10/12、10/13（原 10/14）、10/15（原 10/16）`，`10/14` 空出来成为休息日。整批放在一个事务里。
+     */
+    suspend fun deleteRestDaysAndCompact(dates: Collection<LocalDate>)
+
+    /**
      * 在 [date] 之前插入 [count] 天休息：[date] 及以后的排期整体后移 [count] 天，
      * 腾出来的 `[date, date + count)` 就是休息日。整批放在一个事务里。
      */

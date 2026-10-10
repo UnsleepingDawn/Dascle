@@ -131,6 +131,17 @@ class PlanCalendarScreenModel(
         }
     }
 
+    /**
+     * 编辑模式里删除选中的休息日：把这些休息日从时间线上抽掉，它们之后的排期整体提前，
+     * 被删的休息日由后面的训练补上、末尾多出休息日。
+     */
+    fun removeRestDaysAndCompact(dates: Collection<LocalDate>) {
+        viewModelScope.launch {
+            scheduleRepository.deleteRestDaysAndCompact(dates)
+            afterScheduleChange()
+        }
+    }
+
     /** 在 [date] 之前插入 [count] 天休息：[date] 及以后的排期整体后移，腾出来的日子成为休息日。 */
     fun insertRestDaysBefore(date: LocalDate, count: Int) {
         viewModelScope.launch {

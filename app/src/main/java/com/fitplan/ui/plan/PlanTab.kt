@@ -147,6 +147,28 @@ object PlanTab : Tab {
                             },
                         )
                     },
+                    navigationIcon = {
+                        if (editing) {
+                            Row {
+                                // 全选是合并语义：把本月可选的日子并进已有勾选，跨月的勾选不丢。
+                                TextButton(
+                                    onClick = {
+                                        selection = selection + days
+                                            .filter(::isEditableDate)
+                                            .associate { it.date to it.planned.isNotEmpty() }
+                                    },
+                                ) {
+                                    Text(text = stringResource(R.string.calendar_edit_select_all))
+                                }
+                                TextButton(
+                                    onClick = { selection = emptyMap() },
+                                    enabled = selection.isNotEmpty(),
+                                ) {
+                                    Text(text = stringResource(R.string.calendar_edit_clear_all))
+                                }
+                            }
+                        }
+                    },
                     actions = {
                         if (editing) {
                             TextButton(onClick = { exitEdit() }) {
@@ -211,7 +233,8 @@ object PlanTab : Tab {
                     EditActionBar(
                         insertEnabled = singleSelected != null,
                         planEnabled = singleSelected != null && selection[singleSelected] == false,
-                        deleteEnabled = plannedSelectedCount > 0,
+                        // 选中的全是休息日也能删：那种情况下删除会把后续排期整体提前。
+                        deleteEnabled = selection.isNotEmpty(),
                         onInsert = { showInsertDialog = true },
                         onPlan = { routinePickerTarget = RoutinePickerTarget.ADD_PLAN },
                         onDelete = { showDeleteDialog = true },
@@ -246,6 +269,7 @@ object PlanTab : Tab {
         if (showDeleteDialog) {
             DeleteSelectionDialog(
                 plannedCount = plannedSelectedCount,
+                selectedCount = selection.size,
                 onRest = {
                     screenModel.removePlansOn(selection.keys.toList())
                     showDeleteDialog = false
@@ -253,6 +277,11 @@ object PlanTab : Tab {
                 },
                 onFlow = {
                     screenModel.compactPlansAfterRemoving(selection.keys.toList())
+                    showDeleteDialog = false
+                    selection = emptyMap()
+                },
+                onRemoveRests = {
+                    screenModel.removeRestDaysAndCompact(selection.keys.toList())
                     showDeleteDialog = false
                     selection = emptyMap()
                 },
@@ -287,6 +316,12 @@ object PlanTab : Tab {
 
         routinePickerTarget?.let { target ->
             RoutinePickerDialog(
+                title = stringResource(
+                    when (target) {
+                        RoutinePickerTarget.ADD_PLAN -> R.string.calendar_edit_plan_title
+                        RoutinePickerTarget.INSERT_PLAN -> R.string.calendar_pick_routine
+                    },
+                ),
                 routines = routines,
                 onPick = { routineId ->
                     singleSelected?.let { date ->
@@ -500,9 +535,15 @@ private fun DayCell(
                 .then(
                     when {
                         // 选中比「今天」的描边更醒目，两者同时出现时以选中为准。
+                        // 训练日的日期底色本就是蓝色，描边必须换成深黑（与肌群标签同色）才看得见；
+                        // 休息日底色是中性的，保留蓝色描边即可。
                         selected -> Modifier.border(
                             width = 2.dp,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = if (day.isTrainingDay) {
+                                MaterialTheme.colorScheme.inverseSurface
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
                             shape = MaterialTheme.shapes.extraSmall,
                         )
                         day.isToday -> Modifier.border(
@@ -861,9 +902,10 @@ private fun DayActionsRow(
         Button(
             onClick = { showPicker = true },
             enabled = canAddPlan,
+            // 深蓝实底（同编辑模式的「插入 / 添加计划」），比原来的浅蓝容器更醒目。
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
         ) {
             Icon(
@@ -888,6 +930,7 @@ private fun DayActionsRow(
 
     if (showPicker) {
         RoutinePickerDialog(
+            title = stringResource(R.string.calendar_pick_routine),
             routines = routines,
             onPick = { routineId ->
                 showPicker = false
@@ -926,20 +969,16 @@ private fun EditActionBar(
             onClick = onPlan,
             enabled = planEnabled,
             modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
         ) {
-            Text(text = stringResource(R.string.calendar_edit_plan))
+            Text(text = stringResource(R.string.calendar_add_plan))
         }
         Button(
             onClick = onDelete,
             enabled = deleteEnabled,
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
             ),
         ) {
             Text(text = stringResource(R.string.calendar_edit_delete))

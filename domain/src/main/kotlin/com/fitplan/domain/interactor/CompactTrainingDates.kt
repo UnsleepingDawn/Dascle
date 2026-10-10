@@ -25,3 +25,22 @@ fun compactTrainingDateMoves(
         if (date == target) null else date to target
     }
 }
+
+/**
+ * 删除休息日后的日期映射：把 [removedRestDates] 这些休息日从时间线上抽掉，
+ * [scheduledDates]（升序、每个训练日一条）里晚于它们的排期各自提前「被抽掉的休息日个数」天。
+ *
+ * 例：`[10/12, 10/14, 10/16]` 删掉休息日 `10/13` 时返回
+ * `[(10/14 -> 10/13), (10/16 -> 10/15)]`，`10/12` 在 `10/13` 之前不受影响；
+ * 末尾空出来的训练日自然变成休息日（这里是 `10/15`、`10/16`）。
+ *
+ * 被删的日期若本来是训练日（有排期），它不会出现在 [removedRestDates] 里，映射不受影响。
+ */
+fun restRemovalDateMoves(
+    scheduledDates: List<LocalDate>,
+    removedRestDates: Set<LocalDate>,
+): List<Pair<LocalDate, LocalDate>> =
+    scheduledDates.mapNotNull { date ->
+        val shift = removedRestDates.count { it < date }
+        if (shift == 0) null else date to LocalDate.fromEpochDays(date.toEpochDays() - shift)
+    }

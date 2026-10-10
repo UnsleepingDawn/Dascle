@@ -196,9 +196,11 @@
     <!-- 日历编辑模式：长按未来日子进入，可跨月多选后批量删除 / 单日计划 / 单日插入 -->
     <string name="calendar_edit_selected">已选 %1$d 天</string>
     <string name="calendar_edit_done">完成</string>
+    <string name="calendar_edit_select_all">全选</string>
+    <string name="calendar_edit_clear_all">取消全部</string>
     <string name="calendar_edit_delete">删除</string>
-    <string name="calendar_edit_plan">计划</string>
     <string name="calendar_edit_insert">插入</string>
+    <string name="calendar_edit_plan_title">为休息日排入计划</string>
     <string name="calendar_delete_dialog_title_one">删除这天的计划？</string>
     <string name="calendar_delete_dialog_title_many">删除这几天的计划？</string>
     <string name="calendar_delete_dialog_message_one">该日休息：只撤掉这天的计划，之后的安排原地不动。\n顺着用未来计划：把之后最近一次训练顶到这天，后面的安排依次往前补。</string>
@@ -207,6 +209,11 @@
     <string name="calendar_delete_dialog_flow_one">顺着用未来计划</string>
     <string name="calendar_delete_dialog_rest_many">这几日休息</string>
     <string name="calendar_delete_dialog_flow_many">已有计划流入</string>
+    <!-- 选中的全是休息日：删掉它们会把后续排期整体提前，没有「撤掉计划」一说 -->
+    <string name="calendar_delete_rest_dialog_title_one">删除这个休息日？</string>
+    <string name="calendar_delete_rest_dialog_title_many">删除这几个休息日？</string>
+    <string name="calendar_delete_rest_dialog_message_one">如此，将会顺着用未来计划。</string>
+    <string name="calendar_delete_rest_dialog_message_many">如此，将会让已有计划流入这些日子。</string>
     <string name="calendar_insert_title">在该日之前插入…</string>
     <string name="calendar_insert_rest">休息</string>
     <string name="calendar_insert_training">训练计划</string>
