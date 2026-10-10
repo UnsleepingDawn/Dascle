@@ -426,6 +426,9 @@ private fun ScheduledRoutineCard(
  * 进度条与闹钟就停在行中间、到不了右边。这里先量标题的自然宽度（最多占「整行减去右端最小宽度」），
  * 右端再占满剩下的整段宽度，于是闹钟始终顶格、进度条正好铺在标题与闹钟之间。
  *
+ * 行高固定为 [TODAY_CARD_HEADER_HEIGHT] 与「标题行高」中的较大者。右端的两种形态（休息指示 / 按钮）
+ * 都比这个高度矮，于是「休息结束、按钮回来」时行高不变，卡片高度也就不会跳。
+ *
  * [reserveTrailing] 为 false（没有右端内容）时只铺标题，不白白留出右端那截。
  */
 @Composable
@@ -443,7 +446,9 @@ private fun CardTitleRow(
             Box { title() }
             trailing()
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = TODAY_CARD_HEADER_HEIGHT),
     ) { measurables, constraints ->
         val maxWidth = constraints.maxWidth
         val titleMax = (maxWidth - CARD_TRAILING_MIN_WIDTH.roundToPx()).coerceAtLeast(0)
@@ -452,7 +457,8 @@ private fun CardTitleRow(
         val trailingPlaceable = measurables[1].measure(
             constraints.copy(minWidth = trailingWidth, maxWidth = trailingWidth),
         )
-        val height = maxOf(titlePlaceable.height, trailingPlaceable.height)
+        // 下限取 heightIn 给进来的 minHeight：右端换形态时行高不变。
+        val height = maxOf(titlePlaceable.height, trailingPlaceable.height, constraints.minHeight)
         layout(maxWidth, height) {
             titlePlaceable.placeRelative(0, (height - titlePlaceable.height) / 2)
             trailingPlaceable.placeRelative(titlePlaceable.width, (height - trailingPlaceable.height) / 2)
@@ -536,7 +542,8 @@ private fun RestIndicator(
             },
             modifier = Modifier
                 .weight(1f)
-                .padding(end = MaterialTheme.padding.small),
+                // 左侧留出间距，别贴着方案名。
+                .padding(start = MaterialTheme.padding.small, end = MaterialTheme.padding.small),
         )
         Icon(
             imageVector = Icons.Filled.Alarm,
@@ -552,10 +559,10 @@ private fun RestIndicator(
 /** 卡片标题行右端的「今日休息」按钮。 */
 @Composable
 private fun RestTodayButton(onClick: () -> Unit) {
-    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比方案名高出一截；
-    // 这里把两者一起收到 36dp，与计划卡片上的紧凑操作按钮同规格。
+    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比方案名高出一截，还会在出现 / 消失时
+    // 顶动整张卡片的高度。这里连容器带最小触控区一起收到 [TODAY_CARD_HEADER_HEIGHT]。
     CompositionLocalProvider(
-        LocalMinimumInteractiveComponentSize provides TODAY_REST_BUTTON_HEIGHT,
+        LocalMinimumInteractiveComponentSize provides TODAY_CARD_HEADER_HEIGHT,
     ) {
         FilledTonalButton(
             onClick = onClick,
@@ -563,11 +570,8 @@ private fun RestTodayButton(onClick: () -> Unit) {
                 containerColor = RestTodayColor,
                 contentColor = Color.White,
             ),
-            contentPadding = PaddingValues(
-                horizontal = MaterialTheme.padding.small,
-                vertical = MaterialTheme.padding.extraSmall,
-            ),
-            modifier = Modifier.heightIn(min = TODAY_REST_BUTTON_HEIGHT),
+            contentPadding = PaddingValues(horizontal = MaterialTheme.padding.small),
+            modifier = Modifier.heightIn(min = TODAY_CARD_HEADER_HEIGHT),
         ) {
             Text(
                 text = stringResource(R.string.today_rest_button),
@@ -1096,8 +1100,15 @@ private val RestDayAccentColor = Color(0xFF1565C0)
 /** 训练卡片右上角「今日休息」按钮的颜色：绿色。 */
 private val RestTodayColor = Color(0xFF2E7D32)
 
-/** 「今日休息」按钮的高度：容器与最小触控区一起收到这个值，比 M3 默认的 40dp / 48dp 矮一截。 */
-private val TODAY_REST_BUTTON_HEIGHT = 36.dp
+/**
+ * 卡片标题行的高度（也是「今日休息」按钮的容器与最小触控区高度）。
+ *
+ * 取值只求「比 M3 默认的 40dp / 48dp 矮、又不比方案名的行高（24dp）高出太多」。
+ * 关键是它同时用在 [CardTitleRow] 的 `heightIn(min = ...)` 上：休息中右端是约 20dp 的
+ * 「进度条 + 闹钟」，结束后换成这个高度的按钮，两边行高都被抬到同一个下限，
+ * 于是按钮出现 / 消失不会改变卡片高度。
+ */
+private val TODAY_CARD_HEADER_HEIGHT = 28.dp
 
 /** 休息指示淡入的时长（毫秒）。 */
 private const val REST_INDICATOR_ENTER_MILLIS = 200
