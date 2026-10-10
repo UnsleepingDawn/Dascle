@@ -24,6 +24,11 @@ data class RoutineExercise(
     val targetSeconds: Int? = null,
     /** 所属的动作组 id；为 null 表示这个动作在计划里单独排列，不参与组内挑选。 */
     val groupId: Long? = null,
+    /**
+     * 所属动作组的「建议做几个」（同组每个成员带的值都一样）；[groupId] 为 null 时为 null。
+     * 今日卡片据此在训练中判断这一组是否已经做够，做够了就只显示练过的动作。
+     */
+    val groupMaxPicks: Int? = null,
 ) {
     /** 该动作涉及的全部部位，主部位在前、次部位去重在后。 */
     val muscleGroups: List<MuscleGroup>

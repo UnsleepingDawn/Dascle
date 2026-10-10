@@ -708,8 +708,11 @@ private fun List<RoutineExercise>.toTodayBlocks(): List<TodayExerciseBlock> {
  *
  * 规则：
  * - 训练中被「移除」的动作一律剔掉，组被剔空就整块不要，单独排的动作被移除也整块不要；
- * - 训练**已结束**时，动作组只保留练过的成员（[TodaySessionProgress.completedExerciseIds]），
- *   一个都没练就整组不要——练完了就不再用删除线罗列没做的动作。单独排的动作保持原样，
+ * - 动作组在下面两种情况下只保留练过的成员（[TodaySessionProgress.completedExerciseIds]），
+ *   一个都没练就整组不要：
+ *   1. 训练**已结束**——练完了就不再用删除线罗列没做的动作；
+ *   2. 训练**进行中**且这一组已经做够「建议做 x 个」（练过的成员数 >= `groupMaxPicks`）。
+ * - 除此之外（进行中还没做够）显示组的全部成员，都不打删除线；单独排的动作保持原样，
  *   没做的仍然打删除线。
  *
  * `progress` 为 null（今天还没照着这张计划开练）时原样返回。调用方保证 `progress` 只在这张
@@ -722,11 +725,11 @@ private fun List<RoutineExercise>.todayBlocksForCard(
     if (progress == null) return blocks
     return blocks.mapNotNull { block ->
         val kept = block.exercises.filterNot { it.exerciseId in progress.excludedExerciseIds }
-        val shown = if (progress.finished && block.isGroup) {
-            kept.filter { it.exerciseId in progress.completedExerciseIds }
-        } else {
-            kept
-        }
+        val trained = kept.filter { it.exerciseId in progress.completedExerciseIds }
+        val maxPicks = block.exercises.first().groupMaxPicks
+        val collapseToTrained = block.isGroup &&
+            (progress.finished || (maxPicks != null && trained.size >= maxPicks))
+        val shown = if (collapseToTrained) trained else kept
         shown.takeIf { it.isNotEmpty() }?.let { TodayExerciseBlock(it) }
     }
 }

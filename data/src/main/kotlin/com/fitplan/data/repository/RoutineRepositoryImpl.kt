@@ -222,7 +222,13 @@ class RoutineRepositoryImpl(
         val membersByGroupId = withSecondary.filter { it.groupId != null }.groupBy { it.groupId }
         val groups = routineGroupQueries.selectByRoutineId(routineId).awaitAsList().map { row ->
             val group = row.toDomain()
-            group.copy(exercises = membersByGroupId[group.id].orEmpty().sortedBy { it.position })
+            group.copy(
+                exercises = membersByGroupId[group.id]
+                    .orEmpty()
+                    .sortedBy { it.position }
+                    // 把「建议做几个」塞给每个成员：今日卡片要靠它判断这一组是否已经做够。
+                    .map { it.copy(groupMaxPicks = group.maxPicks) },
+            )
         }
         val items = buildList {
             withSecondary.filter { it.groupId == null }.forEach { add(RoutineItem.Exercise(it)) }
