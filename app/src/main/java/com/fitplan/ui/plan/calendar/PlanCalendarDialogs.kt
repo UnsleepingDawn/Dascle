@@ -228,6 +228,10 @@ fun InsertRestDialog(
  * 选择要排入的计划。日期明细里的「添加计划」与编辑模式的「计划 / 插入 → 训练计划」共用，
  * 标题由调用方传入以区分入口。
  *
+ * [onCreateTempPlan] 非空时，在「取消」上方多给一个「临时计划」按钮：一份只排这一天的编排，
+ * 不进常驻计划列表。日期明细的「添加计划」与编辑模式的「计划」都传它（都是给某一天挑计划，
+ * 有「这一天」的语境）；编辑模式的「插入 → 训练计划」是往时间线上塞一整天，不传。
+ *
  * 选中之后由调用方负责收起弹窗。
  */
 @Composable
@@ -236,6 +240,7 @@ fun RoutinePickerDialog(
     routines: List<Routine>,
     onPick: (Long) -> Unit,
     onDismiss: () -> Unit,
+    onCreateTempPlan: (() -> Unit)? = null,
 ) {
     CompactDialog(onDismissRequest = onDismiss, title = title) {
         if (routines.isEmpty()) {
@@ -260,7 +265,16 @@ fun RoutinePickerDialog(
                 }
             }
         }
-        DialogCancelButton(onClick = onDismiss)
+        DialogButtonColumn {
+            // 「临时计划」摆在「取消」上方：选不出合适的计划时，可以现编一份只排这一天的一次性编排。
+            onCreateTempPlan?.let { createTempPlan ->
+                DialogPrimaryButton(
+                    text = stringResource(R.string.calendar_temp_plan),
+                    onClick = createTempPlan,
+                )
+            }
+            DialogCancelButton(onClick = onDismiss)
+        }
     }
 }
 

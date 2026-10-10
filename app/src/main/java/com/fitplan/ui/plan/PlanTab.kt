@@ -141,6 +141,14 @@ object PlanTab : Tab {
             }
         }
 
+        // 给某一天现编一份临时计划并排上去，然后进它的动作编排页。
+        // 明细的「添加计划」与编辑模式的「计划」两个入口共用这套动作。
+        fun createTempPlanOn(date: LocalDate) {
+            screenModel.createTempPlan(date, tempPlanName) { routineId ->
+                navigator.push(RoutineEditScreen(routineId))
+            }
+        }
+
         // 编辑模式里按返回键先退出编辑，而不是直接切走 Tab。
         BackHandler(enabled = editing) { exitEdit() }
 
@@ -265,12 +273,9 @@ object PlanTab : Tab {
                     },
                     onAddPlan = { routineId -> screenModel.addPlan(routineId, day.date) },
                     onCreateTempPlan = {
-                        val date = day.date
                         // 先收起明细，再把用户送进临时计划的编排页。
                         selectedDate = null
-                        screenModel.createTempPlan(date, tempPlanName) { routineId ->
-                            navigator.push(RoutineEditScreen(routineId))
-                        }
+                        createTempPlanOn(day.date)
                     },
                     onMarkRest = screenModel::markRestDay,
                     onRemovePlan = screenModel::removePlan,
@@ -351,6 +356,19 @@ object PlanTab : Tab {
                     selection = emptyMap()
                 },
                 onDismiss = { routinePickerTarget = null },
+                // 只有「给这一天挑计划」才有临时计划一说；「插入 → 训练计划」是往时间线上塞一整天，
+                // 不是给某一天选计划，不给这个入口。
+                onCreateTempPlan = if (target == RoutinePickerTarget.ADD_PLAN) {
+                    {
+                        singleSelected?.let { date ->
+                            routinePickerTarget = null
+                            selection = emptyMap()
+                            createTempPlanOn(date)
+                        }
+                    }
+                } else {
+                    null
+                },
             )
         }
 
@@ -886,11 +904,11 @@ private fun PlannedRoutineRow(
 }
 
 /**
- * 明细面板右下角的快捷操作：给这一天排一个已有计划、现编一份临时计划，或把这一天改成休息日。
- * 三者互斥——加计划会让这一天成为训练日，标休息会撤掉这一天的排期。
+ * 明细面板右下角的快捷操作：给这一天排一个已有计划，或把这一天改成休息日。
+ * 两者互斥——加计划会让这一天成为训练日，标休息会撤掉这一天的排期。
  *
  * 「添加计划」只在既没有排期、也没有实际训练的空白天可用（一天只能有一个训练计划）；
- * 「临时计划」更严一档，只在今天及以后可用（过去的日子补不了临时编排，只能补记实际训练）；
+ * 弹出的计划列表里另给一个「临时计划」按钮，用来现编一份只排这一天的编排（今天及以后才有）。
  * 「该天休息」只在今天及以后、这天排了计划且还没练过时可用（撤掉排期即可）。
  */
 @Composable
@@ -937,17 +955,6 @@ private fun DayActionsRow(
             Text(text = stringResource(R.string.calendar_add_plan))
         }
         Button(
-            onClick = onCreateTempPlan,
-            enabled = canCreateTempPlan,
-            // 浅蓝容器：与「添加计划」同一色系，但读起来轻一档——它开的是一次性的编排。
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-        ) {
-            Text(text = stringResource(R.string.calendar_temp_plan))
-        }
-        Button(
             onClick = onMarkRest,
             // 已经休息的日子不再给这个入口；要变成训练日，用「添加计划」排一个。
             enabled = canMarkRest,
@@ -969,6 +976,15 @@ private fun DayActionsRow(
                 onAddPlan(routineId)
             },
             onDismiss = { showPicker = false },
+            // 过去的日子只能补记实际训练，不给临时编排。
+            onCreateTempPlan = if (canCreateTempPlan) {
+                {
+                    showPicker = false
+                    onCreateTempPlan()
+                }
+            } else {
+                null
+            },
         )
     }
 }
