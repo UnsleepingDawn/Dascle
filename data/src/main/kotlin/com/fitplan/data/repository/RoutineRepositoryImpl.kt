@@ -37,18 +37,17 @@ class RoutineRepositoryImpl(
 
     override suspend fun count(): Long = routineQueries.countAll().awaitAsOneOrNull() ?: 0L
 
-    override suspend fun insert(name: String, note: String, createdAt: Instant): Long =
+    override suspend fun insert(name: String, createdAt: Instant): Long =
         database.transactionWithResult {
             routineQueries.insert(
                 name = name,
-                note = note,
                 created_at = createdAt.toDbValue(),
             )
             utilQueries.lastInsertRowId().awaitAsOne()
         }
 
-    override suspend fun update(id: Long, name: String, note: String) {
-        routineQueries.update(name = name, note = note, id = id)
+    override suspend fun update(id: Long, name: String) {
+        routineQueries.update(name = name, id = id)
     }
 
     override suspend fun deleteById(id: Long) {

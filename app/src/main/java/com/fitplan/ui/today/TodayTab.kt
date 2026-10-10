@@ -375,13 +375,6 @@ private fun ScheduledRoutineCard(
                     )
                 },
             )
-            if (scheduled.routine.note.isNotBlank()) {
-                Text(
-                    text = scheduled.routine.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             Text(
                 text = stringResource(R.string.today_exercise_count, scheduled.exercises.size),
                 style = MaterialTheme.typography.bodySmall,

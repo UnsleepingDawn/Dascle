@@ -51,17 +51,17 @@ class PlanScreenModel(
     }
 
     /** 新建后把新方案 id 回调出去，方便调用方直接跳到动作编排页。 */
-    fun create(name: String, note: String, onCreated: (Long) -> Unit) {
+    fun create(name: String, onCreated: (Long) -> Unit) {
         viewModelScope.launch {
-            val id = routineRepository.insert(name = name, note = note, createdAt = Clock.System.now())
+            val id = routineRepository.insert(name = name, createdAt = Clock.System.now())
             refresh()
             onCreated(id)
         }
     }
 
-    fun update(id: Long, name: String, note: String) {
+    fun update(id: Long, name: String) {
         viewModelScope.launch {
-            routineRepository.update(id = id, name = name, note = note)
+            routineRepository.update(id = id, name = name)
             refresh()
             // 计划名会出现在组件上，改完顺手重画。
             widgetManager.updateTodayWidget()

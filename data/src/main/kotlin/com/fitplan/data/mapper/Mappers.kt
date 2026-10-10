@@ -99,7 +99,6 @@ internal fun ExerciseProgressHintRow.toDomain(): ExerciseProgressHint = Exercise
 internal fun RoutineRow.toDomain(): Routine = Routine(
     id = id,
     name = name,
-    note = note,
     createdAt = created_at.toInstant(),
 )
 

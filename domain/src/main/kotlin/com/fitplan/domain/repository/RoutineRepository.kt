@@ -13,9 +13,9 @@ interface RoutineRepository {
 
     suspend fun count(): Long
 
-    suspend fun insert(name: String, note: String, createdAt: Instant): Long
+    suspend fun insert(name: String, createdAt: Instant): Long
 
-    suspend fun update(id: Long, name: String, note: String)
+    suspend fun update(id: Long, name: String)
 
     suspend fun deleteById(id: Long)
 

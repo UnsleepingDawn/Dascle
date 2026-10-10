@@ -21,7 +21,6 @@ data class CalendarPlan(
     val entryId: Long,
     val routineId: Long,
     val routineName: String,
-    val note: String,
     val exerciseCount: Int,
     val muscleGroups: List<MuscleGroup>,
 )
@@ -134,7 +133,6 @@ class GetMonthCalendar(
                         entryId = entry.id,
                         routineId = routine.id,
                         routineName = routine.name,
-                        note = routine.note,
                         exerciseCount = exercises.size,
                         muscleGroups = exercises.flatMap { it.muscleGroups }.distinct(),
                     )

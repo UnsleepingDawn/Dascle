@@ -171,12 +171,11 @@ object RoutineListScreen : Screen() {
             RoutineDetailDialog(
                 title = stringResource(R.string.plan_new),
                 initialName = "",
-                initialNote = "",
                 onDismiss = { showCreateDialog = false },
-                onConfirm = { name, note ->
+                onConfirm = { name ->
                     // 先收弹窗再跳，避免从编排页返回时弹窗还压在上面。
                     showCreateDialog = false
-                    screenModel.create(name, note) { id -> navigator.push(RoutineEditScreen(id)) }
+                    screenModel.create(name) { id -> navigator.push(RoutineEditScreen(id)) }
                 },
             )
         }
@@ -185,10 +184,9 @@ object RoutineListScreen : Screen() {
             RoutineDetailDialog(
                 title = stringResource(R.string.plan_rename),
                 initialName = routine.name,
-                initialNote = routine.note,
                 onDismiss = { renameTarget = null },
-                onConfirm = { name, note ->
-                    screenModel.update(routine.id, name, note)
+                onConfirm = { name ->
+                    screenModel.update(routine.id, name)
                     renameTarget = null
                 },
             )
@@ -322,7 +320,7 @@ private fun RoutineCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // 有备注和没备注的卡片保持一样高，所以高度由按钮那一列决定。
+                // 卡片高度由按钮那一列决定。
                 .heightIn(min = ROUTINE_CARD_MIN_HEIGHT)
                 .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
             verticalAlignment = Alignment.CenterVertically,
@@ -334,16 +332,6 @@ private fun RoutineCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // 没写备注就整行不占位，靠竖直居中让三行内容看起来仍然是居中的。
-                if (item.routine.note.isNotBlank()) {
-                    Text(
-                        text = item.routine.note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
                 Text(
                     text = stringResource(R.string.plan_exercise_count, item.exerciseCount),
                     style = MaterialTheme.typography.bodySmall,
@@ -406,37 +394,27 @@ private fun CompactActionButton(
 private fun RoutineDetailDialog(
     title: String,
     initialName: String,
-    initialNote: String,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, note: String) -> Unit,
+    onConfirm: (name: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
-    var note by remember { mutableStateOf(initialNote) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(text = stringResource(R.string.field_routine_name)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text(text = stringResource(R.string.field_routine_note)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(text = stringResource(R.string.field_routine_name)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         },
         confirmButton = {
             OutlinedButton(
                 enabled = name.isNotBlank(),
-                onClick = { onConfirm(name.trim(), note.trim()) },
+                onClick = { onConfirm(name.trim()) },
             ) {
                 Text(text = stringResource(R.string.action_save))
             }
@@ -452,7 +430,7 @@ private fun RoutineDetailDialog(
 /** 卡片里的紧凑按钮高度：容器与最小触控区都收到这个值，比 M3 默认的 40dp / 48dp 矮一截。 */
 private val COMPACT_ACTION_BUTTON_HEIGHT = 36.dp
 
-/** 卡片高度下限：36 + 8 + 36 的按钮列，加上下各 8dp 内边距，有没有备注都不变。 */
+/** 卡片高度下限：36 + 8 + 36 的按钮列，加上下各 8dp 内边距。 */
 private val ROUTINE_CARD_MIN_HEIGHT = 96.dp
 
 /** 左滑后露出的红色删除键宽度。 */

@@ -93,7 +93,6 @@
     <string name="plan_action_rename">编辑名称</string>
     <string name="plan_exercise_count">%1$d 个动作</string>
     <string name="field_routine_name">名称</string>
-    <string name="field_routine_note">备注（可选）</string>
 
     <!-- 编排多日循环 -->
     <string name="plan_compose_title">编排多日循环</string>

@@ -1,0 +1,3 @@
+-- 单日方案的备注没有消费方（写了没人看），整体下线：去掉 routine.note 列。
+-- 老库里已填的备注随列一起删除。
+ALTER TABLE routine DROP COLUMN note;
