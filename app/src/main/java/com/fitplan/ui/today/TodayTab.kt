@@ -202,6 +202,9 @@ object TodayTab : Tab {
                     unfinished?.let { session ->
                         UnfinishedSessionCard(
                             session = session,
+                            progress = todaySessionProgress?.takeIf { it.routineId == session.routineId },
+                            rest = rest.takeIf { todaySession?.id == session.id },
+                            restFinishedTick = restFinishedTick,
                             onClickResume = { navigator.push(WorkoutLogScreen(sessionId = session.id)) },
                         )
                     }
@@ -247,6 +250,9 @@ object TodayTab : Tab {
                             item(key = "unfinished") {
                                 UnfinishedSessionCard(
                                     session = session,
+                                    progress = todaySessionProgress?.takeIf { it.routineId == session.routineId },
+                                    rest = rest.takeIf { todaySession?.id == session.id },
+                                    restFinishedTick = restFinishedTick,
                                     onClickResume = { navigator.push(WorkoutLogScreen(sessionId = session.id)) },
                                 )
                             }
@@ -927,10 +933,18 @@ private fun ExtraWorkoutCard(
     }
 }
 
-/** 上次没练完就退出的训练，点一下接着练。 */
+/**
+ * 还没结束的训练（含休息日「临时加一个方案」这类计划外训练），点一下接着练。
+ *
+ * 与计划卡片**同地位**：标题就是这次训练的名字（计划外训练叫「临时方案」），
+ * 右侧同样能放下组间休息的「进度条 + 闹钟」；已经练过的动作照计划卡片的样式铺出来。
+ */
 @Composable
 private fun UnfinishedSessionCard(
     session: WorkoutSession,
+    progress: TodaySessionProgress?,
+    rest: RestState?,
+    restFinishedTick: Int,
     onClickResume: () -> Unit,
 ) {
     ElevatedCard(
@@ -945,19 +959,42 @@ private fun UnfinishedSessionCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
         ) {
-            Text(
-                text = stringResource(R.string.workout_unfinished),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                text = session.name,
-                style = MaterialTheme.typography.bodyMedium,
+            // 方案名占满整行，右侧留给休息中的「进度条 + 闹钟」；名字太长时只挤自己。
+            CardTitleRow(
+                reserveTrailing = rest != null,
+                title = {
+                    Text(
+                        text = session.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                trailing = {
+                    RestSlot(
+                        rest = rest,
+                        finishedTick = restFinishedTick,
+                        restEnabled = false,
+                        onRestToday = {},
+                    )
+                },
             )
             Text(
                 text = stringResource(R.string.workout_started_at, session.startedAt.toClockText()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // 计划外训练没有计划编排可比，练过的动作都在 extraExercises 里，全部铺出来。
+            progress?.extraExercises?.forEach { exercise ->
+                TodayExerciseRow(
+                    name = exercise.name,
+                    trailing = exercise.volumeText(),
+                    status = TodayExerciseStatus.TRAINED,
+                    isExtra = true,
+                )
+            }
+
             Button(
                 onClick = onClickResume,
                 modifier = Modifier.fillMaxWidth(),
