@@ -125,7 +125,7 @@ class WorkoutLogScreen(
         var showAbandonDialog by remember { mutableStateOf(false) }
         var showExtraDialog by remember { mutableStateOf(false) }
 
-        // 右滑删除：同一时间只允许一张卡是滑开的，key 用列表项的 key。
+        // 左滑删除：同一时间只允许一张卡是滑开的，key 用列表项的 key。
         var revealedKey by remember { mutableStateOf<String?>(null) }
         // 非空表示正在确认「解散整个动作组」，确认后才真的移除。
         var removeGroupTarget by remember { mutableStateOf<LogItem.Group?>(null) }
@@ -303,7 +303,7 @@ class WorkoutLogScreen(
                         when (item) {
                             is LogItem.Exercise -> {
                                 val exercise = exercisesById[item.exerciseId]
-                                // 单独排的动作卡可以右滑删除；动作组里的子卡不给这个入口。
+                                // 单独排的动作卡可以左滑删除；动作组里的子卡不给这个入口。
                                 if (exercise != null) {
                                     SwipeToRevealRemove(
                                         revealed = revealedKey == item.key,
@@ -317,7 +317,7 @@ class WorkoutLogScreen(
                             }
 
                             // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
-                            // 右滑删除的是整组，先弹一次确认（组内已练的记录会一起删）。
+                            // 左滑删除的是整组，先弹一次确认（组内已练的记录会一起删）。
                             is LogItem.Group -> SwipeToRevealRemove(
                                 revealed = revealedKey == item.key,
                                 onRevealedChange = { revealedKey = if (it) item.key else null },

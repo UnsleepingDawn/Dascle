@@ -197,13 +197,13 @@ private fun PlanGroupCard(
 @Composable
 private fun LogItem.Group.title(): String = groupName ?: stringResource(R.string.workout_group_title)
 
-/** 右滑露出的「删除」键宽度。 */
+/** 左滑露出的「删除」键宽度。 */
 private val REMOVE_ACTION_WIDTH = 84.dp
 
 /**
- * 右滑露出左侧红色删除键的容器，用来把动作（或整个动作组）从本次训练里移除。
+ * 左滑露出右侧红色删除键的容器，用来把动作（或整个动作组）从本次训练里移除。
  *
- * 与日历页的 [SwipeToRevealDelete] 是镜像关系：那边是左滑露右键，这边是右滑露左键。
+ * 方向与日历页的 `SwipeToRevealDelete` 一致：卡片向左移，删除键从右边露出来。
  * [revealed] 由列表持有，保证同一时间只有一张卡片是滑开的。
  *
  * 拖动的手势修饰符不贴在整张卡上，而是通过 [content] 的 `titleModifier` 交给调用方
@@ -231,7 +231,7 @@ internal fun SwipeToRevealRemove(
 
     // 外部状态变化（另滑开一张、弹出确认框、卡片被移除）时，把卡片动画归位。
     LaunchedEffect(revealed) {
-        offsetX.animateTo(if (revealed) revealPx else 0f)
+        offsetX.animateTo(if (revealed) -revealPx else 0f)
     }
 
     Box(
@@ -239,7 +239,7 @@ internal fun SwipeToRevealRemove(
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.extraLarge),
     ) {
-        // 铺满整张卡的红色底，只有卡片右移之后左侧那一截才露出来。
+        // 铺满整张卡的红色底，只有卡片左移之后右侧那一截才露出来。
         // 左右按与卡片一致的留白内缩：卡片本身带 16dp 外边距，不内缩的话不滑动时
         // 卡片两侧会各露出 16dp 的红色细边（实测）。
         Row(
@@ -248,7 +248,7 @@ internal fun SwipeToRevealRemove(
                 .padding(horizontal = MaterialTheme.padding.medium)
                 .clip(MaterialTheme.shapes.extraLarge)
                 .background(MaterialTheme.colorScheme.error),
-            horizontalArrangement = Arrangement.Start,
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(
@@ -278,10 +278,10 @@ internal fun SwipeToRevealRemove(
                     .pointerInput(revealPx) {
                         detectHorizontalDragGestures(
                             onDragEnd = {
-                                val open = offsetX.value > revealPx / 2
+                                val open = offsetX.value < -revealPx / 2
                                 // 目标状态没变时 LaunchedEffect 不会重跑，这里自己补一次回弹。
                                 if (open == revealed) {
-                                    scope.launch { offsetX.animateTo(if (open) revealPx else 0f) }
+                                    scope.launch { offsetX.animateTo(if (open) -revealPx else 0f) }
                                 } else {
                                     onRevealedChange(open)
                                 }
@@ -289,7 +289,7 @@ internal fun SwipeToRevealRemove(
                         ) { change, dragAmount ->
                             change.consume()
                             scope.launch {
-                                offsetX.snapTo((offsetX.value + dragAmount).coerceIn(0f, revealPx))
+                                offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-revealPx, 0f))
                             }
                         }
                     },
@@ -338,7 +338,7 @@ internal fun LogGroupCard(
     readOnly: Boolean,
     onTogglePick: (Long) -> Unit,
     modifier: Modifier = Modifier,
-    /** 贴到标题行上的额外修饰符：列表用它挂右滑删除的拖动手势。 */
+    /** 贴到标题行上的额外修饰符：列表用它挂左滑删除的拖动手势。 */
     titleModifier: Modifier = Modifier,
     exerciseCard: @Composable (LogExercise) -> Unit,
 ) {
@@ -431,7 +431,7 @@ internal fun LogExerciseCard(
     modifier: Modifier = Modifier,
     /** true 表示这是动作组卡里的子卡：少一层外边距、用更紧凑的圆角。 */
     nested: Boolean = false,
-    /** 贴到标题行上的额外修饰符：列表用它挂右滑删除的拖动手势。 */
+    /** 贴到标题行上的额外修饰符：列表用它挂左滑删除的拖动手势。 */
     titleModifier: Modifier = Modifier,
 ) {
     ElevatedCard(

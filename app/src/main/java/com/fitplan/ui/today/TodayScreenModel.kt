@@ -271,7 +271,7 @@ class TodayScreenModel(
         extraExercises: List<TodaySessionExercise>,
     ): TodaySessionProgress {
         val sets = workoutRepository.getSets(session.id)
-        // 已经从本次训练里移除的动作（记录页右滑删除）不算进度：跳过与挑中都不作数。
+        // 已经从本次训练里移除的动作（记录页左滑删除）不算进度：跳过与挑中都不作数。
         val states = workoutRepository.getExerciseStates(session.id).filterNot { it.excluded }
         return TodaySessionProgress(
             routineId = session.routineId,
