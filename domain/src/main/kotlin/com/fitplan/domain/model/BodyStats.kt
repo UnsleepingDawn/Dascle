@@ -20,14 +20,3 @@ data class BodyStats(
 ) {
     val isEmpty: Boolean get() = weightPoints.isEmpty() && bodyFatPoints.isEmpty()
 }
-
-/**
- * 身体数据补记提醒：哪些项该提醒、以及缺得最久的那一项距上次记录多少天。
- *
- * [daysSinceLastRecord] 用于文案；两项都缺时取较大的那个间隔。
- */
-data class BodyMetricReminder(
-    val needWeight: Boolean,
-    val needBodyFat: Boolean,
-    val daysSinceLastRecord: Int,
-)

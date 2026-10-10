@@ -63,11 +63,9 @@ object StatsTab : Tab {
         val bodyStats by screenModel.bodyStats.collectAsState()
         val loading by screenModel.loading.collectAsState()
         val bodyInput by screenModel.bodyInput.collectAsState()
-        val reminder by screenModel.reminder.collectAsState()
         val selectedExerciseId by screenModel.selectedExerciseId.collectAsState()
 
-        // 从历史详情页返回时本组合会重建，顺带刷新一次；每次进这个 Tab 也会顺带查一次
-        // 身体数据该不该补记。
+        // 从历史详情页返回时本组合会重建，顺带刷新一次。
         LaunchedEffect(Unit) { screenModel.refresh() }
 
         Scaffold(
@@ -132,14 +130,6 @@ object StatsTab : Tab {
                 todayValue = screenModel.todayValue(input.field),
                 onConfirm = screenModel::saveBodyInput,
                 onDismiss = screenModel::dismissBodyInput,
-            )
-        }
-
-        reminder?.let {
-            BodyMetricReminderDialog(
-                reminder = it,
-                onRecord = screenModel::recordFromReminder,
-                onDismiss = screenModel::dismissReminder,
             )
         }
     }

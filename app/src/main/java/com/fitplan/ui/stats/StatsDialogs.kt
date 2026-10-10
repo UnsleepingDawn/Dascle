@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import com.fitplan.app.R
-import com.fitplan.domain.model.BodyMetricReminder
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.ui.profile.fieldLabel
 import com.fitplan.ui.profile.filterDecimalInput
@@ -86,38 +85,6 @@ internal fun BodyMetricInputDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.action_cancel))
-            }
-        },
-    )
-}
-
-/** 超过一周没记录身体数据时的提醒：可以直接去记录，也可以今天不再提。 */
-@Composable
-internal fun BodyMetricReminderDialog(
-    reminder: BodyMetricReminder,
-    onRecord: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val subject = when {
-        reminder.needWeight && reminder.needBodyFat -> stringResource(R.string.stats_body_reminder_subject_both)
-        reminder.needWeight -> stringResource(R.string.stats_body_reminder_subject_weight)
-        else -> stringResource(R.string.stats_body_reminder_subject_body_fat)
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.stats_body_reminder_title)) },
-        text = {
-            Text(text = stringResource(R.string.stats_body_reminder_message, reminder.daysSinceLastRecord, subject))
-        },
-        confirmButton = {
-            TextButton(onClick = onRecord) {
-                Text(text = stringResource(R.string.action_record_now))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.action_later))
             }
         },
     )

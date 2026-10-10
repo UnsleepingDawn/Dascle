@@ -2,12 +2,8 @@ package com.fitplan.ui.stats
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.fitplan.core.common.preference.Preference
-import com.fitplan.core.common.preference.PreferenceStore
-import com.fitplan.domain.interactor.GetBodyMetricReminder
 import com.fitplan.domain.interactor.GetBodyStats
 import com.fitplan.domain.interactor.GetWorkoutStats
-import com.fitplan.domain.model.BodyMetricReminder
 import com.fitplan.domain.model.BodyStats
 import com.fitplan.domain.model.StatsRange
 import com.fitplan.domain.model.WorkoutStats
@@ -49,8 +45,6 @@ data class BodyInputState(
 
 /**
  * 统计页：两个标签共用同一套时间区间（切标签时区间不变），各自缓存自己的取数结果。
- *
- * 进入页面时顺带判断要不要提醒补记身体数据，每项最多一周提醒一次，当天点过「以后再说」就不再弹。
  */
 @Inject
 @ViewModelKey
@@ -58,14 +52,8 @@ data class BodyInputState(
 class StatsScreenModel(
     private val getWorkoutStats: GetWorkoutStats,
     private val getBodyStats: GetBodyStats,
-    private val getBodyMetricReminder: GetBodyMetricReminder,
     private val bodyMetricRepository: BodyMetricRepository,
-    preferenceStore: PreferenceStore,
 ) : ViewModel() {
-
-    /** 记住「哪天已经提醒过」，同一项当天不再打扰。属于内部状态，不进备份。 */
-    private val reminderDismissedOn =
-        preferenceStore.getLong(Preference.appStateKey(KEY_REMINDER_DISMISSED_ON))
 
     private val _page = MutableStateFlow(StatsPage.WORKOUT)
     val page: StateFlow<StatsPage> = _page.asStateFlow()
@@ -92,9 +80,6 @@ class StatsScreenModel(
     private val _bodyInput = MutableStateFlow<BodyInputState?>(null)
     val bodyInput: StateFlow<BodyInputState?> = _bodyInput.asStateFlow()
 
-    private val _reminder = MutableStateFlow<BodyMetricReminder?>(null)
-    val reminder: StateFlow<BodyMetricReminder?> = _reminder.asStateFlow()
-
     fun refresh() {
         viewModelScope.launch {
             if (_page.value == StatsPage.WORKOUT) {
@@ -107,7 +92,6 @@ class StatsScreenModel(
                 _bodyStats.value = getBodyStats(_range.value)
             }
             _loading.value = false
-            refreshReminder()
         }
     }
 
@@ -169,29 +153,6 @@ class StatsScreenModel(
         }
     }
 
-    /** 「去记录」：切到身体数据标签并直接打开缺的那一项。 */
-    fun recordFromReminder() {
-        val reminder = _reminder.value ?: return
-        val field = if (reminder.needWeight) BodyMetricField.WEIGHT else BodyMetricField.BODY_FAT
-        selectPage(StatsPage.BODY)
-        dismissReminder()
-        openBodyInput(field)
-    }
-
-    /** 「以后再说」：今天不再提醒，明天进入统计页会重新判断。 */
-    fun dismissReminder() {
-        reminderDismissedOn.set(today().toEpochDays())
-        _reminder.value = null
-    }
-
-    private suspend fun refreshReminder() {
-        if (reminderDismissedOn.get() == today().toEpochDays()) {
-            _reminder.value = null
-            return
-        }
-        _reminder.value = getBodyMetricReminder()
-    }
-
     private fun latestValue(field: BodyMetricField): Double? {
         val latest = _bodyStats.value ?: return null
         return when (field) {
@@ -203,7 +164,5 @@ class StatsScreenModel(
     companion object {
         /** 区间切换的选项，顺序就是选择器里 chip 的排列顺序。 */
         val RANGES = StatsRange.entries
-
-        private const val KEY_REMINDER_DISMISSED_ON = "body_metric_reminder_dismissed_on"
     }
 }

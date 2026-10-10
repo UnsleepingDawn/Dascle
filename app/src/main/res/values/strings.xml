@@ -18,8 +18,6 @@
     <string name="action_rename">重命名</string>
     <string name="action_close">关闭</string>
     <string name="action_clear">清除</string>
-    <string name="action_record_now">去记录</string>
-    <string name="action_later">以后再说</string>
     <string name="action_understood">知道了</string>
     <string name="date_month_day">%1$d 月 %2$d 日</string>
 
@@ -348,11 +346,6 @@
     <string name="stats_body_last_record">上次记录：%1$s</string>
     <string name="stats_body_never_recorded">还没有记录</string>
     <string name="body_fat_value">%1$s%%</string>
-    <string name="stats_body_reminder_title">该更新身体数据了</string>
-    <string name="stats_body_reminder_message">已经 %1$d 天没有记录%2$s了，去补一条吧。</string>
-    <string name="stats_body_reminder_subject_weight">体重</string>
-    <string name="stats_body_reminder_subject_body_fat">体脂率</string>
-    <string name="stats_body_reminder_subject_both">体重和体脂率</string>
 
     <!-- 今日训练桌面组件 -->
     <string name="widget_today_description">今天要练什么、练到哪了</string>
