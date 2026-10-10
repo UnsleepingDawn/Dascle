@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -65,6 +66,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +90,8 @@ import com.fitplan.ui.workout.WorkoutLogScreen
 import com.fitplan.ui.workout.toClockText
 import com.fitplan.ui.workout.toWeightText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.datetime.isoDayNumber
 
 object TodayTab : Tab {
@@ -509,49 +513,113 @@ private fun RestSlot(
 /**
  * 休息指示：一段从满到空的进度条，右端一颗闹钟。进度条占满标题与闹钟之间的区域。
  *
- * 归零（[finishedTick] 自增）时闹钟左右摇摆约两秒提醒休息结束。
+ * 到点（[finishedTick] 自增）时按下面这套动作收尾：
+ *
+ * 1. 进度条快速淡化消失；
+ * 2. **同时**闹钟开始左右摇摆，并较快地横移到「进度条那一段的中心」（不是卡片中心），
+ *    一边移一边放大到 1.5 倍——放大走 `graphicsLayer` 的绘制缩放，不参与布局，
+ *    所以不会把标题行、卡片顶高；移到中心即停止放大；
+ * 3. 摇摆满 1.5 秒后，闹钟在原地（保持放大倍数）淡化消失。
+ *
+ * 之后的清场由 [RestSlot] 的 `AnimatedVisibility` 退场负责，那时内容已经透明，看不见。
  */
 @Composable
 private fun RestIndicator(
     rest: RestState,
     finishedTick: Int,
 ) {
+    // 摇摆角度、放大倍数、横移距离、进度条透明度、闹钟透明度，全部用绘制层做，不动布局。
     val angle = remember { Animatable(0f) }
-    // 记下进来时的归零计数：同一场休息反复组合时不要重放摇摆，只在计数真的变化时摇。
+    val scale = remember { Animatable(1f) }
+    val shift = remember { Animatable(0f) }
+    val barAlpha = remember { Animatable(1f) }
+    val iconAlpha = remember { Animatable(1f) }
+    // 记下进来时的归零计数：同一场休息反复组合时不要重放动画，只在计数真的变化时播。
     var seenTick by remember { mutableIntStateOf(finishedTick) }
+
+    // 进度条那一段的宽度（含它左右的内边距）与闹钟宽度，用来算「闹钟移到进度条中心」要走多远。
+    var barWidth by remember { mutableIntStateOf(0) }
+    var iconWidth by remember { mutableIntStateOf(0) }
+    // 进度条的视觉中心就在它那一段的正中（左右内边距相等）；闹钟中心原本在它右侧，
+    // 所以要左移「两段宽度和的一半」才落到进度条中心。
+    val shiftTarget = -((barWidth + iconWidth) / 2f)
+
     LaunchedEffect(finishedTick) {
         if (finishedTick == seenTick) return@LaunchedEffect
         seenTick = finishedTick
         angle.snapTo(0f)
-        repeat(REST_WOBBLE_SWINGS) { index ->
-            angle.animateTo(
-                targetValue = if (index % 2 == 0) REST_WOBBLE_ANGLE else -REST_WOBBLE_ANGLE,
-                animationSpec = tween(REST_WOBBLE_SWING_MILLIS, easing = LinearEasing),
-            )
+        scale.snapTo(1f)
+        shift.snapTo(0f)
+        barAlpha.snapTo(1f)
+        iconAlpha.snapTo(1f)
+
+        coroutineScope {
+            // 进度条快速淡出。
+            launch { barAlpha.animateTo(0f, tween(REST_BAR_FADE_MILLIS)) }
+            // 横移与放大同时起、同时止：移到进度条中心的那一刻放大也到位，之后保持。
+            launch {
+                shift.animateTo(
+                    targetValue = shiftTarget,
+                    animationSpec = tween(REST_ALARM_MOVE_MILLIS, easing = FastOutSlowInEasing),
+                )
+            }
+            launch {
+                scale.animateTo(
+                    targetValue = REST_ALARM_END_SCALE,
+                    animationSpec = tween(REST_ALARM_MOVE_MILLIS, easing = FastOutSlowInEasing),
+                )
+            }
+            // 摇摆与上面同时开始：摇 [REST_WOBBLE_SWINGS] 个来回，最后一下回正，
+            // 合计 (REST_WOBBLE_SWINGS + 1) × REST_WOBBLE_SWING_MILLIS = 1.5 秒。
+            launch {
+                repeat(REST_WOBBLE_SWINGS) { index ->
+                    angle.animateTo(
+                        targetValue = if (index % 2 == 0) REST_WOBBLE_ANGLE else -REST_WOBBLE_ANGLE,
+                        animationSpec = tween(REST_WOBBLE_SWING_MILLIS, easing = LinearEasing),
+                    )
+                }
+                angle.animateTo(0f, animationSpec = tween(REST_WOBBLE_SWING_MILLIS, easing = LinearEasing))
+            }
         }
-        angle.animateTo(0f, animationSpec = tween(REST_WOBBLE_SWING_MILLIS, easing = LinearEasing))
+        // 摇完再淡化消失；位置与放大倍数就停在这儿。
+        iconAlpha.animateTo(0f, tween(REST_ALARM_FADE_MILLIS))
     }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LinearProgressIndicator(
-            progress = {
-                if (rest.totalSeconds <= 0) 0f else rest.remainingSeconds.toFloat() / rest.totalSeconds
-            },
+        Box(
             modifier = Modifier
                 .weight(1f)
-                // 左侧留出间距，别贴着方案名。
-                .padding(start = MaterialTheme.padding.small, end = MaterialTheme.padding.small),
-        )
+                .onSizeChanged { barWidth = it.width },
+        ) {
+            LinearProgressIndicator(
+                progress = {
+                    if (rest.totalSeconds <= 0) 0f else rest.remainingSeconds.toFloat() / rest.totalSeconds
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 左右各留出间距，别贴着方案名、也别贴着闹钟。
+                    .padding(horizontal = MaterialTheme.padding.small)
+                    .graphicsLayer { alpha = barAlpha.value },
+            )
+        }
         Icon(
             imageVector = Icons.Filled.Alarm,
             contentDescription = stringResource(R.string.today_rest_counting),
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .size(REST_ALARM_SIZE)
-                .graphicsLayer { rotationZ = angle.value },
+                .onSizeChanged { iconWidth = it.width }
+                .graphicsLayer {
+                    // 这三个都是绘制期的变换，不改变布局尺寸，所以放大不会顶高卡片。
+                    scaleX = scale.value
+                    scaleY = scale.value
+                    translationX = shift.value
+                    rotationZ = angle.value
+                    alpha = iconAlpha.value
+                },
         )
     }
 }
@@ -1113,20 +1181,36 @@ private val TODAY_CARD_HEADER_HEIGHT = 28.dp
 /** 休息指示淡入的时长（毫秒）。 */
 private const val REST_INDICATOR_ENTER_MILLIS = 200
 
-/** 休息指示缩小淡出（闹钟摇完）的时长（毫秒）。 */
+/** 休息指示整体退场（[RestSlot] 的 `AnimatedVisibility` 缩小淡出）的时长（毫秒）。 */
 private const val REST_INDICATOR_EXIT_MILLIS = 300
 
 /** 休息指示退场时缩到多小：缩小并淡化消失。 */
 private const val REST_INDICATOR_EXIT_SCALE = 0.5f
 
+/** 到点后进度条快速淡化消失的时长（毫秒）。 */
+private const val REST_BAR_FADE_MILLIS = 180
+
+/** 到点后闹钟横移到进度条中心、并放到 [REST_ALARM_END_SCALE] 的时长（毫秒）；要「较快」。 */
+private const val REST_ALARM_MOVE_MILLIS = 300
+
+/** 闹钟到位后的放大倍数。 */
+private const val REST_ALARM_END_SCALE = 1.5f
+
+/** 摇完最后淡出消失的时长（毫秒）。 */
+private const val REST_ALARM_FADE_MILLIS = 250
+
 /** 闹钟摇摆的单侧摆幅（度）。 */
 private const val REST_WOBBLE_ANGLE = 14f
 
-/** 闹钟从一侧摆到另一侧的时长（毫秒）；与 [REST_WOBBLE_SWINGS] 配合约两秒。 */
-private const val REST_WOBBLE_SWING_MILLIS = 200
+/**
+ * 闹钟从一侧摆到另一侧的时长（毫秒）。
+ *
+ * 摇摆总时长 = ([REST_WOBBLE_SWINGS] + 1) × 本值 = (5 + 1) × 250 = 1500 毫秒（最后一下是回正）。
+ */
+private const val REST_WOBBLE_SWING_MILLIS = 250
 
-/** 闹钟摇摆的次数；约两秒，正好接上休息结束状态的保留时间。 */
-private const val REST_WOBBLE_SWINGS = 9
+/** 闹钟摇摆的单侧次数；配合 [REST_WOBBLE_SWING_MILLIS] 让摇摆正好 1.5 秒。 */
+private const val REST_WOBBLE_SWINGS = 5
 
 /** 卡片标题行里闹钟图标的尺寸。 */
 private val REST_ALARM_SIZE = 20.dp
