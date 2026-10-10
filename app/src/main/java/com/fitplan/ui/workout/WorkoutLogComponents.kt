@@ -503,7 +503,9 @@ internal fun LogExerciseCard(
                         modifier = Modifier.padding(start = MaterialTheme.padding.small),
                     )
                 }
-                if (!readOnly) {
+                // 动作组里的子卡不给「跳过动作」：组内去不去掉某个动作由组卡的芯片点选决定
+                // （取消挑中即可），这里再留一个跳过入口只会让同一个动作有两种「不做」的表达。
+                if (!readOnly && !nested) {
                     TextButton(
                         onClick = onToggleSkipped,
                         // 动过任意一组之后就只能一组一组地撤销，不能再整卡跳过；「恢复动作」始终可点。

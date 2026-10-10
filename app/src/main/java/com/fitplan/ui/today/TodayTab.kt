@@ -655,12 +655,13 @@ private enum class TodayExerciseStatus { TRAINED, NOT_DONE, PLANNED }
 
 /**
  * 判定计划里一个动作今天的训练状态。只有今天这场训练确实照这张计划练（`routineId` 对上）时才会问到这里。
- * 动作组里没挑中的动作也算「不用做」，与跳过一样打删除线。
+ *
+ * 只有单独排列的动作才会打删除线；动作组里的成员一律不打（组内该做哪几个由数量规则决定，
+ * 见 [todayBlocksForCard]），所以这里对组内动作不再看跳过 / 挑中。
  */
 private fun TodaySessionProgress.statusOf(exercise: RoutineExercise): TodayExerciseStatus = when {
     exercise.exerciseId in completedExerciseIds -> TodayExerciseStatus.TRAINED
-    exercise.exerciseId in skippedExerciseIds -> TodayExerciseStatus.NOT_DONE
-    exercise.groupId != null && exercise.exerciseId !in pickedExerciseIds -> TodayExerciseStatus.NOT_DONE
+    exercise.groupId == null && exercise.exerciseId in skippedExerciseIds -> TodayExerciseStatus.NOT_DONE
     else -> TodayExerciseStatus.PLANNED
 }
 

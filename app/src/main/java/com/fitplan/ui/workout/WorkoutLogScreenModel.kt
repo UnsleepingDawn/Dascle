@@ -1263,7 +1263,9 @@ class WorkoutLogScreenModel(
                 description = libraryExercise?.description.orEmpty(),
             )
             exercise.copy(
-                skipped = states[exerciseId]?.skipped == true,
+                // 动作组里的子卡没有「跳过动作」入口，老数据里若留着 skipped 标记按未跳过处理，
+                // 免得界面上冒出一个「已跳过」却没有恢复按钮的死角。
+                skipped = routineExercise?.groupId == null && states[exerciseId]?.skipped == true,
                 sets = ownSets
                     .map { set ->
                         SetEntry(
