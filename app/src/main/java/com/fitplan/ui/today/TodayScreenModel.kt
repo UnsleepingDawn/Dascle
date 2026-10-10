@@ -75,6 +75,11 @@ data class TodaySessionProgress(
      */
     val excludedExerciseIds: Set<Long> = emptySet(),
     /**
+     * 今天这场训练是否已经结束。结束时动作组只保留「练过的」成员：整组一个都没练就整组不显示，
+     * 练了一部分就只显示练过的那几个，不再拿删除线标出没做的。
+     */
+    val finished: Boolean = false,
+    /**
      * 练过、但不在本次计划编排里的动作，也就是训练中临时加的那些，
      * 供计划卡片在计划动作之后补出来并标上「临时」；没练过（一组都没勾）的不算。
      */
@@ -284,6 +289,7 @@ class TodayScreenModel(
             completedExerciseIds = sets.filter { it.completed }.map { it.exerciseId }.toSet(),
             skippedExerciseIds = states.filter { it.skipped }.map { it.exerciseId }.toSet(),
             excludedExerciseIds = allStates.filter { it.excluded }.map { it.exerciseId }.toSet(),
+            finished = session.isFinished,
             extraExercises = extraExercises,
         )
     }

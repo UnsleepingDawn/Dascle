@@ -704,8 +704,13 @@ private fun List<RoutineExercise>.toTodayBlocks(): List<TodayExerciseBlock> {
 }
 
 /**
- * 计划卡片最终要渲染的动作块：在 [toTodayBlocks] 切好块之后，把训练中被「移除」的动作剔掉，
- * 再交回去逐块绘制。组被剔空就整块不要，单独排的动作被移除也整块不要。
+ * 计划卡片最终要渲染的动作块：在 [toTodayBlocks] 切好块之后，按今天这场训练的进度过滤，再交回去逐块绘制。
+ *
+ * 规则：
+ * - 训练中被「移除」的动作一律剔掉，组被剔空就整块不要，单独排的动作被移除也整块不要；
+ * - 训练**已结束**时，动作组只保留练过的成员（[TodaySessionProgress.completedExerciseIds]），
+ *   一个都没练就整组不要——练完了就不再用删除线罗列没做的动作。单独排的动作保持原样，
+ *   没做的仍然打删除线。
  *
  * `progress` 为 null（今天还没照着这张计划开练）时原样返回。调用方保证 `progress` 只在这张
  * 卡片确实对应今天这场训练时传进来（`routineId` 对上），所以这里不用再比对计划 id。
@@ -714,12 +719,15 @@ private fun List<RoutineExercise>.todayBlocksForCard(
     progress: TodaySessionProgress?,
 ): List<TodayExerciseBlock> {
     val blocks = toTodayBlocks()
-    if (progress == null || progress.excludedExerciseIds.isEmpty()) return blocks
+    if (progress == null) return blocks
     return blocks.mapNotNull { block ->
-        block.exercises
-            .filterNot { it.exerciseId in progress.excludedExerciseIds }
-            .takeIf { it.isNotEmpty() }
-            ?.let { TodayExerciseBlock(it) }
+        val kept = block.exercises.filterNot { it.exerciseId in progress.excludedExerciseIds }
+        val shown = if (progress.finished && block.isGroup) {
+            kept.filter { it.exerciseId in progress.completedExerciseIds }
+        } else {
+            kept
+        }
+        shown.takeIf { it.isNotEmpty() }?.let { TodayExerciseBlock(it) }
     }
 }
 
