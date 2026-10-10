@@ -164,6 +164,20 @@ class WorkoutRepositoryImpl(
         )
     }
 
+    override suspend fun setExerciseExcluded(sessionId: Long, exerciseId: Long, excluded: Boolean) {
+        database.transaction {
+            stateQueries.upsertExcluded(
+                session_id = sessionId,
+                exercise_id = exerciseId,
+                excluded = excluded.toDbValue(),
+            )
+            // 移除动作连同它本次已记录的组一起删，否则这些组还会算进统计与「已练」判定。
+            if (excluded) {
+                setQueries.deleteBySessionAndExercise(session_id = sessionId, exercise_id = exerciseId)
+            }
+        }
+    }
+
     override suspend fun addSet(
         sessionId: Long,
         exerciseId: Long,

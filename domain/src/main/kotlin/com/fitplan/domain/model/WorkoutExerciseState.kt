@@ -14,6 +14,11 @@ data class WorkoutExerciseState(
     val setCount: Int? = null,
     /** 动作组里是否挑中了这个动作（只对组内动作有意义）。 */
     val picked: Boolean = false,
+    /**
+     * 是否已从本次训练里移除：移除只影响这一次训练，计划编排本身不变，
+     * 该动作本次已记录的组也会一起删掉。
+     */
+    val excluded: Boolean = false,
 )
 
 /**

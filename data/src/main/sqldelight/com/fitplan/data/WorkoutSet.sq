@@ -67,3 +67,8 @@ WHERE id = ?;
 deleteBySessionId:
 DELETE FROM workout_set
 WHERE session_id = ?;
+
+-- 把某个动作在本次训练里的全部组记录删掉（滑动删除动作时用）。
+deleteBySessionAndExercise:
+DELETE FROM workout_set
+WHERE session_id = ? AND exercise_id = ?;

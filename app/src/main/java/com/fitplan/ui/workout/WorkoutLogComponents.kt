@@ -2,6 +2,7 @@ package com.fitplan.ui.workout
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -14,16 +15,19 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -49,18 +53,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.fitplan.app.R
 import com.fitplan.domain.model.Equipment
@@ -70,8 +79,10 @@ import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.reminder.RestState
 import com.fitplan.ui.exercise.label
 import com.fitplan.ui.exercise.muscleLabels
+import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.math.roundToInt
 import kotlin.time.Instant
 
 /** 训练还没开始时的计划预览列表：只展示动作与目标，不能录入。 */
@@ -186,6 +197,133 @@ private fun PlanGroupCard(
 @Composable
 private fun LogItem.Group.title(): String = groupName ?: stringResource(R.string.workout_group_title)
 
+/** 右滑露出的「删除」键宽度。 */
+private val REMOVE_ACTION_WIDTH = 84.dp
+
+/**
+ * 右滑露出左侧红色删除键的容器，用来把动作（或整个动作组）从本次训练里移除。
+ *
+ * 与日历页的 [SwipeToRevealDelete] 是镜像关系：那边是左滑露右键，这边是右滑露左键。
+ * [revealed] 由列表持有，保证同一时间只有一张卡片是滑开的。
+ *
+ * 拖动的手势修饰符不贴在整张卡上，而是通过 [content] 的 `titleModifier` 交给调用方
+ * 贴到卡片的标题行：动作组卡里有一行横向滚动的芯片、动作卡里有输入框，
+ * 贴在整卡上会和它们抢横向手势。
+ */
+@Composable
+internal fun SwipeToRevealRemove(
+    revealed: Boolean,
+    onRevealedChange: (Boolean) -> Unit,
+    onRequestRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** false 时（例如回看已结束的训练）不走手势，原样把卡片画出来。 */
+    enabled: Boolean = true,
+    content: @Composable (titleModifier: Modifier) -> Unit,
+) {
+    if (!enabled) {
+        content(Modifier)
+        return
+    }
+
+    val revealPx = with(LocalDensity.current) { REMOVE_ACTION_WIDTH.toPx() }
+    val offsetX = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    // 外部状态变化（另滑开一张、弹出确认框、卡片被移除）时，把卡片动画归位。
+    LaunchedEffect(revealed) {
+        offsetX.animateTo(if (revealed) revealPx else 0f)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.extraLarge),
+    ) {
+        // 铺满整张卡的红色底，只有卡片右移之后左侧那一截才露出来。
+        // 左右按与卡片一致的留白内缩：卡片本身带 16dp 外边距，不内缩的话不滑动时
+        // 卡片两侧会各露出 16dp 的红色细边（实测）。
+        Row(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(horizontal = MaterialTheme.padding.medium)
+                .clip(MaterialTheme.shapes.extraLarge)
+                .background(MaterialTheme.colorScheme.error),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = {
+                    onRevealedChange(false)
+                    onRequestRemove()
+                },
+                modifier = Modifier
+                    .width(REMOVE_ACTION_WIDTH)
+                    .fillMaxHeight(),
+            ) {
+                Text(
+                    text = stringResource(R.string.action_delete),
+                    color = MaterialTheme.colorScheme.onError,
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) },
+        ) {
+            content(
+                Modifier
+                    .fillMaxWidth()
+                    .pointerInput(revealPx) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                val open = offsetX.value > revealPx / 2
+                                // 目标状态没变时 LaunchedEffect 不会重跑，这里自己补一次回弹。
+                                if (open == revealed) {
+                                    scope.launch { offsetX.animateTo(if (open) revealPx else 0f) }
+                                } else {
+                                    onRevealedChange(open)
+                                }
+                            },
+                        ) { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                offsetX.snapTo((offsetX.value + dragAmount).coerceIn(0f, revealPx))
+                            }
+                        }
+                    },
+            )
+        }
+    }
+}
+
+/** 动作组整组移除前的确认：组内已经练过的记录会一起删掉，避免误触。 */
+@Composable
+internal fun RemoveGroupDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.workout_remove_group_confirm_title)) },
+        text = { Text(text = stringResource(R.string.workout_remove_group_confirm_message)) },
+        confirmButton = {
+            OutlinedButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text(text = stringResource(R.string.action_delete))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
 /**
  * 记录页里的一个动作组卡：先在芯片行里挑「建议做 x 个」个动作，
  * 挑中的动作在卡片内以子卡展开，记录能力与单独排的动作完全一致。
@@ -200,6 +338,8 @@ internal fun LogGroupCard(
     readOnly: Boolean,
     onTogglePick: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    /** 贴到标题行上的额外修饰符：列表用它挂右滑删除的拖动手势。 */
+    titleModifier: Modifier = Modifier,
     exerciseCard: @Composable (LogExercise) -> Unit,
 ) {
     val byId = remember(exercises) { exercises.associateBy { it.exerciseId } }
@@ -217,7 +357,7 @@ internal fun LogGroupCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = titleModifier, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = group.title(),
                     style = MaterialTheme.typography.titleMedium,
@@ -291,6 +431,8 @@ internal fun LogExerciseCard(
     modifier: Modifier = Modifier,
     /** true 表示这是动作组卡里的子卡：少一层外边距、用更紧凑的圆角。 */
     nested: Boolean = false,
+    /** 贴到标题行上的额外修饰符：列表用它挂右滑删除的拖动手势。 */
+    titleModifier: Modifier = Modifier,
 ) {
     ElevatedCard(
         modifier = modifier
@@ -306,7 +448,7 @@ internal fun LogExerciseCard(
         ) {
             // 动作名一行：右侧依次挂「计划外」「已完成 N 组」和跳过动作的按钮。收起 / 跳过时这一行常驻。
             // 收起后不再单独占一行放「展开」按钮，点动作名所在的这一整行即可展开或收起；跳过的动作不响应。
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = titleModifier, verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     modifier = Modifier
                         .weight(1f)

@@ -199,6 +199,7 @@ internal fun WorkoutExerciseStateRow.toDomain(): WorkoutExerciseState = WorkoutE
     skipped = skipped.toBoolean(),
     setCount = set_count?.toInt(),
     picked = picked.toBoolean(),
+    excluded = excluded.toBoolean(),
 )
 
 internal fun BodyMetricRow.toDomain(): BodyMetric = BodyMetric(

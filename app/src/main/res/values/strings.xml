@@ -277,6 +277,8 @@
     <string name="workout_abandon">放弃训练</string>
     <string name="workout_abandon_confirm_title">放弃训练？</string>
     <string name="workout_abandon_confirm_message">本次训练已经记录的组会被删除，无法恢复。</string>
+    <string name="workout_remove_group_confirm_title">删除整个动作组？</string>
+    <string name="workout_remove_group_confirm_message">这一组会从本次训练里移除，组内已经练过的记录也会一起删掉；计划本身不受影响。</string>
     <string name="workout_summary_title">训练完成</string>
     <string name="workout_summary_sets">完成 %1$d 组</string>
     <string name="workout_summary_duration">用时 %1$s</string>

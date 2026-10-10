@@ -125,6 +125,11 @@ class WorkoutLogScreen(
         var showAbandonDialog by remember { mutableStateOf(false) }
         var showExtraDialog by remember { mutableStateOf(false) }
 
+        // 右滑删除：同一时间只允许一张卡是滑开的，key 用列表项的 key。
+        var revealedKey by remember { mutableStateOf<String?>(null) }
+        // 非空表示正在确认「解散整个动作组」，确认后才真的移除。
+        var removeGroupTarget by remember { mutableStateOf<LogItem.Group?>(null) }
+
         // 非空表示「减一组」减到最后一组，正在问要不要直接跳过这个动作。
         var lastSetSkipId by remember { mutableStateOf<Long?>(null) }
 
@@ -132,8 +137,8 @@ class WorkoutLogScreen(
 
         // 一张动作卡：单独排的动作直接用它，动作组里挑中的动作作为子卡（nested）用它。
         // positionKey 是这张卡在滚动跟踪里的名字，用来把它平滑滚进视口。
-        val logExerciseCard: @Composable (LogExercise, Boolean, String) -> Unit =
-            { exercise, nested, positionKey ->
+        val logExerciseCard: @Composable (LogExercise, Boolean, String, Modifier) -> Unit =
+            { exercise, nested, positionKey, titleModifier ->
                 LogExerciseCard(
                     exercise = exercise,
                     readOnly = readOnly,
@@ -143,6 +148,7 @@ class WorkoutLogScreen(
                     modifier = Modifier.onGloballyPositioned {
                         scrollTracker.onItemPositioned(positionKey, it)
                     },
+                    titleModifier = titleModifier,
                     onWeightChange = { index, value ->
                         screenModel.updateWeight(exercise.exerciseId, index, value)
                     },
@@ -297,24 +303,45 @@ class WorkoutLogScreen(
                         when (item) {
                             is LogItem.Exercise -> {
                                 val exercise = exercisesById[item.exerciseId]
-                                if (exercise != null) logExerciseCard(exercise, false, "item:${item.key}")
+                                // 单独排的动作卡可以右滑删除；动作组里的子卡不给这个入口。
+                                if (exercise != null) {
+                                    SwipeToRevealRemove(
+                                        revealed = revealedKey == item.key,
+                                        onRevealedChange = { revealedKey = if (it) item.key else null },
+                                        onRequestRemove = { screenModel.removeExercise(item.exerciseId) },
+                                        enabled = !readOnly,
+                                    ) { titleModifier ->
+                                        logExerciseCard(exercise, false, "item:${item.key}", titleModifier)
+                                    }
+                                }
                             }
 
                             // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
-                            is LogItem.Group -> LogGroupCard(
-                                group = item,
-                                exercises = exercises,
-                                readOnly = readOnly,
-                                onTogglePick = { exerciseId ->
-                                    if (exerciseId in item.pickedIds) {
-                                        screenModel.unpickGroupExercise(item.groupId, exerciseId)
-                                    } else {
-                                        screenModel.pickGroupExercise(item.groupId, exerciseId)
-                                        // 挑中的动作会在组卡里展开子卡，滚过去让用户直接接着录入。
-                                        revealRequest = RevealRequest("card:$exerciseId")
-                                    }
-                                },
-                            ) { exercise -> logExerciseCard(exercise, true, "card:${exercise.exerciseId}") }
+                            // 右滑删除的是整组，先弹一次确认（组内已练的记录会一起删）。
+                            is LogItem.Group -> SwipeToRevealRemove(
+                                revealed = revealedKey == item.key,
+                                onRevealedChange = { revealedKey = if (it) item.key else null },
+                                onRequestRemove = { removeGroupTarget = item },
+                                enabled = !readOnly,
+                            ) { titleModifier ->
+                                LogGroupCard(
+                                    group = item,
+                                    exercises = exercises,
+                                    readOnly = readOnly,
+                                    onTogglePick = { exerciseId ->
+                                        if (exerciseId in item.pickedIds) {
+                                            screenModel.unpickGroupExercise(item.groupId, exerciseId)
+                                        } else {
+                                            screenModel.pickGroupExercise(item.groupId, exerciseId)
+                                            // 挑中的动作会在组卡里展开子卡，滚过去让用户直接接着录入。
+                                            revealRequest = RevealRequest("card:$exerciseId")
+                                        }
+                                    },
+                                    titleModifier = titleModifier,
+                                ) { exercise ->
+                                    logExerciseCard(exercise, true, "card:${exercise.exerciseId}", Modifier)
+                                }
+                            }
                         }
                     }
                 }
@@ -328,6 +355,16 @@ class WorkoutLogScreen(
                     screenModel.abandonWorkout()
                 },
                 onDismiss = { showAbandonDialog = false },
+            )
+        }
+
+        removeGroupTarget?.let { target ->
+            RemoveGroupDialog(
+                onConfirm = {
+                    removeGroupTarget = null
+                    screenModel.removeGroup(target.groupId)
+                },
+                onDismiss = { removeGroupTarget = null },
             )
         }
 

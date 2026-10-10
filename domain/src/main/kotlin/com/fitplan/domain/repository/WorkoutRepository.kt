@@ -75,6 +75,12 @@ interface WorkoutRepository {
 
     suspend fun setExercisePicked(sessionId: Long, exerciseId: Long, picked: Boolean)
 
+    /**
+     * 把动作从本次训练里移除（[excluded] 为 true）或撤销移除；计划编排不受影响。
+     * 移除时会连同它本次已记录的组一起删掉，移除状态一直保留到这次训练结束。
+     */
+    suspend fun setExerciseExcluded(sessionId: Long, exerciseId: Long, excluded: Boolean)
+
     suspend fun addSet(
         sessionId: Long,
         exerciseId: Long,

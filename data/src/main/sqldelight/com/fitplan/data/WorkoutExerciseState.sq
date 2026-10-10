@@ -1,4 +1,4 @@
--- 一次训练里某个动作的临时状态：有没有跳过、实际展示几组、有没有被动作组挑中。
+-- 一次训练里某个动作的临时状态：有没有跳过、实际展示几组、有没有被动作组挑中、有没有被移除。
 -- 只在用户真正动过这些状态时才写行；没有行表示「按计划目标默认展示」。
 -- set_count 为空表示用户没动过增删组，界面仍按计划目标组数铺行。
 CREATE TABLE workout_exercise_state (
@@ -7,6 +7,7 @@ CREATE TABLE workout_exercise_state (
     skipped     INTEGER NOT NULL DEFAULT 0,
     set_count   INTEGER,
     picked      INTEGER NOT NULL DEFAULT 0,
+    excluded    INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (session_id, exercise_id)
 );
 
@@ -15,7 +16,7 @@ SELECT *
 FROM workout_exercise_state
 WHERE session_id = ?;
 
--- 三个写入入口各管一列，互不覆盖同一行的其他状态。
+-- 四个写入入口各管一列，互不覆盖同一行的其他状态。
 upsertSkipped:
 INSERT INTO workout_exercise_state(session_id, exercise_id, skipped)
 VALUES (?, ?, ?)
@@ -30,3 +31,9 @@ upsertPicked:
 INSERT INTO workout_exercise_state(session_id, exercise_id, picked)
 VALUES (?, ?, ?)
 ON CONFLICT(session_id, exercise_id) DO UPDATE SET picked = excluded.picked;
+
+-- 把动作从本次训练里移除（或撤销移除）；只在用户点过滑动删除时写。
+upsertExcluded:
+INSERT INTO workout_exercise_state(session_id, exercise_id, excluded)
+VALUES (?, ?, ?)
+ON CONFLICT(session_id, exercise_id) DO UPDATE SET excluded = excluded.excluded;

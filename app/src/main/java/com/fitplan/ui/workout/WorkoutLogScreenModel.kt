@@ -389,6 +389,12 @@ class WorkoutLogScreenModel(
      */
     private val celebratedExerciseIds = mutableSetOf<Long>()
 
+    /**
+     * 这一场里被滑删移除的动作。除了落库，还要在内存里记一份：
+     * 用户之后又从「计划外动作」把它加回来时，得知道要先把移除标记撤掉，否则重进又会消失。
+     */
+    private val excludedExerciseIds = mutableSetOf<Long>()
+
     /** 未开始阶段真正点「开始训练」时写进 `workout_session.routine_id`。 */
     private var routineId: Long? = null
 
@@ -420,6 +426,7 @@ class WorkoutLogScreenModel(
         // 换了一场训练就重新开始判定，上一场处理过的动作不影响这一场。
         handledHintExerciseIds.clear()
         celebratedExerciseIds.clear()
+        excludedExerciseIds.clear()
         _collapsedExerciseIds.value = emptySet()
         _progressHint.value = null
         _progressTargetInput.value = null
@@ -445,7 +452,7 @@ class WorkoutLogScreenModel(
                 _summary.value = null
                 _sessionName.value = routineId?.let { routineRepository.getById(it)?.name }.orEmpty()
                 val items = routineId?.let { routineRepository.getItems(it) }.orEmpty()
-                _items.value = items.map { it.toLogItem(pickedIds = emptySet()) }
+                _items.value = items.mapNotNull { it.toLogItem(pickedIds = emptySet()) }
                 _exercises.value = items.flatMap { it.exercises }.map { it.toLogExercise() }
                 // 状态就绪后再开练：`startWorkout` 的守卫依赖 `_phase` 已置回 NOT_STARTED，
                 // 且 session 名要用上面刚写好的 `_sessionName`，所以必须在这之后调用。
@@ -515,6 +522,51 @@ class WorkoutLogScreenModel(
     fun toggleExerciseCollapsed(exerciseId: Long) {
         val collapsed = _collapsedExerciseIds.value
         _collapsedExerciseIds.value = if (exerciseId in collapsed) collapsed - exerciseId else collapsed + exerciseId
+    }
+
+    /**
+     * 把动作从本次训练里移除：卡片与它本次已记录的组一起消失，计划编排本身不变，
+     * 退出重进仍然保持（移除状态落在 `workout_exercise_state.excluded` 上）。
+     */
+    fun removeExercise(exerciseId: Long) {
+        if (_exercises.value.none { it.exerciseId == exerciseId }) return
+        _exercises.value = _exercises.value.filterNot { it.exerciseId == exerciseId }
+        _items.value = _items.value.mapNotNull { item ->
+            when {
+                item is LogItem.Exercise && item.exerciseId == exerciseId -> null
+                // 逻辑上滑删只挂在单独动作卡上，这里顺手把组内成员也摘掉，免得留下点不到的空位。
+                item is LogItem.Group && exerciseId in item.memberIds -> {
+                    val members = item.memberIds - exerciseId
+                    if (members.isEmpty()) {
+                        null
+                    } else {
+                        item.copy(memberIds = members, pickedIds = item.pickedIds - exerciseId)
+                    }
+                }
+
+                else -> item
+            }
+        }
+        _collapsedExerciseIds.value = _collapsedExerciseIds.value - exerciseId
+        excludedExerciseIds += exerciseId
+        persistState { sessionId ->
+            workoutRepository.setExerciseExcluded(sessionId, exerciseId, excluded = true)
+        }
+    }
+
+    /**
+     * 解散整个动作组：组卡消失，组内每个成员都从本次训练里移除，挑中过的动作连同本次记录一起删掉。
+     * 全员都被移除后，重进时这一组也不会再出现。
+     */
+    fun removeGroup(groupId: Long) {
+        val group = _items.value.filterIsInstance<LogItem.Group>().firstOrNull { it.groupId == groupId } ?: return
+        _items.value = _items.value.filterNot { it is LogItem.Group && it.groupId == groupId }
+        _exercises.value = _exercises.value.filterNot { it.exerciseId in group.memberIds }
+        _collapsedExerciseIds.value = _collapsedExerciseIds.value - group.memberIds.toSet()
+        excludedExerciseIds += group.memberIds
+        persistState { sessionId ->
+            group.memberIds.forEach { workoutRepository.setExerciseExcluded(sessionId, it, excluded = true) }
+        }
     }
 
     /**
@@ -1068,6 +1120,13 @@ class WorkoutLogScreenModel(
             else -> null
         }
         _extraNotice.value = notice
+        // 这个动作之前被滑删移除过，现在又加回来：先把移除标记撤掉，否则重进记录页它又会消失。
+        if (exerciseId in excludedExerciseIds) {
+            excludedExerciseIds -= exerciseId
+            persistState { sessionId ->
+                workoutRepository.setExerciseExcluded(sessionId, exerciseId, excluded = false)
+            }
+        }
         if (notice == null) addExtraExercise(exerciseId)
     }
 
@@ -1146,8 +1205,11 @@ class WorkoutLogScreenModel(
         val items = session.routineId?.let { routineRepository.getItems(it) }.orEmpty()
         val plan = items.flatMap { it.exercises }
         val planByExercise = plan.associateBy { it.exerciseId }
-        val plannedExerciseIds = plan.map { it.exerciseId }
-        val recordedExerciseIds = sets.map { it.exerciseId }.distinct()
+        // 本次已经被移除的动作：计划里排过也不展示，它本次已记录的组在移除时已被删掉。
+        val excludedIds = states.values.filter { it.excluded }.map { it.exerciseId }.toSet()
+        excludedExerciseIds.addAll(excludedIds)
+        val plannedExerciseIds = plan.map { it.exerciseId }.filterNot { it in excludedIds }
+        val recordedExerciseIds = sets.map { it.exerciseId }.distinct().filterNot { it in excludedIds }
         val exerciseIds = (plannedExerciseIds + recordedExerciseIds).distinct()
         val exercisesById = exerciseRepository.getByIds(exerciseIds).associateBy { it.id }
 
@@ -1162,13 +1224,11 @@ class WorkoutLogScreenModel(
                 durationSeconds = (finishedAt - session.startedAt).inWholeSeconds,
             )
         }
-        // 组里挑过哪些动作：与今日页共用 `pickedExerciseIds` 的口径。
-        val pickedIds = pickedExerciseIds(recordedExerciseIds, states.values.toList())
-        _items.value = buildList {
-            items.forEach { add(it.toLogItem(pickedIds = pickedIds)) }
-            // 记录里出现、但计划编排里已经找不到的动作（计划外动作，或计划改过之后被移除的动作）。
-            recordedExerciseIds.filterNot { it in plannedExerciseIds }.forEach { add(LogItem.Exercise(it)) }
-        }
+        // 组里挑过哪些动作：与今日页共用 `pickedExerciseIds` 的口径；已移除的动作不再算挑中。
+        val pickedIds = pickedExerciseIds(recordedExerciseIds, states.values.filterNot { it.excluded })
+        // 记录里出现、但计划编排里已经找不到的动作（计划外动作，或计划改过之后被移除的动作）。
+        val extraItems = recordedExerciseIds.filterNot { it in plannedExerciseIds }.map { LogItem.Exercise(it) }
+        _items.value = items.mapNotNull { it.toLogItem(pickedIds = pickedIds, excludedIds = excludedIds) } + extraItems
         _exercises.value = exerciseIds.map { exerciseId ->
             val routineExercise = planByExercise[exerciseId]
             val libraryExercise = exercisesById[exerciseId]
@@ -1300,17 +1360,27 @@ private fun RoutineExercise.toLogExercise(): LogExercise {
 /**
  * 计划编排的一项转成记录页列表项；[pickedIds] 是本次已经挑中的动作 id，只有动作组用得上。
  * 组内动作的先后由计划决定，所以挑中的顺序不会打乱组内顺序。
+ *
+ * [excludedIds] 是本次已经从训练里移除的动作：单项动作整项丢掉；动作组把移除掉的成员剔出去，
+ * 一个成员都不剩时这个组也没得挑了，整组丢掉——这就是「解散整组」在重进后的样子。
  */
-private fun RoutineItem.toLogItem(pickedIds: Set<Long>): LogItem = when (this) {
-    is RoutineItem.Exercise -> LogItem.Exercise(value.exerciseId)
+private fun RoutineItem.toLogItem(pickedIds: Set<Long>, excludedIds: Set<Long> = emptySet()): LogItem? = when (this) {
+    is RoutineItem.Exercise -> if (value.exerciseId in excludedIds) null else LogItem.Exercise(value.exerciseId)
 
-    is RoutineItem.Group -> LogItem.Group(
-        groupId = value.id,
-        maxPicks = value.maxPicks,
-        groupName = value.name,
-        memberIds = value.exercises.map { it.exerciseId },
-        pickedIds = value.exercises.map { it.exerciseId }.filter { it in pickedIds },
-    )
+    is RoutineItem.Group -> {
+        val memberIds = value.exercises.map { it.exerciseId }.filterNot { it in excludedIds }
+        if (memberIds.isEmpty()) {
+            null
+        } else {
+            LogItem.Group(
+                groupId = value.id,
+                maxPicks = value.maxPicks,
+                groupName = value.name,
+                memberIds = memberIds,
+                pickedIds = memberIds.filter { it in pickedIds },
+            )
+        }
+    }
 }
 
 /**
