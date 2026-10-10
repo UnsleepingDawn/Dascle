@@ -100,6 +100,7 @@ internal fun RoutineRow.toDomain(): Routine = Routine(
     id = id,
     name = name,
     createdAt = created_at.toInstant(),
+    isTemp = is_temp != 0L,
 )
 
 internal fun RoutineExerciseRow.toDomain(): RoutineExercise = RoutineExercise(

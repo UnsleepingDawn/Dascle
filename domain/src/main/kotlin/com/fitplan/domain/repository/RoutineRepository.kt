@@ -7,13 +7,23 @@ import kotlin.time.Instant
 
 interface RoutineRepository {
 
+    /** 全部计划，含临时计划（日历要把排期里的计划名还原出来，所以不能少）。 */
     suspend fun getAll(): List<Routine>
+
+    /** 常驻计划（不含临时计划）：计划列表页、多日循环编排、日历的选计划弹窗都只看这些。 */
+    suspend fun getPermanent(): List<Routine>
 
     suspend fun getById(id: Long): Routine?
 
     suspend fun count(): Long
 
     suspend fun insert(name: String, createdAt: Instant): Long
+
+    /** 新建一份「临时计划」：只在某一天用的一次性编排，不进常驻计划列表；返回新计划 id。 */
+    suspend fun insertTemp(name: String, createdAt: Instant): Long
+
+    /** 清扫没用的临时计划：一个动作都没加的，或已经不再排在任何一天上的。 */
+    suspend fun deleteUnusedTempPlans()
 
     suspend fun update(id: Long, name: String)
 

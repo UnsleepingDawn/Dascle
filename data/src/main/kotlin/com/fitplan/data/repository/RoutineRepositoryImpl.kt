@@ -32,6 +32,9 @@ class RoutineRepositoryImpl(
 
     override suspend fun getAll(): List<Routine> = routineQueries.selectAll().awaitAsList().map { it.toDomain() }
 
+    override suspend fun getPermanent(): List<Routine> =
+        routineQueries.selectPermanent().awaitAsList().map { it.toDomain() }
+
     override suspend fun getById(id: Long): Routine? =
         routineQueries.selectById(id).awaitAsOneOrNull()?.toDomain()
 
@@ -45,6 +48,19 @@ class RoutineRepositoryImpl(
             )
             utilQueries.lastInsertRowId().awaitAsOne()
         }
+
+    override suspend fun insertTemp(name: String, createdAt: Instant): Long =
+        database.transactionWithResult {
+            routineQueries.insertTemp(
+                name = name,
+                created_at = createdAt.toDbValue(),
+            )
+            utilQueries.lastInsertRowId().awaitAsOne()
+        }
+
+    override suspend fun deleteUnusedTempPlans() {
+        routineQueries.deleteUnusedTempPlans()
+    }
 
     override suspend fun update(id: Long, name: String) {
         routineQueries.update(name = name, id = id)

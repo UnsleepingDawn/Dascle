@@ -180,6 +180,8 @@
     <string name="calendar_completed_sets">完成 %1$d 组</string>
     <string name="calendar_day_plan">当天计划</string>
     <string name="calendar_add_plan">添加计划</string>
+    <!-- 休息日专属的一次性计划：现编这一天的动作，不进常驻计划列表 -->
+    <string name="calendar_temp_plan">临时计划</string>
     <string name="calendar_pick_routine">选择要排入的计划</string>
     <string name="calendar_no_routine_left">所有计划都已排入这一天</string>
     <string name="calendar_remove_plan">移除排期</string>

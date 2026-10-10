@@ -1,12 +1,23 @@
 CREATE TABLE routine (
     id         INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL,
-    created_at INTEGER NOT NULL DEFAULT 0
+    created_at INTEGER NOT NULL DEFAULT 0,
+    is_temp    INTEGER NOT NULL DEFAULT 0
 );
 
+-- 全部计划，含日历休息日开出来的临时计划：日历要把排期里的 routine_id 换成计划名，
+-- 所以这里不能把临时计划滤掉。
 selectAll:
 SELECT *
 FROM routine
+ORDER BY created_at DESC;
+
+-- 常驻计划列表：「设置单日计划」页、多日循环编排、日历里的「选择要排入的计划」都只看这些。
+-- 临时计划是某一天专属的一次性编排，不该出现在这些列表里。
+selectPermanent:
+SELECT *
+FROM routine
+WHERE is_temp = 0
 ORDER BY created_at DESC;
 
 selectById:
@@ -21,6 +32,21 @@ FROM routine;
 insert:
 INSERT INTO routine(name, created_at)
 VALUES (?, ?);
+
+-- 日历休息日的「临时计划」：新建一份不进常驻列表的一次性计划。
+insertTemp:
+INSERT INTO routine(name, created_at, is_temp)
+VALUES (?, ?, 1);
+
+-- 清扫没用的临时计划：一个动作都没加过（开进编排页又直接退出），
+-- 或者已经不再排在任何一天上（排期被撤掉、顺延走或被整体压掉）。
+deleteUnusedTempPlans:
+DELETE FROM routine
+WHERE is_temp = 1
+  AND (
+       NOT EXISTS (SELECT 1 FROM routine_exercise WHERE routine_exercise.routine_id = routine.id)
+       OR NOT EXISTS (SELECT 1 FROM schedule_entry WHERE schedule_entry.routine_id = routine.id)
+       );
 
 update:
 UPDATE routine

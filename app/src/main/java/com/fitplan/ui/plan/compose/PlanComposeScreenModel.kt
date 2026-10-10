@@ -77,7 +77,7 @@ class PlanComposeScreenModel(
 
     fun load() {
         viewModelScope.launch {
-            _routines.value = routineRepository.getAll()
+            _routines.value = routineRepository.getPermanent()
         }
     }
 

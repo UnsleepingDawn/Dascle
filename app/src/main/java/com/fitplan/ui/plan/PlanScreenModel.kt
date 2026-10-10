@@ -39,7 +39,7 @@ class PlanScreenModel(
 
     fun refresh() {
         viewModelScope.launch {
-            _items.value = routineRepository.getAll().map { routine ->
+            _items.value = routineRepository.getPermanent().map { routine ->
                 RoutineListItem(
                     routine = routine,
                     // 本地库数据量很小，逐个查动作数比再加一条聚合查询更省事。

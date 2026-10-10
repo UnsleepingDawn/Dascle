@@ -103,8 +103,14 @@ object PlanTab : Tab {
         val month by screenModel.month.collectAsState()
         val days by screenModel.days.collectAsState()
         val routines by screenModel.routines.collectAsState()
+        // 临时计划的名字存进库、要显示在日历与今日页上，所以取文案在这里取好再传下去。
+        val tempPlanName = stringResource(R.string.calendar_temp_plan)
 
-        LaunchedEffect(Unit) { screenModel.refresh() }
+        LaunchedEffect(Unit) {
+            screenModel.refresh()
+            // 从临时计划的编排页返回时在这儿收尾：没加动作的空计划、排期已经不在的计划一并清掉。
+            screenModel.clearUnusedTempPlans()
+        }
 
         var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
         val selectedDay = selectedDate?.let { date -> days.firstOrNull { it.date == date } }
@@ -258,6 +264,14 @@ object PlanTab : Tab {
                         navigator.push(RoutineEditScreen(routineId))
                     },
                     onAddPlan = { routineId -> screenModel.addPlan(routineId, day.date) },
+                    onCreateTempPlan = {
+                        val date = day.date
+                        // 先收起明细，再把用户送进临时计划的编排页。
+                        selectedDate = null
+                        screenModel.createTempPlan(date, tempPlanName) { routineId ->
+                            navigator.push(RoutineEditScreen(routineId))
+                        }
+                    },
                     onMarkRest = screenModel::markRestDay,
                     onRemovePlan = screenModel::removePlan,
                     onEditSession = { sessionId ->
@@ -625,6 +639,7 @@ private fun DayDetailSheet(
     onDismiss: () -> Unit,
     onOpenRoutine: (Long) -> Unit,
     onAddPlan: (Long) -> Unit,
+    onCreateTempPlan: () -> Unit,
     onMarkRest: (LocalDate) -> Unit,
     onRemovePlan: (Long) -> Unit,
     onEditSession: (Long) -> Unit,
@@ -700,6 +715,7 @@ private fun DayDetailSheet(
                     day = day,
                     routines = routines,
                     onAddPlan = onAddPlan,
+                    onCreateTempPlan = onCreateTempPlan,
                     onMarkRest = { onMarkRest(day.date) },
                 )
             }
@@ -870,10 +886,11 @@ private fun PlannedRoutineRow(
 }
 
 /**
- * 明细面板右下角的两个快捷操作：给这一天排一个计划，或把这一天改成休息日。
- * 两者互斥——加计划会让这一天成为训练日，标休息会撤掉这一天的排期。
+ * 明细面板右下角的快捷操作：给这一天排一个已有计划、现编一份临时计划，或把这一天改成休息日。
+ * 三者互斥——加计划会让这一天成为训练日，标休息会撤掉这一天的排期。
  *
  * 「添加计划」只在既没有排期、也没有实际训练的空白天可用（一天只能有一个训练计划）；
+ * 「临时计划」更严一档，只在今天及以后可用（过去的日子补不了临时编排，只能补记实际训练）；
  * 「该天休息」只在今天及以后、这天排了计划且还没练过时可用（撤掉排期即可）。
  */
 @Composable
@@ -881,6 +898,7 @@ private fun DayActionsRow(
     day: CalendarDay,
     routines: List<Routine>,
     onAddPlan: (Long) -> Unit,
+    onCreateTempPlan: () -> Unit,
     onMarkRest: () -> Unit,
 ) {
     // 一天只能有一个计划：这天已经有排期、或者已经练过了，就不再给「添加计划」入口，
@@ -891,6 +909,7 @@ private fun DayActionsRow(
     } else {
         day.planned.isEmpty() && day.actualSessions.isEmpty()
     }
+    val canCreateTempPlan = canAddPlan && !day.isPast
     // 休息日是被推导出来的：这一天没有排期（或已经练过）时本来就不是训练日，
     // 「该天休息」只在今天及以后排了计划、且还没开练时才有意义（撤掉排期它就变成休息日）。
     val canMarkRest = !day.isPast && day.planned.isNotEmpty() && day.actualSessions.isEmpty()
@@ -916,6 +935,17 @@ private fun DayActionsRow(
                 modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
             )
             Text(text = stringResource(R.string.calendar_add_plan))
+        }
+        Button(
+            onClick = onCreateTempPlan,
+            enabled = canCreateTempPlan,
+            // 浅蓝容器：与「添加计划」同一色系，但读起来轻一档——它开的是一次性的编排。
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+        ) {
+            Text(text = stringResource(R.string.calendar_temp_plan))
         }
         Button(
             onClick = onMarkRest,

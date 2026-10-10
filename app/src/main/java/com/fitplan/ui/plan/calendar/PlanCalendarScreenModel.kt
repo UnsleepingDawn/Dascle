@@ -66,7 +66,7 @@ class PlanCalendarScreenModel(
             // 跨零点时 App 可能一直没退过，这里补一次收尾，隔天遗留的训练才会出现在日历上。
             closeStaleWorkouts()
             _days.value = getMonthCalendar(_month.value)
-            _routines.value = routineRepository.getAll()
+            _routines.value = routineRepository.getPermanent()
         }
     }
 
@@ -100,6 +100,32 @@ class PlanCalendarScreenModel(
             refresh()
             widgetManager.updateTodayWidget()
         }
+    }
+
+    /**
+     * 给 [date] 开一份「临时计划」并排到这一天，然后把新计划 id 回调出去进编排页。
+     *
+     * 临时计划（`routine.is_temp`）不进常驻计划列表，只是这一天专属的一次性编排；
+     * 名字由界面传入（用户可见文案留在 `strings.xml`），存进库后会显示在日历与今日页上。
+     * 用户在编排页里加了动作它就留在这天，什么都没加就退出的话，回到日历时会被 [clearUnusedTempPlans] 清掉。
+     */
+    fun createTempPlan(date: LocalDate, name: String, onCreated: (Long) -> Unit) {
+        viewModelScope.launch {
+            val routineId = routineRepository.insertTemp(name, Clock.System.now())
+            scheduleRepository.replacePlanOn(routineId, date)
+            afterScheduleChange()
+            onCreated(routineId)
+        }
+    }
+
+    /**
+     * 清扫没用的临时计划：没加过动作的空壳，或者已经不再排在任意一天上的。
+     *
+     * 只在日历可见时调用，不挂在 [refresh] 上——用户正在编排页里给刚建好的空计划加动作，
+     * 那种时刻刷新一次就会把它删掉。
+     */
+    fun clearUnusedTempPlans() {
+        viewModelScope.launch { routineRepository.deleteUnusedTempPlans() }
     }
 
     /** 把 [date] 改成休息日：撤掉这一天原有的排期，这天随即没有安排、成为休息日。 */

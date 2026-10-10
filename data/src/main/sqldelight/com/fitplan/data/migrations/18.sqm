@@ -1,0 +1,3 @@
+-- 日历休息日可以直接开一份「临时计划」：只排到那一天、不进常驻计划列表。
+-- 老库里的计划全是常驻计划，默认 0 即可。
+ALTER TABLE routine ADD COLUMN is_temp INTEGER NOT NULL DEFAULT 0;
