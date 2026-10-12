@@ -14,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -21,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -65,6 +68,7 @@ class ExercisePickerScreen(
         val exercises by screenModel.exercises.collectAsState()
         val muscleFilter by screenModel.muscleFilter.collectAsState()
         val equipmentFilter by screenModel.equipmentFilter.collectAsState()
+        val searchQuery by screenModel.query.collectAsState()
         val selectedIds by screenModel.selectedIds.collectAsState()
         val addedIds by screenModel.addedIds.collectAsState()
 
@@ -112,6 +116,28 @@ class ExercisePickerScreen(
             },
         ) { contentPadding ->
             Column(modifier = Modifier.padding(contentPadding)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = screenModel::setQuery,
+                    label = { Text(text = stringResource(R.string.exercise_picker_search_label)) },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Filled.Search, contentDescription = null)
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { screenModel.setQuery("") }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.exercise_picker_search_clear),
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
+                )
                 FilterRow {
                     FilterChip(
                         selected = muscleFilter == null,
@@ -142,7 +168,14 @@ class ExercisePickerScreen(
                 }
 
                 if (exercises.isEmpty()) {
-                    EmptyScreen(message = stringResource(R.string.exercise_picker_empty))
+                    val keyword = searchQuery.trim()
+                    EmptyScreen(
+                        message = if (keyword.isEmpty()) {
+                            stringResource(R.string.exercise_picker_empty)
+                        } else {
+                            stringResource(R.string.exercise_picker_no_match, keyword)
+                        },
+                    )
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(exercises, key = { it.id }) { exercise ->

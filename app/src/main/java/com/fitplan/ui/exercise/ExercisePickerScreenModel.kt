@@ -36,6 +36,10 @@ class ExercisePickerScreenModel(
     private val _equipmentFilter = MutableStateFlow<Equipment?>(null)
     val equipmentFilter: StateFlow<Equipment?> = _equipmentFilter.asStateFlow()
 
+    /** 搜索关键词，按动作名做包含匹配；空串表示不按名字过滤。 */
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query.asStateFlow()
+
     /** 往动作组里加动作时的多选结果（按动作库顺序即点击顺序）。 */
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
@@ -65,6 +69,12 @@ class ExercisePickerScreenModel(
 
     fun setEquipmentFilter(equipment: Equipment?) {
         _equipmentFilter.value = equipment
+        applyFilter()
+    }
+
+    /** 输入搜索关键词；与肌群、器械筛选是「与」的关系。 */
+    fun setQuery(query: String) {
+        _query.value = query
         applyFilter()
     }
 
@@ -118,10 +128,18 @@ class ExercisePickerScreenModel(
     private suspend fun findExercise(exerciseId: Long): Exercise? =
         allExercises.firstOrNull { it.id == exerciseId } ?: exerciseRepository.getById(exerciseId)
 
+    /**
+     * 按肌群、器械与搜索关键词三重过滤动作库。
+     *
+     * 三者是「与」的关系：关键词按动作名做包含匹配（去掉首尾空白，空串不过滤），
+     * 与筛选芯片叠加生效。结果仍按主部位、再按名称排序。
+     */
     private fun applyFilter() {
+        val keyword = _query.value.trim()
         _exercises.value = allExercises
             .filter { _muscleFilter.value == null || _muscleFilter.value in it.muscleGroups }
             .filter { _equipmentFilter.value == null || it.equipment == _equipmentFilter.value }
+            .filter { keyword.isEmpty() || it.name.contains(keyword, ignoreCase = true) }
             .sortedWith(compareBy({ it.muscleGroup.ordinal }, { it.name }))
     }
 }

@@ -149,7 +149,10 @@
 
     <!-- 动作选择器 -->
     <string name="exercise_picker_title">选择动作</string>
+    <string name="exercise_picker_search_label">搜索动作</string>
+    <string name="exercise_picker_search_clear">清除搜索</string>
     <string name="exercise_picker_empty">没有符合条件的动作</string>
+    <string name="exercise_picker_no_match">没有搜到「%1$s」相关的动作</string>
     <string name="exercise_picker_added">已添加</string>
     <string name="exercise_picker_done">完成（%1$d）</string>
     <string name="exercise_picker_selected">已选中</string>
