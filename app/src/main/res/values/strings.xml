@@ -207,8 +207,8 @@
     <string name="calendar_edit_plan_title">为休息日排入计划</string>
     <string name="calendar_delete_dialog_title_one">删除这天的计划？</string>
     <string name="calendar_delete_dialog_title_many">删除这几天的计划？</string>
-    <string name="calendar_delete_dialog_message_one">该日休息：只撤掉这天的计划，之后的安排原地不动。\n顺着用未来计划：把之后最近一次训练顶到这天，后面的安排依次往前补。</string>
-    <string name="calendar_delete_dialog_message_many">这几日休息：只撤掉这些天的计划，之后的安排原地不动。\n已有计划流入：把这些天之后的训练依次往前顶，补上撤掉的位置。</string>
+    <string name="calendar_delete_dialog_message_one">该日休息：只撤掉这天的计划，之后的安排原地不动。\n顺着用未来计划：把这天之后的日子整体提前一天，休息日也跟着前移，练 / 休节奏不变。</string>
+    <string name="calendar_delete_dialog_message_many">这几日休息：只撤掉这些天的计划，之后的安排原地不动。\n已有计划流入：把这些天之后的日子整体提前，休息日也跟着前移，练 / 休节奏不变。</string>
     <string name="calendar_delete_dialog_rest_one">该日休息</string>
     <string name="calendar_delete_dialog_flow_one">顺着用未来计划</string>
     <string name="calendar_delete_dialog_rest_many">这几日休息</string>

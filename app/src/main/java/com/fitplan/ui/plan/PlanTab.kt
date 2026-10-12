@@ -308,12 +308,12 @@ object PlanTab : Tab {
                     selection = emptyMap()
                 },
                 onFlow = {
-                    screenModel.compactPlansAfterRemoving(selection.keys.toList())
+                    screenModel.shiftBackAfterRemoving(selection.keys.toList())
                     showDeleteDialog = false
                     selection = emptyMap()
                 },
                 onRemoveRests = {
-                    screenModel.removeRestDaysAndCompact(selection.keys.toList())
+                    screenModel.shiftBackAfterRemoving(selection.keys.toList())
                     showDeleteDialog = false
                     selection = emptyMap()
                 },

@@ -5,8 +5,7 @@ import app.cash.sqldelight.async.coroutines.awaitAsOne
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
-import com.fitplan.domain.interactor.compactTrainingDateMoves
-import com.fitplan.domain.interactor.restRemovalDateMoves
+import com.fitplan.domain.interactor.shiftBackAfterRemovedDates
 import com.fitplan.domain.model.ScheduleEntry
 import com.fitplan.domain.repository.ScheduleRepository
 import dev.zacsweers.metro.AppScope
@@ -140,46 +139,25 @@ class ScheduleRepositoryImpl(
         }
     }
 
-    override suspend fun deleteAndCompactPlans(dates: Collection<LocalDate>) {
-        val firstChanged = dates.minOrNull() ?: return
+    override suspend fun deletePlansAndShiftBack(dates: Collection<LocalDate>) {
+        val removed = dates.toSet()
+        val firstChanged = removed.minOrNull() ?: return
+        val removedEpochDays = removed.mapTo(mutableSetOf()) { it.toEpochDays() }
         database.transactionWithResult {
-            // 这一段一天最多一条排期：按日期读出来，压缩后才知道各条落到哪一天。
+            // 只有晚于被删日的排期才会前移，所以从最早被删的那天读起即可。
             val upcoming = queries.selectOnceFrom(specific_date = firstChanged.toDbValue()).awaitAsList()
             val entryByDate = upcoming.associateBy { requireNotNull(it.specific_date) }
-            val moves = compactTrainingDateMoves(
-                scheduledDates = entryByDate.keys.sorted().map(LocalDate::fromEpochDays),
-                deletedDates = dates.toSet(),
+            val moves = shiftBackAfterRemovedDates(
+                // 被选中的排期本身要删掉，不参与挪位映射（被选的休息日本来就不在这里面）。
+                scheduledDates = entryByDate.keys
+                    .filterNot { it in removedEpochDays }
+                    .sorted()
+                    .map(LocalDate::fromEpochDays),
+                removedDates = removed,
             )
-            // 只动真正挪位的那些：先把被删的训练日与挪位条目的原位置一起清掉，再写到新位置。
-            // 原地不动的排期完全不碰，也就不会撞上 specific_date 的唯一索引。
-            (dates + moves.map { it.first }).forEach { date ->
+            // 先把被删的排期与要挪位的原位置一起清掉，再写到新位置，避免撞上 specific_date 的唯一索引。
+            (removed + moves.map { it.first }).forEach { date ->
                 queries.deleteOnceOnDate(specific_date = date.toDbValue())
-            }
-            moves.forEach { (from, to) ->
-                val entry = entryByDate.getValue(from.toDbValue())
-                queries.insertOnceWithEnabled(
-                    routine_id = entry.routine_id,
-                    specific_date = to.toDbValue(),
-                    enabled = entry.enabled,
-                )
-            }
-        }
-    }
-
-    override suspend fun deleteRestDaysAndCompact(dates: Collection<LocalDate>) {
-        val firstChanged = dates.minOrNull() ?: return
-        database.transactionWithResult {
-            // 只有晚于被删休息日的排期才会挪位，所以从最早的那个休息日读起即可。
-            val upcoming = queries.selectOnceFrom(specific_date = firstChanged.toDbValue()).awaitAsList()
-            val entryByDate = upcoming.associateBy { requireNotNull(it.specific_date) }
-            val moves = restRemovalDateMoves(
-                scheduledDates = entryByDate.keys.sorted().map(LocalDate::fromEpochDays),
-                removedRestDates = dates.toSet(),
-            )
-            // 先把挪位条目的原位置清掉，再写到新位置，避免撞上 specific_date 的唯一索引。
-            // 被删的休息日本来就没有排期，不必清除。
-            moves.forEach { (from, _) ->
-                queries.deleteOnceOnDate(specific_date = from.toDbValue())
             }
             moves.forEach { (from, to) ->
                 val entry = entryByDate.getValue(from.toDbValue())

@@ -152,30 +152,18 @@ class PlanCalendarScreenModel(
     }
 
     /**
-     * 编辑模式里「顺着用未来计划 / 已有计划流入」：清掉 [dates] 这些训练日的排期，
-     * 并让它们之后的训练日依次前顶进腾出来的位置，末尾多出休息日。
+     * 编辑模式里「顺着用未来计划 / 已有计划流入」：把 [dates] 这些日子从时间线上抽掉，
+     * 它们之后的**整条时间线**（训练日与休息日一起）整体提前——被选中的训练日会被后面的计划补上，
+     * 练 / 休节奏原样保留，末尾多出休息日。
+     *
+     * 选中的全是休息日时也走这条路径（也就是「删除休息日」）：把这些休息日抽掉，后面的训练整体前移。
      *
      * 同 [removePlansOn]，这些天已记录的训练一起删掉。
      */
-    fun compactPlansAfterRemoving(dates: Collection<LocalDate>) {
+    fun shiftBackAfterRemoving(dates: Collection<LocalDate>) {
         viewModelScope.launch {
             deleteSessionsOn(dates)
-            scheduleRepository.deleteAndCompactPlans(dates)
-            afterScheduleChange()
-        }
-    }
-
-    /**
-     * 编辑模式里删除选中的休息日：把这些休息日从时间线上抽掉，它们之后的排期整体提前，
-     * 被删的休息日由后面的训练补上、末尾多出休息日。
-     *
-     * 休息日本身没有排期，也就不会有训练记录，[deleteSessionsOn] 在这里是空操作；
-     * 仍然保留调用，免得以后改动时漏掉这一层。
-     */
-    fun removeRestDaysAndCompact(dates: Collection<LocalDate>) {
-        viewModelScope.launch {
-            deleteSessionsOn(dates)
-            scheduleRepository.deleteRestDaysAndCompact(dates)
+            scheduleRepository.deletePlansAndShiftBack(dates)
             afterScheduleChange()
         }
     }

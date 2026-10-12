@@ -98,6 +98,9 @@ private fun CompactDialog(
  * [deletesWorkoutRecords] 为 true 时（选中的日子里已经有练过的，编辑范围内只有今天可能）在正文里
  * 补一句提醒：这些训练记录也会一起删掉。
  *
+ * 三个动作里 [onRest] 只撤掉选中的排期、之后的安排原地不动；[onFlow] 与 [onRemoveRests] 是同一套做法
+ * ——把选中的日子从时间线上抽掉，它们之后的整条时间线（训练日与休息日一起）整体提前，差别只在按钮文案。
+ *
  * 操作按钮用 [DialogButtonColumn] 整宽竖排：Material3 的按钮行不给宽度约束，`fillMaxWidth` 会失效，
  * 整宽按钮会缩成各自文字的宽度、宽窄不一。
  */
