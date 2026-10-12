@@ -97,6 +97,10 @@ internal fun WorkoutPlanList(
     modifier: Modifier = Modifier,
 ) {
     val byId = remember(exercises) { exercises.associateBy { it.exerciseId } }
+    // 某个部位第一次被练到的那些卡片：在它们上方插一条该部位的练前热身提示。
+    val warmupByItem = remember(items, exercises) {
+        warmupMusclesByItemKey(items) { exerciseId -> byId[exerciseId]?.muscleGroups.orEmpty() }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -112,17 +116,20 @@ internal fun WorkoutPlanList(
             )
         }
         items(items, key = { it.key }) { item ->
-            when (item) {
-                is LogItem.Exercise -> {
-                    val exercise = byId[item.exerciseId]
-                    if (exercise != null) PlanExerciseCard(exercise)
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                warmupByItem[item.key]?.forEach { muscle -> WarmupBanner(muscle) }
+                when (item) {
+                    is LogItem.Exercise -> {
+                        val exercise = byId[item.exerciseId]
+                        if (exercise != null) PlanExerciseCard(exercise)
+                    }
 
-                // 动作组：预览里也把组内动作列出来，并说明会从里面挑几个练。
-                is LogItem.Group -> PlanGroupCard(
-                    group = item,
-                    members = item.memberIds.mapNotNull(byId::get),
-                )
+                    // 动作组：预览里也把组内动作列出来，并说明会从里面挑几个练。
+                    is LogItem.Group -> PlanGroupCard(
+                        group = item,
+                        members = item.memberIds.mapNotNull(byId::get),
+                    )
+                }
             }
         }
     }
@@ -199,6 +206,58 @@ private fun PlanGroupCard(
 /** 动作组的标题：起过名字就用名字，没起过名字回退到默认的「动作组」。 */
 @Composable
 private fun LogItem.Group.title(): String = groupName ?: stringResource(R.string.workout_group_title)
+
+/**
+ * 某个部位第一次被练到时，在对应动作卡上方给出的练前热身 / 拉伸提示。
+ *
+ * 「首次」的判定在 `warmupMusclesByItemKey` 里按计划顺序静态完成，所以勾选组数、
+ * 挑动作组里的成员都不会让提示条上下移动。
+ */
+@Composable
+internal fun WarmupBanner(
+    muscle: MuscleGroup,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.padding.medium),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    ) {
+        Column(
+            modifier = Modifier.padding(MaterialTheme.padding.medium),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+        ) {
+            Text(
+                text = stringResource(R.string.workout_warmup_title, muscle.label()),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text(
+                text = muscle.warmupHint(),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/** 各部位的热身 / 拉伸说明；[MuscleGroup.label] 只能在组合里调用。 */
+@Composable
+private fun MuscleGroup.warmupHint(): String = stringResource(
+    when (this) {
+        MuscleGroup.CHEST -> R.string.workout_warmup_chest
+        MuscleGroup.BICEPS -> R.string.workout_warmup_biceps
+        MuscleGroup.TRICEPS -> R.string.workout_warmup_triceps
+        MuscleGroup.ABS -> R.string.workout_warmup_abs
+        MuscleGroup.SHOULDER -> R.string.workout_warmup_shoulder
+        MuscleGroup.BACK -> R.string.workout_warmup_back
+        MuscleGroup.LEG -> R.string.workout_warmup_leg
+        MuscleGroup.GLUTE -> R.string.workout_warmup_glute
+        MuscleGroup.CARDIO -> R.string.workout_warmup_cardio
+        MuscleGroup.ARM_OTHER -> R.string.workout_warmup_arm_other
+    },
+)
 
 /** 左滑露出的「删除」键宽度。 */
 private val REMOVE_ACTION_WIDTH = 84.dp

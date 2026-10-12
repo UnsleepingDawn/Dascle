@@ -175,6 +175,11 @@ class WorkoutLogScreen(
                 )
             }
         val exercisesById = remember(exercises) { exercises.associateBy { it.exerciseId } }
+        // 某个部位第一次被练到的那些卡片：在它们上方插一条该部位的练前热身提示。
+        // 判定只看计划顺序，与勾选状态无关，所以录入过程中提示条不会上下跳。
+        val warmupByItem = remember(items, exercises) {
+            warmupMusclesByItemKey(items) { exerciseId -> exercisesById[exerciseId]?.muscleGroups.orEmpty() }
+        }
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -300,46 +305,50 @@ class WorkoutLogScreen(
                         item { WorkoutSummaryCard(summary = currentSummary) }
                     }
                     items(items, key = { it.key }) { item ->
-                        when (item) {
-                            is LogItem.Exercise -> {
-                                val exercise = exercisesById[item.exerciseId]
-                                // 单独排的动作卡可以左滑删除；动作组里的子卡不给这个入口。
-                                if (exercise != null) {
-                                    SwipeToRevealRemove(
-                                        revealed = revealedKey == item.key,
-                                        onRevealedChange = { revealedKey = if (it) item.key else null },
-                                        onRequestRemove = { screenModel.removeExercise(item.exerciseId) },
-                                        enabled = !readOnly,
-                                    ) { titleModifier ->
-                                        logExerciseCard(exercise, false, "item:${item.key}", titleModifier)
+                        Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                            // 热身提示是这一项的前置兄弟，放在左滑容器之外，不会跟着卡片被划走。
+                            warmupByItem[item.key]?.forEach { muscle -> WarmupBanner(muscle) }
+                            when (item) {
+                                is LogItem.Exercise -> {
+                                    val exercise = exercisesById[item.exerciseId]
+                                    // 单独排的动作卡可以左滑删除；动作组里的子卡不给这个入口。
+                                    if (exercise != null) {
+                                        SwipeToRevealRemove(
+                                            revealed = revealedKey == item.key,
+                                            onRevealedChange = { revealedKey = if (it) item.key else null },
+                                            onRequestRemove = { screenModel.removeExercise(item.exerciseId) },
+                                            enabled = !readOnly,
+                                        ) { titleModifier ->
+                                            logExerciseCard(exercise, false, "item:${item.key}", titleModifier)
+                                        }
                                     }
                                 }
-                            }
 
-                            // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
-                            // 左滑删除的是整组，先弹一次确认（组内已练的记录会一起删）。
-                            is LogItem.Group -> SwipeToRevealRemove(
-                                revealed = revealedKey == item.key,
-                                onRevealedChange = { revealedKey = if (it) item.key else null },
-                                onRequestRemove = { removeGroupTarget = item },
-                                enabled = !readOnly,
-                            ) { titleModifier ->
-                                LogGroupCard(
-                                    group = item,
-                                    exercises = exercises,
-                                    readOnly = readOnly,
-                                    onTogglePick = { exerciseId ->
-                                        if (exerciseId in item.pickedIds) {
-                                            screenModel.unpickGroupExercise(item.groupId, exerciseId)
-                                        } else {
-                                            screenModel.pickGroupExercise(item.groupId, exerciseId)
-                                            // 挑中的动作会在组卡里展开子卡，滚过去让用户直接接着录入。
-                                            revealRequest = RevealRequest("card:$exerciseId")
-                                        }
-                                    },
-                                    titleModifier = titleModifier,
-                                ) { exercise ->
-                                    logExerciseCard(exercise, true, "card:${exercise.exerciseId}", Modifier)
+                                // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
+                                // 左滑删除的是整组，先弹一次确认（组内已练的记录会一起删）。
+                                is LogItem.Group -> SwipeToRevealRemove(
+                                    revealed = revealedKey == item.key,
+                                    onRevealedChange = { revealedKey = if (it) item.key else null },
+                                    onRequestRemove = { removeGroupTarget = item },
+                                    enabled = !readOnly,
+                                ) { titleModifier ->
+                                    LogGroupCard(
+                                        group = item,
+                                        exercises = exercises,
+                                        readOnly = readOnly,
+                                        onTogglePick = { exerciseId ->
+                                            if (exerciseId in item.pickedIds) {
+                                                screenModel.unpickGroupExercise(item.groupId, exerciseId)
+                                            } else {
+                                                screenModel.pickGroupExercise(item.groupId, exerciseId)
+                                                // 挑中的动作会在组卡里展开子卡，滚过去让用户直接接着录入。
+                                                revealRequest = RevealRequest("card:$exerciseId")
+                                            }
+                                        },
+                                        titleModifier = titleModifier,
+                                    ) { exercise ->
+                                        logExerciseCard(exercise, true, "card:${exercise.exerciseId}", Modifier)
+                                    }
                                 }
                             }
                         }

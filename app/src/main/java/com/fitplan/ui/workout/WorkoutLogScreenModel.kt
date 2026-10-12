@@ -9,6 +9,7 @@ import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.ExerciseLoadMode
 import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.ExerciseProgressHint
+import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineItem
 import com.fitplan.domain.model.WorkoutSet
@@ -100,6 +101,8 @@ data class LogExercise(
     val metric: ExerciseMetric = ExerciseMetric.DEFAULT,
     /** 负重方式（外部负重 / 自重 / 辅助），决定要不要填重量。 */
     val loadMode: ExerciseLoadMode = ExerciseLoadMode.DEFAULT,
+    /** 这个动作涉及的全部部位（主部位在前）；用来在训练页给出练前热身提示。 */
+    val muscleGroups: List<MuscleGroup> = emptyList(),
     val skipped: Boolean = false,
     val sets: List<SetEntry> = emptyList(),
     /** 计划里设定的默认重量（kg）；辅助类动作表示助力。null 表示自重或不预填。 */
@@ -184,6 +187,37 @@ sealed interface LogItem {
         /** 挑中的动作数已经超过建议值时，界面把计数标成醒目色。 */
         val overPicked: Boolean get() = pickedIds.size > maxPicks
     }
+}
+
+/**
+ * 按列表顺序找出「某个部位第一次被练到」的那张卡片：返回「列表项 key -> 在这一项上方要提示的部位」。
+ *
+ * 从上往下扫一遍顶层列表项：某个部位第一次出现时记在那一项上，之后同部位不再提示，于是每个部位
+ * 最多只在最靠前的那张卡上方给一条热身说明。动作组按**全部组内动作**算（不按本次挑中了谁），
+ * 所以勾选 / 取消挑动作不会让提示条上下跳。
+ *
+ * [musclesOf] 取某个动作涉及的部位；查不到时返回空列表即可。
+ */
+internal fun warmupMusclesByItemKey(
+    items: List<LogItem>,
+    musclesOf: (Long) -> List<MuscleGroup>,
+): Map<String, List<MuscleGroup>> {
+    val seen = mutableSetOf<MuscleGroup>()
+    val result = mutableMapOf<String, List<MuscleGroup>>()
+    items.forEach { item ->
+        val exerciseIds = when (item) {
+            is LogItem.Exercise -> listOf(item.exerciseId)
+            is LogItem.Group -> item.memberIds
+        }
+        val firstTimeMuscles = exerciseIds
+            .flatMap(musclesOf)
+            .distinct()
+            .filter { seen.add(it) }
+        if (firstTimeMuscles.isNotEmpty()) {
+            result[item.key] = firstTimeMuscles
+        }
+    }
+    return result
 }
 
 /**
@@ -1150,6 +1184,7 @@ class WorkoutLogScreenModel(
                 isExtra = true,
                 metric = exercise.metric,
                 loadMode = exercise.loadMode,
+                muscleGroups = exercise.muscleGroups,
                 targetWeight = targets.weight,
                 targetSeconds = targets.seconds,
                 defaultWeight = exercise.defaultWeight,
@@ -1248,6 +1283,7 @@ class WorkoutLogScreenModel(
                 isExtra = routineExercise == null,
                 metric = metric,
                 loadMode = loadMode,
+                muscleGroups = libraryExercise?.muscleGroups ?: routineExercise?.muscleGroups.orEmpty(),
                 // 只有计划外动作取动作库默认值；计划内动作保留用户设置，包括未填写的目标。
                 targetWeight = if (routineExercise != null) routineExercise.targetWeight else libraryDefaults?.weight,
                 targetSeconds = if (routineExercise !=
@@ -1353,6 +1389,7 @@ private fun RoutineExercise.toLogExercise(): LogExercise {
         isExtra = false,
         metric = metric,
         loadMode = loadMode,
+        muscleGroups = muscleGroups,
         targetWeight = targetWeight,
         targetSeconds = targetSeconds,
     )

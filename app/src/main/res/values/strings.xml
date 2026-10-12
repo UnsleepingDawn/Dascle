@@ -245,6 +245,18 @@
     <string name="workout_finish">结束训练</string>
     <string name="workout_plan_hint">按顺序练，练完一组点一次「做完了」，点完自动开始组间休息；撤销也只能从最后一组往回退。</string>
     <string name="workout_plan_empty">这个计划还没有动作\n开始后可以临时添加</string>
+    <!-- 某个部位第一次被练到时，在该动作卡上方给出的练前热身提示 -->
+    <string name="workout_warmup_title">练前热身 · %1$s</string>
+    <string name="workout_warmup_chest">肩绕环前后各 20 次，弹力带扩胸 15 次，再用空杆或六成重量卧推 1 组 × 15 次，把肩袖和胸大肌先热开</string>
+    <string name="workout_warmup_back">弹力带下拉 15 次 × 2 组，猫式伸展 10 次，再用小重量划船 1 组 × 15 次找回背部的发力感</string>
+    <string name="workout_warmup_shoulder">肩绕环前后各 20 次，空手侧平举 15 次 × 2 组，再用小重量推举 1 组 × 15 次唤醒三角肌</string>
+    <string name="workout_warmup_biceps">手腕绕环各 20 次，空手弯举 15 次 × 2 组，再用小重量弯举 1 组 × 15 次，肘部别锁死</string>
+    <string name="workout_warmup_triceps">肩绕环前后各 20 次，弹力带下压 15 次 × 2 组，再用小重量下压 1 组 × 15 次</string>
+    <string name="workout_warmup_abs">猫式伸展 10 次，仰卧抱膝前后滚动 10 次，先做 1 组轻松的卷腹把核心叫醒</string>
+    <string name="workout_warmup_leg">高抬腿或开合跳 1 分钟，徒手深蹲 15 次 × 2 组，再用空杆深蹲 1 组 × 12 次，膝盖方向跟着脚尖</string>
+    <string name="workout_warmup_glute">原地后踢腿各 15 次，臀桥 20 次，侧向跨步各 10 步，先激活臀中肌再上重量</string>
+    <string name="workout_warmup_cardio">先快走或慢跑 5 分钟把心率带起来，再做几组动态拉伸，然后进入正式强度</string>
+    <string name="workout_warmup_arm_other">手腕与肩绕环各 20 次，空手弯举与臂屈伸各 15 次，把肘、腕关节先热开</string>
     <string name="workout_add_extra">计划外动作</string>
     <string name="workout_extra">计划外</string>
     <string name="workout_extra_present">今天的计划里有</string>
