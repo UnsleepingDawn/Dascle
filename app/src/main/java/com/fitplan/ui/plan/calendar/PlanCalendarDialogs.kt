@@ -88,26 +88,31 @@ private fun CompactDialog(
 }
 
 /**
- * 删除已选日子的排期：确认删完之后怎么处理后面的排期。
+ * 删除已选日子的排期与训练记录：确认删完之后怎么处理后面的排期。
  *
- * [plannedCount] 是选中日子里「有健身计划」的天数：为 0 表示选中的全是休息日，删除它们只会把
- * 后续排期整体提前（[onRemoveRests]），没有「撤掉计划」一说；大于 0 时按恰好一天用单日措辞
- * （该日休息 / 顺着用未来计划）、多天用多日措辞（这几日休息 / 已有计划流入），二者都保留。
+ * [trainingDayCount] 是选中日子里「是训练日」的天数（有排期，或今天已经练过）：为 0 表示选中的
+ * 全是休息日，删除它们只会把后续排期整体提前（[onRemoveRests]），没有「撤掉计划」一说；大于 0 时
+ * 按恰好一天用单日措辞（该日休息 / 顺着用未来计划）、多天用多日措辞（这几日休息 / 已有计划流入），
+ * 二者都保留。
+ *
+ * [deletesWorkoutRecords] 为 true 时（选中的日子里已经有练过的，编辑范围内只有今天可能）在正文里
+ * 补一句提醒：这些训练记录也会一起删掉。
  *
  * 操作按钮用 [DialogButtonColumn] 整宽竖排：Material3 的按钮行不给宽度约束，`fillMaxWidth` 会失效，
  * 整宽按钮会缩成各自文字的宽度、宽窄不一。
  */
 @Composable
 fun DeleteSelectionDialog(
-    plannedCount: Int,
+    trainingDayCount: Int,
     selectedCount: Int,
+    deletesWorkoutRecords: Boolean,
     onRest: () -> Unit,
     onFlow: () -> Unit,
     onRemoveRests: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val restOnly = plannedCount == 0
-    val single = if (restOnly) selectedCount == 1 else plannedCount == 1
+    val restOnly = trainingDayCount == 0
+    val single = if (restOnly) selectedCount == 1 else trainingDayCount == 1
     CompactDialog(
         onDismissRequest = onDismiss,
         title = stringResource(
@@ -129,6 +134,9 @@ fun DeleteSelectionDialog(
                 },
             ),
         )
+        if (deletesWorkoutRecords) {
+            Text(text = stringResource(R.string.calendar_delete_dialog_workout_note))
+        }
         DialogButtonColumn {
             if (restOnly) {
                 DialogPrimaryButton(

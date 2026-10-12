@@ -116,17 +116,20 @@ object PlanTab : Tab {
         val selectedDay = selectedDate?.let { date -> days.firstOrNull { it.date == date } }
         var deleteSessionTarget by remember { mutableStateOf<CalendarSession?>(null) }
 
-        // 编辑模式：长按未来日子进入。勾选按日期保存，所以切到别的月份继续勾也不丢。
+        // 编辑模式：长按今天及以后的日子进入（过去只读）。勾选按日期保存，所以切到别的月份继续勾也不丢。
         var editing by remember { mutableStateOf(false) }
-        // 值表示这一天有没有排期，删除弹窗按「有排期」的天数选用单日还是多日措辞。
-        var selection by remember { mutableStateOf<Map<LocalDate, Boolean>>(emptyMap()) }
+        // 勾选存这一天的两个事实：是不是训练日（删除弹窗据此选措辞）、有没有训练记录（据此提示会连带删除）。
+        var selection by remember { mutableStateOf<Map<LocalDate, DaySelection>>(emptyMap()) }
         var showDeleteDialog by remember { mutableStateOf(false) }
         var showInsertDialog by remember { mutableStateOf(false) }
         var showInsertRestDialog by remember { mutableStateOf(false) }
         var routinePickerTarget by remember { mutableStateOf<RoutinePickerTarget?>(null) }
 
         val singleSelected = selection.keys.singleOrNull()
-        val plannedSelectedCount = selection.values.count { it }
+        val trainingSelectedCount = selection.values.count { it.isTrainingDay }
+        // 今天虽然也能编辑，但批量「插入 / 计划」都会重排时间线，今天这种已经开跑的日子只给删除。
+        // 判断从勾选值里取，不看当前月份的 days——切到别的月份后 days 里就没有今天了。
+        val singleSelection = singleSelected?.let { selection[it] }
 
         fun exitEdit() {
             editing = false
@@ -137,7 +140,9 @@ object PlanTab : Tab {
             selection = if (selection.containsKey(day.date)) {
                 selection - day.date
             } else {
-                selection + (day.date to day.planned.isNotEmpty())
+                // 记的是「是不是训练日」而不是「有没有排期」：今天可能没排期却已经练过（休息日的临时训练），
+                // 那种日子在删除对话框里要按训练日措辞处理。
+                selection + (day.date to day.toSelection())
             }
         }
 
@@ -172,7 +177,7 @@ object PlanTab : Tab {
                                     onClick = {
                                         selection = selection + days
                                             .filter(::isEditableDate)
-                                            .associate { it.date to it.planned.isNotEmpty() }
+                                            .associate { it.date to it.toSelection() }
                                     },
                                 ) {
                                     Text(text = stringResource(R.string.calendar_edit_select_all))
@@ -226,7 +231,7 @@ object PlanTab : Tab {
                 MonthGrid(
                     days = days,
                     editing = editing,
-                    selection = selection,
+                    selectedDates = selection.keys,
                     modifier = Modifier.weight(1f),
                     onDayClick = { day ->
                         when {
@@ -240,7 +245,7 @@ object PlanTab : Tab {
                             editing -> toggleSelection(day)
                             else -> {
                                 editing = true
-                                selection = mapOf(day.date to day.planned.isNotEmpty())
+                                selection = mapOf(day.date to day.toSelection())
                                 selectedDate = null
                             }
                         }
@@ -248,8 +253,12 @@ object PlanTab : Tab {
                 )
                 if (editing) {
                     EditActionBar(
-                        insertEnabled = singleSelected != null,
-                        planEnabled = singleSelected != null && selection[singleSelected] == false,
+                        // 今天也能编辑，但「插入 / 计划」都要重排今天及以后的排期，今天这种已经开跑的日子
+                        // 只给删除（多选时 singleSelected 为 null，三个按钮本就是灰的）。
+                        insertEnabled = singleSelection != null && !singleSelection.isToday,
+                        planEnabled = singleSelection != null &&
+                            !singleSelection.isToday &&
+                            !singleSelection.isTrainingDay,
                         // 选中的全是休息日也能删：那种情况下删除会把后续排期整体提前。
                         deleteEnabled = selection.isNotEmpty(),
                         onInsert = { showInsertDialog = true },
@@ -290,8 +299,9 @@ object PlanTab : Tab {
 
         if (showDeleteDialog) {
             DeleteSelectionDialog(
-                plannedCount = plannedSelectedCount,
+                trainingDayCount = trainingSelectedCount,
                 selectedCount = selection.size,
+                deletesWorkoutRecords = selection.values.any { it.hasSessions },
                 onRest = {
                     screenModel.removePlansOn(selection.keys.toList())
                     showDeleteDialog = false
@@ -474,7 +484,7 @@ private fun WeekdayHeader() {
 private fun MonthGrid(
     days: List<CalendarDay>,
     editing: Boolean,
-    selection: Map<LocalDate, Boolean>,
+    selectedDates: Set<LocalDate>,
     modifier: Modifier = Modifier,
     onDayClick: (CalendarDay) -> Unit,
     onDayLongClick: (CalendarDay) -> Unit,
@@ -507,7 +517,7 @@ private fun MonthGrid(
                         DayCell(
                             day = day,
                             editing = editing,
-                            selected = day.date in selection,
+                            selected = day.date in selectedDates,
                             selectable = isEditableDate(day),
                             onClick = { onDayClick(day) },
                             onLongClick = { onDayLongClick(day) },
@@ -534,7 +544,7 @@ private fun DayCell(
 ) {
     Column(
         modifier = modifier
-            // 编辑模式下「今天 / 过去」不可选，压暗一档，一眼看出哪些能接着勾。
+            // 编辑模式下「过去」不可选，压暗一档，一眼看出哪些能接着勾。
             .alpha(if (editing && !selectable) DISABLED_CELL_ALPHA else 1f)
             .clip(MaterialTheme.shapes.small)
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
@@ -1034,8 +1044,27 @@ private fun EditActionBar(
     }
 }
 
-/** 编辑模式只能选「今天之后」的未来日子：今天和过去都不可选。 */
-private fun isEditableDate(day: CalendarDay): Boolean = !day.isPast && !day.isToday
+/** 编辑模式只能选「今天及以后」的日子：过去没法再规划，只有过去的日子只读。 */
+private fun isEditableDate(day: CalendarDay): Boolean = !day.isPast
+
+/**
+ * 编辑模式里勾选的一天：拆出弹窗与底栏要用到的几个事实。
+ *
+ * [isTrainingDay] 决定删除对话框按「撤掉计划」还是「删掉休息日」的措辞；
+ * [hasSessions] 为 true 时提示这一天的训练记录会一并删除（编辑范围内只有今天可能练过）；
+ * [isToday] 只用于把「插入 / 计划」对今天置灰——跨月勾选后当前月份的 `days` 里已经没有今天了。
+ */
+private data class DaySelection(
+    val isTrainingDay: Boolean,
+    val hasSessions: Boolean,
+    val isToday: Boolean,
+)
+
+private fun CalendarDay.toSelection(): DaySelection = DaySelection(
+    isTrainingDay = isTrainingDay,
+    hasSessions = actualSessions.isNotEmpty(),
+    isToday = isToday,
+)
 
 /** 「计划 / 插入 → 训练计划」共用一个计划选择弹窗，用它区分选中之后干什么。 */
 private enum class RoutinePickerTarget { ADD_PLAN, INSERT_PLAN }
@@ -1046,7 +1075,7 @@ private val SHEET_MAX_HEIGHT = 480.dp
 /** 日历格子最多显示几个肌群标签，多出来的用「+N」表示。 */
 private const val MAX_CELL_MUSCLES = 3
 
-/** 编辑模式下不可选的日子（今天与过去）压暗到这个透明度。 */
+/** 编辑模式下不可选的日子（过去）压暗到这个透明度。 */
 private const val DISABLED_CELL_ALPHA = 0.38f
 
 @Suppress("ConstPropertyName")

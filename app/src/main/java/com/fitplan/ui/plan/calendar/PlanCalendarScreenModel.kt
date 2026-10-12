@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
@@ -137,10 +138,14 @@ class PlanCalendarScreenModel(
     }
 
     /**
-     * 编辑模式里「该日休息 / 这几日休息」：只撤掉 [dates] 这些天的排期，之后的安排原地不动。
+     * 编辑模式里「该日休息 / 这几日休息」：撤掉 [dates] 这些天的排期，之后的安排原地不动。
+     *
+     * 这些天已经练过的记录（含中途退出、还没结束的那次）也一并删掉——用户在这里表达的意图是
+     * 「这几天不要了」，留下训练记录会让日历、今日页与统计继续显示练过。
      */
     fun removePlansOn(dates: Collection<LocalDate>) {
         viewModelScope.launch {
+            deleteSessionsOn(dates)
             scheduleRepository.deletePlansOn(dates)
             afterScheduleChange()
         }
@@ -149,9 +154,12 @@ class PlanCalendarScreenModel(
     /**
      * 编辑模式里「顺着用未来计划 / 已有计划流入」：清掉 [dates] 这些训练日的排期，
      * 并让它们之后的训练日依次前顶进腾出来的位置，末尾多出休息日。
+     *
+     * 同 [removePlansOn]，这些天已记录的训练一起删掉。
      */
     fun compactPlansAfterRemoving(dates: Collection<LocalDate>) {
         viewModelScope.launch {
+            deleteSessionsOn(dates)
             scheduleRepository.deleteAndCompactPlans(dates)
             afterScheduleChange()
         }
@@ -160,12 +168,36 @@ class PlanCalendarScreenModel(
     /**
      * 编辑模式里删除选中的休息日：把这些休息日从时间线上抽掉，它们之后的排期整体提前，
      * 被删的休息日由后面的训练补上、末尾多出休息日。
+     *
+     * 休息日本身没有排期，也就不会有训练记录，[deleteSessionsOn] 在这里是空操作；
+     * 仍然保留调用，免得以后改动时漏掉这一层。
      */
     fun removeRestDaysAndCompact(dates: Collection<LocalDate>) {
         viewModelScope.launch {
+            deleteSessionsOn(dates)
             scheduleRepository.deleteRestDaysAndCompact(dates)
             afterScheduleChange()
         }
+    }
+
+    /**
+     * 删掉 [dates] 这些天已记录的训练（含中途退出、还没结束的那次），组由外键级联清理。
+     *
+     * 训练记录不属于 [ScheduleRepository]，所以按这些天的本地区间查出来、再按开始时间的本地日期
+     * 归到具体某天逐个删——归属口径与日历 `GetMonthCalendar` 把它算在哪一天一致。
+     */
+    private suspend fun deleteSessionsOn(dates: Collection<LocalDate>) {
+        val earliest = dates.minOrNull() ?: return
+        val latest = dates.maxOrNull() ?: return
+        val zone = TimeZone.currentSystemDefault()
+        val wanted = dates.toSet()
+        workoutRepository
+            .getSessionsBetween(
+                start = earliest.atStartOfDayIn(zone),
+                end = latest.plus(1, DateTimeUnit.DAY).atStartOfDayIn(zone),
+            )
+            .filter { it.startedAt.toLocalDateTime(zone).date in wanted }
+            .forEach { workoutRepository.deleteSession(it.id) }
     }
 
     /** 在 [date] 之前插入 [count] 天休息：[date] 及以后的排期整体后移，腾出来的日子成为休息日。 */
