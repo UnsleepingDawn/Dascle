@@ -55,6 +55,34 @@ class RoutineTargetsTest {
         targets.weight shouldBe 20.0
     }
 
+    /**
+     * 渐进机制把动作库默认值抬高之后，「以后新加入计划」预填的必须是抬高后的值。
+     *
+     * 加量写入的是 `exercise.default_weight` / `default_reps` / `default_duration_seconds`，
+     * 而新加入计划走 `defaultTargets()` 读的正是这些列，两边同源。
+     */
+    @Test
+    fun `动作库默认值被抬高后新加入计划预填的是抬高后的重量与次数`() {
+        val raised = exercise.copy(defaultWeight = 60.0, defaultReps = 12)
+
+        val targets = raised.defaultTargets()
+
+        targets.weight shouldBe 60.0
+        targets.reps shouldBe 12
+    }
+
+    @Test
+    fun `动作库默认时长被抬高后新加入计划预填的是抬高后的时长`() {
+        val raised = exercise.copy(
+            name = "负重平板支撑",
+            muscleGroup = MuscleGroup.ABS,
+            metric = ExerciseMetric.DURATION,
+            defaultDurationSeconds = 120,
+        )
+
+        raised.defaultTargets().seconds shouldBe 120
+    }
+
     private val exercise = Exercise(
         id = 1L,
         name = "杠铃卧推",
