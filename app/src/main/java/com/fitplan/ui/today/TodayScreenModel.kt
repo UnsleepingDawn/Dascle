@@ -19,6 +19,8 @@ import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.WorkoutRepository
 import com.fitplan.reminder.RestState
 import com.fitplan.reminder.RestTimer
+import com.fitplan.ui.exercise.DEFAULT_TARGET_SETS
+import com.fitplan.ui.exercise.defaultTargets
 import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -56,7 +58,8 @@ data class TodaySessionExercise(
 
 /**
  * 今天这场训练里各动作的状态，供今日页的计划卡片标注：
- * 练过的动作名前加一颗蓝圈勾；单独排列的动作被「跳过动作」时打删除线并变灰
+ * 做满全部组的动作名前加一颗蓝圈勾；只做了至少一组、还没做满的动作名前换成一颗不断晕开的蓝色水波圆圈，
+ * 表示「正在训练」；单独排列的动作被「跳过动作」时打删除线并变灰
  * （动作组里的成员不打删除线——组内该显示哪几个由数量规则决定）。
  *
  * [routineId] 是这次训练对应的计划 id；null 表示计划外训练（休息日「临时加一场训练」），
@@ -64,8 +67,14 @@ data class TodaySessionExercise(
  */
 data class TodaySessionProgress(
     val routineId: Long?,
-    /** 有已完成组的动作。 */
-    val completedExerciseIds: Set<Long>,
+    /** 今天各动作已完成的组数；不在表里的动作表示一组都还没练。 */
+    val completedSetCounts: Map<Long, Int> = emptyMap(),
+    /**
+     * 今天各动作的总组行数（该做几组）。判定「还没做满」用，口径与记录页铺行一致：
+     * 用户加减过组以 `workout_exercise_state.set_count` 为准，否则取「已完成组数」与目标组数里的大者
+     * （计划内动作取编排的 `targetSets`，计划外动作取动作库默认组数）。
+     */
+    val totalSetCounts: Map<Long, Int> = emptyMap(),
     /** 被「跳过动作」的动作。 */
     val skippedExerciseIds: Set<Long>,
     /**
@@ -76,7 +85,7 @@ data class TodaySessionProgress(
     val excludedExerciseIds: Set<Long> = emptySet(),
     /**
      * 今天这场训练是否已经结束。结束时动作组只保留「练过的」成员：整组一个都没练就整组不显示，
-     * 练了一部分就只显示练过的那几个，不再拿删除线标出没做的。
+     * 练了一部分就只显示练过的那几个，不再拿删除线标出没做的；练过的动作也不再画「正在训练」的水波圆圈。
      */
     val finished: Boolean = false,
     /**
@@ -84,7 +93,10 @@ data class TodaySessionProgress(
      * 供计划卡片在计划动作之后补出来并标上「临时」；没练过（一组都没勾）的不算。
      */
     val extraExercises: List<TodaySessionExercise> = emptyList(),
-)
+) {
+    /** 有已完成组的动作。 */
+    val completedExerciseIds: Set<Long> get() = completedSetCounts.keys
+}
 
 @Inject
 @ViewModelKey
@@ -148,7 +160,7 @@ class TodayScreenModel(
     val todaySessionExercises: StateFlow<List<TodaySessionExercise>> = _todaySessionExercises.asStateFlow()
 
     /**
-     * 今天这场训练里各动作的状态（练过 / 跳过 / 组内挑中 / 被移除），训练中也算，
+     * 今天这场训练里各动作的状态（练到几组 / 跳过 / 组内挑中 / 被移除），训练中也算，
      * 供今日页计划卡片标注进度；今天还没开练时为 null。
      */
     private val _todaySessionProgress = MutableStateFlow<TodaySessionProgress?>(null)
@@ -203,12 +215,10 @@ class TodayScreenModel(
                 .takeIf { todaySession?.isFinished != true }
 
             // 今天照哪张计划练：找得到当天的排期卡片才谈得上「计划内 / 临时」，找不到
-            // （休息日「临时加一场训练」这类计划外训练）就没有计划编排可比。
-            val plannedExerciseIds = todaySession?.routineId
+            // （休息日「临时加一场训练」这类计划外训练）就没有计划编排可比；这张卡片也给出计划内动作的目标组数。
+            val plannedRoutine = todaySession?.routineId
                 ?.let { routineId -> routines.firstOrNull { it.routine.id == routineId } }
-                ?.exercises
-                ?.map { it.exerciseId }
-                ?.toSet()
+            val plannedExerciseIds = plannedRoutine?.exercises?.map { it.exerciseId }?.toSet()
 
             // 今天练过的动作汇总（只含已完成组）；训练中与已结束都算，只查一次给两处共用。
             val loggedExercises = todaySession?.let { loadSessionExercises(it.id) }.orEmpty()
@@ -222,7 +232,7 @@ class TodayScreenModel(
 
             // 有计划卡片时，把练过、计划编排里却没有的动作标出来：它们就是训练中临时加的。
             val extras = loggedExercises.filterNot { it.exerciseId in plannedExerciseIds.orEmpty() }
-            _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it, extras) }
+            _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it, plannedRoutine, extras) }
 
             _upcomingPlan.value = getUpcomingTrainingPlan(date)
             _nextRestDay.value = getNextRestDay(date)
@@ -269,14 +279,16 @@ class TodayScreenModel(
     }
 
     /**
-     * 汇总今天这场训练里各动作的状态：哪些练过（有已完成组）、哪些被跳过、动作组里挑中了谁。
+     * 汇总今天这场训练里各动作的状态：各练到几组、哪些被跳过、哪些被移除、总共有几组。
      * 训练中也算，所以中途返回今日页就能看到进度；口径与记录页 `workout_exercise_state` 一致。
      *
+     * [plannedRoutine] 是今天照练的那张计划（找不到 / 计划外训练时为 null），用来取计划内动作的目标组数；
      * [extraExercises] 由调用方按「练过但不在计划编排里」算好传进来（判定要拿到当天的排期，
      * 不在这层的职责里）。
      */
     private suspend fun loadSessionProgress(
         session: WorkoutSession,
+        plannedRoutine: ScheduledRoutine?,
         extraExercises: List<TodaySessionExercise>,
     ): TodaySessionProgress {
         val sets = workoutRepository.getSets(session.id)
@@ -284,14 +296,38 @@ class TodayScreenModel(
         // 已经从本次训练里移除的动作（记录页左滑删除）不算进度：跳过与挑中都不作数，
         // 但要把 id 单独带出去，让今日卡片把它们整个从渲染里剔掉。
         val states = allStates.filterNot { it.excluded }
+        val completedSetCounts = sets.filter { it.completed }.groupingBy { it.exerciseId }.eachCount()
+        // 用户加减过组的动作以它记录的组行数为准；没动过的按「已完成组数」与目标组数里的大者。
+        val userSetCounts = states.mapNotNull { state -> state.setCount?.let { state.exerciseId to it } }.toMap()
+        val plannedTargetSets = plannedRoutine?.exercises?.associate { it.exerciseId to it.targetSets }.orEmpty()
+        // 计划外动作没有编排可比，目标组数取动作库默认值（与记录页给它们铺行用的口径一致）。
+        val externalDefaults = defaultSetCounts(
+            completedSetCounts.keys.filterNot { it in plannedTargetSets || it in userSetCounts },
+        )
+        val totalSetCounts = (completedSetCounts.keys + plannedTargetSets.keys + userSetCounts.keys)
+            .associateWith { exerciseId ->
+                userSetCounts[exerciseId]
+                    ?: maxOf(
+                        completedSetCounts[exerciseId] ?: 0,
+                        plannedTargetSets[exerciseId] ?: externalDefaults[exerciseId] ?: DEFAULT_TARGET_SETS,
+                    )
+            }
         return TodaySessionProgress(
             routineId = session.routineId,
-            completedExerciseIds = sets.filter { it.completed }.map { it.exerciseId }.toSet(),
+            completedSetCounts = completedSetCounts,
+            totalSetCounts = totalSetCounts,
             skippedExerciseIds = states.filter { it.skipped }.map { it.exerciseId }.toSet(),
             excludedExerciseIds = allStates.filter { it.excluded }.map { it.exerciseId }.toSet(),
             finished = session.isFinished,
             extraExercises = extraExercises,
         )
+    }
+
+    /** 这些动作在动作库里的默认组数，用来给计划外的动作算今天一共该做几组。 */
+    private suspend fun defaultSetCounts(exerciseIds: Collection<Long>): Map<Long, Int> {
+        if (exerciseIds.isEmpty()) return emptyMap()
+        return exerciseRepository.getByIds(exerciseIds.toList())
+            .associate { it.id to it.defaultTargets().sets }
     }
 
     /**

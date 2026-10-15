@@ -7,12 +7,17 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,9 +73,12 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -95,6 +103,8 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.datetime.isoDayNumber
+import kotlin.math.PI
+import kotlin.math.sin
 
 object TodayTab : Tab {
 
@@ -404,7 +414,7 @@ private fun ScheduledRoutineCard(
                 TodayExerciseRow(
                     name = exercise.name,
                     trailing = exercise.volumeText(),
-                    status = TodayExerciseStatus.TRAINED,
+                    status = progress?.statusOf(exercise.exerciseId, null) ?: TodayExerciseStatus.TRAINED,
                     isExtra = true,
                 )
             }
@@ -657,20 +667,34 @@ private fun RestTodayButton(onClick: () -> Unit) {
 
 /**
  * 今日卡片里一个动作的训练状态：
- * [TRAINED] 练过（有已完成组），[NOT_DONE] 单独排列的动作被「跳过动作」，[PLANNED] 计划里还没轮到。
+ * [TRAINED] 做满全部组、或者训练已经结束（不再表示「正在训练」），[IN_PROGRESS] 做了至少一组但还没做满，
+ * [NOT_DONE] 单独排列的动作被「跳过动作」，[PLANNED] 计划里还没轮到。
  */
-private enum class TodayExerciseStatus { TRAINED, NOT_DONE, PLANNED }
+private enum class TodayExerciseStatus { TRAINED, IN_PROGRESS, NOT_DONE, PLANNED }
 
 /**
  * 判定计划里一个动作今天的训练状态。只有今天这场训练确实照这张计划练（`routineId` 对上）时才会问到这里。
  *
+ * 「做满」与否按 [TodaySessionProgress.completedSetCounts] 与 [TodaySessionProgress.totalSetCounts] 比：
+ * 一组都还没做就是 [TodayExerciseStatus.PLANNED]（单独排列的动作用 [groupId] == null 判它有没有被跳过）；
+ * 做了至少一组、却还没做满、且这次训练还没结束时给 [TodayExerciseStatus.IN_PROGRESS]，
+ * 界面据此把勾换成一圈不断晕开的水波圆圈。
+ *
  * 只有单独排列的动作才会打删除线；动作组里的成员一律不打（组内该做哪几个由数量规则决定，
  * 见 [todayBlocksForCard]），所以这里对组内动作不再看跳过 / 挑中。
  */
-private fun TodaySessionProgress.statusOf(exercise: RoutineExercise): TodayExerciseStatus = when {
-    exercise.exerciseId in completedExerciseIds -> TodayExerciseStatus.TRAINED
-    exercise.groupId == null && exercise.exerciseId in skippedExerciseIds -> TodayExerciseStatus.NOT_DONE
-    else -> TodayExerciseStatus.PLANNED
+private fun TodaySessionProgress.statusOf(exerciseId: Long, groupId: Long?): TodayExerciseStatus {
+    val done = completedSetCounts[exerciseId] ?: 0
+    if (done > 0) {
+        // 做满了、或者训练已经结束，都按「练过」打勾。
+        val total = totalSetCounts[exerciseId] ?: done
+        return if (finished || done >= total) TodayExerciseStatus.TRAINED else TodayExerciseStatus.IN_PROGRESS
+    }
+    return if (groupId == null && exerciseId in skippedExerciseIds) {
+        TodayExerciseStatus.NOT_DONE
+    } else {
+        TodayExerciseStatus.PLANNED
+    }
 }
 
 /**
@@ -791,17 +815,55 @@ private fun TodayPlanExerciseRow(
     TodayExerciseRow(
         name = exercise.exerciseName,
         trailing = exercise.targetText(),
-        status = progress?.statusOf(exercise) ?: TodayExerciseStatus.PLANNED,
+        status = progress?.statusOf(exercise.exerciseId, exercise.groupId) ?: TodayExerciseStatus.PLANNED,
     )
 }
 
 /** 动作名前那颗「已练」勾的尺寸；没练的动作也占同样宽度，好让动作名对齐。 */
 private val TrainedCheckSize = 18.dp
 
+/** 训练中水波圆圈涨满一圈、淡出消失再从头再来的时长（毫秒）。 */
+private const val RIPPLE_MILLIS = 1200
+
+/**
+ * 训练中的水波圆圈：动作做了至少一组、还没做满时，在勾的位置不断晕开一个蓝色小圆圈，表示「正在训练」。
+ *
+ * 一轮里半径按正弦曲线从 0 涨到整格（`sin(t * π/2)`，前段涨得快、后段慢下来），
+ * 透明度则一路线性淡出，圆圈涨到与 [Icons.Filled.CheckCircle] 同样大小、快透明时又从头再来。
+ */
+@Composable
+private fun TrainingRipple(
+    description: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+    size: Dp = TrainedCheckSize,
+) {
+    val transition = rememberInfiniteTransition(label = "trainingRipple")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(RIPPLE_MILLIS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "rippleProgress",
+    )
+    Canvas(
+        modifier = modifier
+            .size(size)
+            .semantics { this.contentDescription = description },
+    ) {
+        // 半径跟着正弦曲线走，透明度线性淡出；`this.size` 是绘制区尺寸，别与外层的 size 参数混了。
+        val radius = this.size.minDimension / 2f * sin(progress * (PI / 2).toFloat())
+        drawCircle(color = color, radius = radius, alpha = 1f - progress)
+    }
+}
+
 /**
  * 今日页一个动作一行：左边动作名、右边目标或实际训练量。
  *
- * [TodayExerciseStatus.TRAINED] 动作名前一颗主色（蓝）圆圈勾，表示今天已经练过；
+ * [TodayExerciseStatus.TRAINED] 动作名前一颗主色（蓝）圆圈勾，表示今天已经做满；
+ * [TodayExerciseStatus.IN_PROGRESS] 同一位置换成一颗不断晕开的蓝色水波圆圈，表示做了几组、还差几组；
  * [TodayExerciseStatus.NOT_DONE] 只有动作名打删除线并转灰，表示这个单独排列的动作被「跳过动作」、今天不用做。
  * 右侧的训练量只跟着变灰，不打删除线。[isExtra] 为 true 时动作名后跟一个主色小字「临时」，
  * 表示这是训练中临时加进来的动作，不在计划编排里。
@@ -818,16 +880,22 @@ private fun TodayExerciseRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (status == TodayExerciseStatus.TRAINED) {
-            Icon(
+        when (status) {
+            TodayExerciseStatus.TRAINED -> Icon(
                 imageVector = Icons.Filled.CheckCircle,
                 contentDescription = stringResource(R.string.today_exercise_trained),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(TrainedCheckSize),
             )
-        } else {
+
+            TodayExerciseStatus.IN_PROGRESS -> TrainingRipple(
+                description = stringResource(R.string.today_exercise_in_progress),
+            )
+
             // 没练的动作也占好勾的位置，同一张卡片里的动作名才对得齐。
-            Spacer(modifier = Modifier.size(TrainedCheckSize))
+            TodayExerciseStatus.NOT_DONE, TodayExerciseStatus.PLANNED -> Spacer(
+                modifier = Modifier.size(TrainedCheckSize),
+            )
         }
         Spacer(modifier = Modifier.width(MaterialTheme.padding.small))
         // 外层占满剩余宽度，内层两个元素贴靠：让「临时」紧跟动作名，训练量仍然贴右边缘。
@@ -1030,7 +1098,7 @@ private fun UnfinishedSessionCard(
                 TodayExerciseRow(
                     name = exercise.name,
                     trailing = exercise.volumeText(),
-                    status = TodayExerciseStatus.TRAINED,
+                    status = progress.statusOf(exercise.exerciseId, null),
                     isExtra = true,
                 )
             }
