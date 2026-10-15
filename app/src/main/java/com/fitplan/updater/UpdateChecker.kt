@@ -86,6 +86,33 @@ class UpdateChecker(
     fun pendingPrompt(currentVersion: String): AppRelease? =
         availableRelease(currentVersion)?.takeIf { it.version != notifiedVersion.get() }
 
+    /**
+     * 取「某个具体版本」（通常是当前装的这一版）的更新说明，用来弹「本次更新」。
+     *
+     * 先看缓存：升级前用户用 App 里的「去下载」走过一趟时，那个版本的 Release 已经在缓存里，
+     * 离线也能弹。缓存里没有就按 tag（`v<version>`，见《发布文档》）联网查一次。
+     *
+     * 返回 null 表示这次没取到（断网、仓库里没这个 tag），**不写任何状态**，调用方下次启动再试。
+     */
+    suspend fun fetchReleaseForVersion(version: String): AppRelease? {
+        cachedReleaseOrNull()?.takeIf { it.version == version }?.let { return it }
+
+        return when (
+            val result = api.fetchByTag(
+                tag = "v$version",
+                mirrorPrefix = mirrorPrefix.get().trim(),
+                userAgent = "$USER_AGENT_PREFIX/$version",
+            )
+        ) {
+            is ApiResult.Success -> result.release
+
+            is ApiResult.Failure -> {
+                Log.d(TAG, "取 $version 的更新说明失败：${result.reason}")
+                null
+            }
+        }
+    }
+
     /** 连同 [pendingPrompt] 缓存的那个版本一起读出来，不判断是否已提示。 */
     fun cachedReleaseOrNull(): AppRelease? {
         val raw = cachedRelease.get()

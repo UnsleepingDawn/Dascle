@@ -36,6 +36,9 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabNavigator
 import com.fitplan.presentation.util.Screen
 import com.fitplan.presentation.util.Tab
+import com.fitplan.ui.changelog.VersionUpdateDialog
+import com.fitplan.ui.changelog.VersionUpdateScreenModel
+import com.fitplan.ui.changelog.VersionUpdateState
 import com.fitplan.ui.missed.MissedConfirmDialog
 import com.fitplan.ui.missed.MissedDialogState
 import com.fitplan.ui.missed.MissedHandleDialog
@@ -111,6 +114,7 @@ object HomeScreen : Screen() {
 
         MissedTrainingPrompt()
         UpdatePrompt()
+        VersionUpdatePrompt()
     }
 
     /**
@@ -174,6 +178,31 @@ object HomeScreen : Screen() {
                 onDismiss = screenModel::dismiss,
             )
         }
+    }
+
+    /**
+     * 覆盖安装新版本后第一次打开时的「本次更新」弹窗。
+     *
+     * 优先级排在漏练弹窗与更新提示之后：那两个正开着就先不显示，免得几个 `AlertDialog`
+     * 叠在一起；等它们关掉后，只要这个版本还没看过就照样弹出来。三个 prompt 用的是各自的
+     * ScreenModel 单例（同一 Activity 内 `metroViewModel` 返回同一个实例），所以这里直接读
+     * 另两个的状态即可。
+     */
+    @Composable
+    private fun VersionUpdatePrompt() {
+        val screenModel = metroViewModel<VersionUpdateScreenModel>()
+        val state by screenModel.state.collectAsState()
+        val missedDialog by metroViewModel<MissedTrainingScreenModel>().dialog.collectAsState()
+        val updateRelease by metroViewModel<UpdatePromptScreenModel>().dialog.collectAsState()
+
+        if (missedDialog != MissedDialogState.Hidden || updateRelease != null) return
+
+        val visible = state as? VersionUpdateState.Visible ?: return
+        VersionUpdateDialog(
+            version = visible.version,
+            sections = visible.sections,
+            onDismiss = screenModel::dismiss,
+        )
     }
 
     @Composable

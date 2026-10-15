@@ -507,6 +507,17 @@
     <string name="update_dialog_download">去下载</string>
     <string name="update_dialog_later">稍后再说</string>
 
+    <!-- 覆盖安装后的「本次更新」弹窗 -->
+    <string name="changelog_dialog_title">本次更新 %1$s</string>
+    <string name="changelog_dialog_hint">这个版本已经装好了，下面的改动从这次打开起生效。</string>
+    <string name="changelog_dialog_confirm">知道了</string>
+    <string name="changelog_category_feature">新增</string>
+    <string name="changelog_category_change">调整</string>
+    <string name="changelog_category_fix">修复</string>
+    <string name="changelog_category_removal">移除</string>
+    <string name="changelog_category_docs">整理</string>
+    <string name="changelog_category_other">其他</string>
+
     <!-- 肌群 -->
     <string name="muscle_chest">胸</string>
     <string name="muscle_biceps">二头</string>

@@ -2,9 +2,11 @@ package com.fitplan.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.app.BuildConfig
 import com.fitplan.domain.repository.BodyMetricRepository
 import com.fitplan.domain.repository.UserProfileRepository
 import com.fitplan.ui.profile.ProfileFormState
+import com.fitplan.updater.VersionUpdatePreferences
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -25,6 +27,10 @@ import kotlin.time.Clock
  * 这里只管「走没走过引导」：没走过时 `MainActivity` 不进 `HomeScreen`，所以
  * 漏练弹窗之类的启动打扰也不会抢在引导前面。填了体重 / 体脂就顺手记成今天的数据，
  * 用户在统计页立刻能看到东西。
+ *
+ * 走完引导时还会把当前 `versionCode` 记成「更新说明已看过」：全新安装本来就没什么可回顾的，
+ * 不该在第一次打开就弹「本次更新」。覆盖安装升上来的老用户没走过引导，那个偏好还是空的，
+ * 正好会在进主界面时弹一次。
  */
 @Inject
 @ViewModelKey
@@ -32,6 +38,7 @@ import kotlin.time.Clock
 class OnboardingScreenModel(
     private val userProfileRepository: UserProfileRepository,
     private val bodyMetricRepository: BodyMetricRepository,
+    private val versionUpdatePreferences: VersionUpdatePreferences,
 ) : ViewModel() {
 
     /** null 表示还没读出来；偏好读取本身是同步的，实际只在第一帧之前的一瞬间。 */
@@ -57,6 +64,7 @@ class OnboardingScreenModel(
             form.weight?.let { bodyMetricRepository.recordWeight(today, it) }
             form.bodyFat?.let { bodyMetricRepository.recordBodyFat(today, it) }
             userProfileRepository.markOnboarded(today)
+            markVersionSeen()
             _onboarded.value = true
         }
     }
@@ -65,8 +73,13 @@ class OnboardingScreenModel(
     fun skip() {
         viewModelScope.launch {
             userProfileRepository.markOnboarded(today())
+            markVersionSeen()
             _onboarded.value = true
         }
+    }
+
+    private fun markVersionSeen() {
+        versionUpdatePreferences.seenVersionCode.set(BuildConfig.VERSION_CODE)
     }
 
     private fun today(): LocalDate =
