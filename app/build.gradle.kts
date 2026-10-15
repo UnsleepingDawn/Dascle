@@ -23,8 +23,8 @@ android {
     defaultConfig {
         applicationId = "com.fitplan.app"
 
-        versionCode = 13
-        versionName = "1.4.4"
+        versionCode = 14
+        versionName = "1.5.0"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getLatestCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getLatestCommitSha()}\"")
