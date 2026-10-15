@@ -47,6 +47,13 @@ data class SetEntry(
     val reps: String = "",
     val seconds: String = "",
     val completed: Boolean = false,
+    /**
+     * 重量是不是用户自己手改过（而不是照默认值预填、或由上一组带过来的）。
+     *
+     * 完成一组时会把这一组的重量带给后面还没做的组，只覆盖没手改过的那些，
+     * 所以这个标记决定了一行的重量会不会被后面接着改。
+     */
+    val weightEdited: Boolean = false,
 )
 
 /**
@@ -527,7 +534,12 @@ class WorkoutLogScreenModel(
     }
 
     fun updateWeight(exerciseId: Long, index: Int, value: String) {
-        mutateSet(exerciseId, index) { it.copy(weight = value.filter { char -> char.isDigit() || char == '.' }) }
+        mutateSet(exerciseId, index) {
+            it.copy(
+                weight = value.filter { char -> char.isDigit() || char == '.' },
+                weightEdited = true,
+            )
+        }
         persistEditedSet(exerciseId, index)
     }
 
@@ -639,7 +651,7 @@ class WorkoutLogScreenModel(
 
     fun addSetRow(exerciseId: Long) {
         mutate(exerciseId) { exercise ->
-            exercise.copy(sets = exercise.sets + emptyEntry(exercise))
+            exercise.copy(sets = exercise.sets + exercise.appendedEntry())
         }
         persistSetCount(exerciseId)
     }
@@ -747,9 +759,43 @@ class WorkoutLogScreenModel(
             )
         }
 
+        // 这一组定下的重量带给后面还没做、也没手改过的组：第一组做了多重，后面就照着来。
+        carryWeightToLaterSets(exerciseId, index).forEach { persistEditedSet(exerciseId, it) }
+
         collapseWhenAllSetsDone(exerciseId)
         startRest(exercise.name, exercise.restSeconds)
         maybeShowProgressHint(exerciseId)
+    }
+
+    /**
+     * 把刚做完那一组（序号 [index]）的重量带给它后面还没做、也没被用户手改过的组。
+     *
+     * 用户在第一组定了重量之后，后面几组默认就照这个重量做，不必一组一组再填一遍；
+     * 已经手改过的行不会被覆盖，所以某一组临时加重量时也只从那一组往后带。
+     * 纯自重动作没有重量输入框、重量留空时都不做任何事。
+     *
+     * 返回被改写过的组序号，供编辑已结束的训练时把改动写回库。
+     */
+    private fun carryWeightToLaterSets(exerciseId: Long, index: Int): List<Int> {
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return emptyList()
+        if (!exercise.showsWeight) return emptyList()
+        val weight = exercise.sets.getOrNull(index)?.weight ?: return emptyList()
+        if (weight.isBlank()) return emptyList()
+
+        val changed = mutableListOf<Int>()
+        mutate(exerciseId) { current ->
+            current.copy(
+                sets = current.sets.mapIndexed { i, item ->
+                    if (i > index && !item.completed && !item.weightEdited && item.weight != weight) {
+                        changed += i
+                        item.copy(weight = weight)
+                    } else {
+                        item
+                    }
+                },
+            )
+        }
+        return changed
     }
 
     /**
@@ -1310,6 +1356,9 @@ class WorkoutLogScreenModel(
                             reps = set.reps?.toString().orEmpty(),
                             seconds = set.durationSeconds?.toString().orEmpty(),
                             completed = set.completed,
+                            // 库里存着重量的行都是当时实际用的值，重进后按「手改过」对待，
+                            // 不让后面接着完成的组把它覆盖掉。
+                            weightEdited = set.weight != null,
                         )
                     }
                     .sizedTo(
@@ -1431,6 +1480,17 @@ private fun emptyEntry(exercise: LogExercise): SetEntry = SetEntry(
     reps = if (exercise.isTimed) "" else exercise.targetReps.toString(),
     seconds = if (exercise.isTimed) exercise.targetSeconds?.toString().orEmpty() else "",
 )
+
+/**
+ * 「加一组」新增的那一行的初值：重量沿用最后一行手里的值，其余照 [emptyEntry] 的样板预填。
+ *
+ * 这样在一次训练里连着加组时，新行会接着当前正在做的重量，而不是突然跳回计划目标重量。
+ */
+private fun LogExercise.appendedEntry(): SetEntry {
+    val entry = emptyEntry(this)
+    val carried = sets.lastOrNull()?.takeIf { showsWeight }?.weight
+    return if (carried.isNullOrBlank()) entry else entry.copy(weight = carried)
+}
 
 /**
  * 这一行还是「按基准值预填、且没勾选」的状态：默认值一变，这些行要跟着一起换；
