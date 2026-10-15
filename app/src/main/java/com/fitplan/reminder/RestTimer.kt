@@ -1,11 +1,6 @@
 package com.fitplan.reminder
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.zacsweers.metro.AppScope
@@ -82,7 +77,7 @@ class RestTimer(
                 delay(REST_TICK_MILLIS)
             }
             // 留在前台才由这里震动；后台已由到点闹钟负责，避免震两次。
-            if (isInForeground()) vibrate()
+            if (isInForeground()) vibrateOnce(context)
             _finishedTick.value += 1
             // 留一会儿「休息结束」，然后自动收起。
             delay(FINISH_HOLD_MILLIS)
@@ -107,21 +102,9 @@ class RestTimer(
     private fun isInForeground(): Boolean =
         ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
-    @SuppressLint("MissingPermission")
-    private fun vibrate() {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Vibrator::class.java)
-        }
-        vibrator?.vibrate(VibrationEffect.createOneShot(VIBRATION_MILLIS, VibrationEffect.DEFAULT_AMPLITUDE))
-    }
-
     private companion object {
         const val REST_TICK_MILLIS = 1_000L
         const val FINISH_HOLD_MILLIS = 2_000L
         const val MILLIS_PER_SECOND = 1_000L
-        const val VIBRATION_MILLIS = 400L
     }
 }

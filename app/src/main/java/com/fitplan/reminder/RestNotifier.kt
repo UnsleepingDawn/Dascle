@@ -8,9 +8,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -79,7 +76,7 @@ class RestNotifier(
         if (!canPostNotifications()) return
         ensureChannel()
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, buildEndNotification(name).build())
-        vibrate()
+        vibrateOnce(context)
     }
 
     @SuppressLint("MissingPermission")
@@ -171,16 +168,6 @@ class RestNotifier(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
-    private fun vibrate() {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Vibrator::class.java)
-        }
-        vibrator?.vibrate(VibrationEffect.createOneShot(VIBRATION_MILLIS, VibrationEffect.DEFAULT_AMPLITUDE))
-    }
-
     companion object {
         const val ACTION_REST_END = "com.fitplan.app.action.REST_END"
         const val EXTRA_EXERCISE = "exercise_name"
@@ -189,6 +176,5 @@ class RestNotifier(
         private const val NOTIFICATION_ID = 1002
         private const val REQUEST_CODE_END = 3001
         private const val REQUEST_CODE_CONTENT = 3002
-        private const val VIBRATION_MILLIS = 400L
     }
 }

@@ -659,6 +659,7 @@ internal fun LogExerciseCard(
     onRepsChange: (Int, String) -> Unit,
     onSecondsChange: (Int, String) -> Unit,
     onToggleCompleted: (Int) -> Unit,
+    onStartTimer: (Int) -> Unit,
     onAddSet: () -> Unit,
     onRemoveSet: () -> Unit,
     onToggleSkipped: () -> Unit,
@@ -669,6 +670,10 @@ internal fun LogExerciseCard(
     /** 贴到标题行上的额外修饰符：列表用它挂左滑删除的拖动手势。 */
     titleModifier: Modifier = Modifier,
 ) {
+    // 计时动作在**训练进行中**才走「填时长 → 开始计时」这条路：回看已结束的训练只看勾，
+    // 编辑已结束的训练是事后补记，两者都还按老样子直接记「做完了」。
+    val startable = exercise.isTimed && !readOnly && !editableCompletedSets
+
     ElevatedCard(
         modifier = modifier
             .fillMaxWidth()
@@ -804,12 +809,14 @@ internal fun LogExerciseCard(
                             showsWeight = exercise.showsWeight,
                             readOnly = readOnly,
                             editableCompletedSets = editableCompletedSets,
+                            startable = startable,
                             // 做完的一组只有「最后一组已完成的」能撤销，没做完的只有下一组能做。
                             actionable = index == if (entry.completed) lastCompletedIndex else nextSetIndex,
                             onWeightChange = { onWeightChange(index, it) },
                             onRepsChange = { onRepsChange(index, it) },
                             onSecondsChange = { onSecondsChange(index, it) },
                             onToggleCompleted = { onToggleCompleted(index) },
+                            onStartTimer = { onStartTimer(index) },
                         )
                     }
 
@@ -1064,13 +1071,17 @@ private fun SetEntryRow(
     showsWeight: Boolean,
     readOnly: Boolean,
     editableCompletedSets: Boolean,
+    startable: Boolean,
     actionable: Boolean,
     onWeightChange: (String) -> Unit,
     onRepsChange: (String) -> Unit,
     onSecondsChange: (String) -> Unit,
     onToggleCompleted: () -> Unit,
+    onStartTimer: () -> Unit,
 ) {
     val editable = !readOnly && (editableCompletedSets || !entry.completed)
+    // 要开始计时得先有时长：这一格还没填（或填了 0）时按「还没轮到」画，点了也不会开弹窗。
+    val canAct = actionable && (!startable || entry.seconds.toIntOrNull()?.let { it > 0 } == true)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1130,8 +1141,10 @@ private fun SetEntryRow(
         } else {
             SetActionControl(
                 completed = entry.completed,
-                actionable = actionable,
+                actionable = canAct,
+                startable = startable,
                 onComplete = onToggleCompleted,
+                onStartTimer = onStartTimer,
                 onUndo = onToggleCompleted,
             )
         }
@@ -1145,7 +1158,7 @@ private fun SetEntryRow(
 private enum class SetAction { LOCKED, DONE, UNDO, UNDO_LOCKED }
 
 /**
- * 组行末尾的「做完了 / 撤销」按钮。
+ * 组行末尾的「做完了 / 撤销」按钮；计时动作在训练中换成「开始」（点开计时弹窗）。
  *
  * 按钮的外框、位置和尺寸全程不动，切换时只让里面那张「贴面」（整块底色加一行文字）
  * 横向滑过：新贴面从一侧滑进来、旧贴面从另一侧滑出去，像一条传送带，避免整颗按钮
@@ -1154,12 +1167,17 @@ private enum class SetAction { LOCKED, DONE, UNDO, UNDO_LOCKED }
  * 四种形态对应记录的推进方向：还没轮到（淡边框的「做完了」）、轮到这一组（蓝色
  * 「做完了」）、刚做完可以撤回（灰色「撤销」）、做过了但要先撤后面的（淡边框的
  * 「撤销」）。
+ *
+ * [startable] 为 true 时（计时动作 + 训练进行中），前两种形态的文字换成「开始」，
+ * 可做的那一档改去开计时弹窗，而不是直接记录。
  */
 @Composable
 private fun SetActionControl(
     completed: Boolean,
     actionable: Boolean,
+    startable: Boolean,
     onComplete: () -> Unit,
+    onStartTimer: () -> Unit,
     onUndo: () -> Unit,
 ) {
     val action = when {
@@ -1168,9 +1186,17 @@ private fun SetActionControl(
         actionable -> SetAction.DONE
         else -> SetAction.LOCKED
     }
+    // 还没做完的那两档：计时动作叫「开始」，其余动作还是「做完了」。
+    val pendingText = stringResource(
+        if (startable) R.string.workout_set_start else R.string.workout_set_done,
+    )
 
     Button(
-        onClick = if (action == SetAction.UNDO) onUndo else onComplete,
+        onClick = when {
+            action == SetAction.UNDO -> onUndo
+            action == SetAction.DONE && startable -> onStartTimer
+            else -> onComplete
+        },
         enabled = action == SetAction.DONE || action == SetAction.UNDO,
         colors = ButtonDefaults.buttonColors(
             // 外框保持透明：切换时动的只有里面滑动的贴面，按钮本身一丝不动。
@@ -1209,7 +1235,7 @@ private fun SetActionControl(
             ) { target ->
                 when (target) {
                     SetAction.DONE -> SetActionFace(
-                        text = stringResource(R.string.workout_set_done),
+                        text = pendingText,
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     )
@@ -1230,7 +1256,7 @@ private fun SetActionControl(
 
                     // 还没轮到这一组。
                     SetAction.LOCKED -> SetActionFace(
-                        text = stringResource(R.string.workout_set_done),
+                        text = pendingText,
                         containerColor = Color.Transparent,
                         contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = LOCKED_CONTENT_ALPHA),
                         border = BorderStroke(LOCKED_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant),

@@ -138,6 +138,9 @@ class WorkoutLogScreen(
         // 非空表示「减一组」减到最后一组，正在问要不要直接跳过这个动作。
         var lastSetSkipId by remember { mutableStateOf<Long?>(null) }
 
+        // 非空表示正在给某一组计时：计时弹窗只活在前台，不进 ScreenModel。
+        var timerTarget by remember { mutableStateOf<TimerTarget?>(null) }
+
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
 
         // 一张动作卡：单独排的动作直接用它，动作组里挑中的动作作为子卡（nested）用它。
@@ -165,6 +168,15 @@ class WorkoutLogScreen(
                     },
                     onToggleCompleted = { index ->
                         screenModel.toggleCompleted(exercise.exerciseId, index)
+                    },
+                    onStartTimer = { index ->
+                        // 倒数器的原点就是打开弹窗这一刻输入框里的时长。
+                        timerTarget = TimerTarget(
+                            exerciseId = exercise.exerciseId,
+                            index = index,
+                            name = exercise.name,
+                            seconds = exercise.sets.getOrNull(index)?.seconds?.toIntOrNull() ?: 0,
+                        )
                     },
                     onAddSet = { screenModel.addSetRow(exercise.exerciseId) },
                     onRemoveSet = {
@@ -546,10 +558,38 @@ class WorkoutLogScreen(
             }
         }
 
+        // 计时动作的计时弹窗：3-2-1 → 开始训练！ → 正/倒数计时，底部「返回」/「已经做完了」。
+        timerTarget?.let { target ->
+            WorkoutTimerDialog(
+                exerciseName = target.name,
+                setLabel = stringResource(R.string.workout_set_index, target.index + 1),
+                countdownSeconds = target.seconds,
+                onFinish = {
+                    // 先关弹窗再记这一组：低于计划目标时后面还会弹重填提醒，不该压在计时弹窗上。
+                    timerTarget = null
+                    screenModel.toggleCompleted(target.exerciseId, target.index)
+                },
+                onDismiss = { timerTarget = null },
+            )
+        }
+
         // 礼花：一个动作全部做完时放一轮。放在所有弹窗之后，且比它们更晚挂载窗口才盖得住它们。
         WorkoutCelebrationOverlay(tick = celebrateTick)
     }
 }
+
+/**
+ * 一次「给某一组计时」的目标。
+ *
+ * 计时显示只活在前台弹窗里，不落库也不需要跨页面存活，所以不进 ScreenModel。
+ * [seconds] 是打开弹窗那一刻输入框里填的时长，也是倒数器的原点。
+ */
+private data class TimerTarget(
+    val exerciseId: Long,
+    val index: Int,
+    val name: String,
+    val seconds: Int,
+)
 
 /**
  * 一次「把目标滚进视口」的请求。
