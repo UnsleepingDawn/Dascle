@@ -4,14 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitplan.app.data.DataRevision
 import com.fitplan.domain.interactor.CloseStaleWorkouts
-import com.fitplan.domain.interactor.GetNextRestDay
 import com.fitplan.domain.interactor.GetScheduledRoutinesForDate
 import com.fitplan.domain.interactor.GetTodayWorkoutSession
 import com.fitplan.domain.interactor.GetUpcomingTrainingPlan
 import com.fitplan.domain.interactor.IsRestDay
-import com.fitplan.domain.interactor.RestTodayMode
 import com.fitplan.domain.interactor.ScheduledRoutine
-import com.fitplan.domain.interactor.TakeRestToday
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
 import com.fitplan.domain.interactor.UseUpcomingTrainingPlanForToday
 import com.fitplan.domain.model.Routine
@@ -110,8 +107,6 @@ class TodayScreenModel(
     private val isRestDay: IsRestDay,
     private val getUpcomingTrainingPlan: GetUpcomingTrainingPlan,
     private val useUpcomingTrainingPlanForToday: UseUpcomingTrainingPlanForToday,
-    private val getNextRestDay: GetNextRestDay,
-    private val takeRestToday: TakeRestToday,
     private val closeStaleWorkouts: CloseStaleWorkouts,
     private val workoutRepository: WorkoutRepository,
     private val exerciseRepository: ExerciseRepository,
@@ -180,13 +175,6 @@ class TodayScreenModel(
      */
     private val _upcomingPlan = MutableStateFlow<UpcomingTrainingPlan?>(null)
     val upcomingPlan: StateFlow<UpcomingTrainingPlan?> = _upcomingPlan.asStateFlow()
-
-    /**
-     * 今天之后最近的一个休息日，训练卡片的「今日休息」用它判断能否「顺延直到占用下一个休息日」；
-     * 之后不再休息时为 null，那个选项只能置灰。
-     */
-    private val _nextRestDay = MutableStateFlow<LocalDate?>(null)
-    val nextRestDay: StateFlow<LocalDate?> = _nextRestDay.asStateFlow()
 
     /**
      * 可排进今天的常驻计划，休息日「临时加一场训练」弹出的「选择要排入的计划」用它。
@@ -267,7 +255,6 @@ class TodayScreenModel(
         _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it, plannedRoutine, extras) }
 
         _upcomingPlan.value = getUpcomingTrainingPlan(date)
-        _nextRestDay.value = getNextRestDay(date)
         _pickerRoutines.value = routineRepository.getPermanent()
         _loaded.value = true
     }
@@ -414,17 +401,24 @@ class TodayScreenModel(
     }
 
     /**
-     * 今日休息：把今天改成休息日并按 [mode] 顺延之后的排期。
+     * 放弃今天的计划：先删掉今天这次还没结束的训练，再按 [shiftBack] 处理今天的排期。
      *
-     * 今天这次训练还没结束（中途退出、练到一半）时先把它作废——今天都不练了，留着这次未完成的
-     * 训练没有意义；已记录的组连着这次训练一起删掉，由数据层级联处理。
+     * [shiftBack] 为 false（「该日休息」）只撤掉今天的排期，之后的安排原地不动；
+     * 为 true（「顺着用未来计划」）把今天从时间线上抽掉，之后的整条时间线（训练日与休息日一起）
+     * 整体提前一天。口径与日历编辑模式删除弹窗一致，区别只是这里固定只作用于今天。
+     * 今天这次训练还没结束（中途退出、练到一半）时一并删掉——今天都不练了，留着它没有意义。
      */
-    fun restToday(mode: RestTodayMode) {
+    fun abandonTodayPlan(shiftBack: Boolean) {
         viewModelScope.launch {
             _todaySession.value
                 ?.takeUnless { it.isFinished }
                 ?.let { workoutRepository.deleteSession(it.id) }
-            takeRestToday(mode)
+            val dates = listOf(today())
+            if (shiftBack) {
+                scheduleRepository.deletePlansAndShiftBack(dates)
+            } else {
+                scheduleRepository.deletePlansOn(dates)
+            }
             afterScheduleChange()
         }
     }

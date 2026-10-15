@@ -22,7 +22,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,18 +40,14 @@ import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -95,6 +90,7 @@ import com.fitplan.reminder.RestState
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogPrimaryButton
+import com.fitplan.ui.plan.calendar.DeleteSelectionDialog
 import com.fitplan.ui.plan.calendar.RoutinePickerDialog
 import com.fitplan.ui.plan.routine.RoutineEditScreen
 import com.fitplan.ui.plan.routine.targetText
@@ -131,14 +127,13 @@ object TodayTab : Tab {
         val todaySessionProgress by screenModel.todaySessionProgress.collectAsState()
         val loaded by screenModel.loaded.collectAsState()
         val upcomingPlan by screenModel.upcomingPlan.collectAsState()
-        val nextRestDay by screenModel.nextRestDay.collectAsState()
         val pickerRoutines by screenModel.pickerRoutines.collectAsState()
         val startRoutineRequest by screenModel.startRoutineRequest.collectAsState()
         val rest by screenModel.rest.collectAsState()
         val restFinishedTick by screenModel.restFinishedTick.collectAsState()
 
-        // 训练卡片右上角「今日休息」的选择框是否展开。
-        var showRestDialog by remember { mutableStateOf(false) }
+        // 训练卡片右上角「放弃」的选择框是否展开。
+        var showAbandonDialog by remember { mutableStateOf(false) }
 
         // 从训练记录页返回时本组合会重建，顺带刷新一次；这一步同时把没用的临时计划（空壳或已不在排期上）
         // 清掉再取数，免得在临时计划的编排页里什么都没加就退回来时，今日页还挂着这张空计划卡片。
@@ -292,9 +287,9 @@ object TodayTab : Tab {
                                 isResuming = resumable != null,
                                 // 今天的训练已经结束，就不再从计划卡片开新的一次训练。
                                 startEnabled = resumable != null || finishedSession == null,
-                                // 练完了就没有「今日休息」可言，只有还没结束的今天才给这个入口。
+                                // 练完了就没有「放弃」可言，只有还没结束的今天才给这个入口。
                                 restEnabled = finishedSession == null,
-                                onRestToday = { showRestDialog = true },
+                                onAbandon = { showAbandonDialog = true },
                                 // 今天这次训练就是照着这张计划练的：标出各动作练到哪了。
                                 progress = todaySessionProgress
                                     ?.takeIf { it.routineId == scheduled.routine.id },
@@ -348,16 +343,25 @@ object TodayTab : Tab {
             }
         }
 
-        if (showRestDialog) {
-            TodayRestDialog(
-                nextRestDay = nextRestDay,
-                // 今天这次训练还没结束：确认顺延时先把这次训练作废。
-                hasOngoingSession = todaySession?.let { !it.isFinished } == true,
-                onConfirm = { mode ->
-                    showRestDialog = false
-                    screenModel.restToday(mode)
+        if (showAbandonDialog) {
+            // 复用日历编辑模式那套删除弹窗（单日、非全休息日分支）：标题与两个选项的口径完全一致，
+            // 只把作用范围固定成今天——「该日休息」只撤掉今天的排期，「顺着用未来计划」把今天之后整体提前一天。
+            DeleteSelectionDialog(
+                trainingDayCount = 1,
+                selectedCount = 1,
+                // 今天这次训练还没结束，确认后会被一并删掉（练完的日子里这张卡片不给这个入口）。
+                deletesWorkoutRecords = todaySession != null,
+                onRest = {
+                    showAbandonDialog = false
+                    screenModel.abandonTodayPlan(shiftBack = false)
                 },
-                onDismiss = { showRestDialog = false },
+                onFlow = {
+                    showAbandonDialog = false
+                    screenModel.abandonTodayPlan(shiftBack = true)
+                },
+                // 「选中的全是休息日」那支分支用不到：这里 trainingDayCount 固定为 1。
+                onRemoveRests = {},
+                onDismiss = { showAbandonDialog = false },
             )
         }
     }
@@ -369,7 +373,7 @@ private fun ScheduledRoutineCard(
     isResuming: Boolean,
     startEnabled: Boolean,
     restEnabled: Boolean,
-    onRestToday: () -> Unit,
+    onAbandon: () -> Unit,
     progress: TodaySessionProgress?,
     rest: RestState?,
     restFinishedTick: Int,
@@ -387,7 +391,7 @@ private fun ScheduledRoutineCard(
                 .padding(MaterialTheme.padding.medium),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
         ) {
-            // 计划名占满整行，右侧留给「今日休息」或休息中的「进度条 + 闹钟」；
+            // 计划名占满整行，右侧留给「放弃」或休息中的「进度条 + 闹钟」；
             // 名字太长时只挤自己，不把右端顶出卡片。
             CardTitleRow(
                 reserveTrailing = restEnabled || rest != null,
@@ -404,7 +408,7 @@ private fun ScheduledRoutineCard(
                         rest = rest,
                         finishedTick = restFinishedTick,
                         restEnabled = restEnabled,
-                        onRestToday = onRestToday,
+                        onAbandon = onAbandon,
                     )
                 },
             )
@@ -454,14 +458,14 @@ private fun ScheduledRoutineCard(
 }
 
 /**
- * 计划卡片标题行：左边计划名，右边一块**贴右边缘**的区域（休息中的「进度条 + 闹钟」或「今日休息」按钮）。
+ * 计划卡片标题行：左边计划名，右边一块**贴右边缘**的区域（休息中的「进度条 + 闹钟」或「放弃」文本）。
  *
  * 不能直接用 `Row` + 两个 `weight(1f)`：标题用不完的那一半不会自动让给右端，右端只拿到自己那半，
  * 进度条与闹钟就停在行中间、到不了右边。这里先量标题的自然宽度（最多占「整行减去右端最小宽度」），
  * 右端再占满剩下的整段宽度，于是闹钟始终顶格、进度条正好铺在标题与闹钟之间。
  *
- * 行高固定为 [TODAY_CARD_HEADER_HEIGHT] 与「标题行高」中的较大者。右端的两种形态（休息指示 / 按钮）
- * 都比这个高度矮，于是「休息结束、按钮回来」时行高不变，卡片高度也就不会跳。
+ * 行高固定为 [TODAY_CARD_HEADER_HEIGHT] 与「标题行高」中的较大者。右端的两种形态（休息指示 / 文本）
+ * 都比这个高度矮，于是「休息结束、文本回来」时行高不变，卡片高度也就不会跳。
  *
  * [reserveTrailing] 为 false（没有右端内容）时只铺标题，不白白留出右端那截。
  */
@@ -501,19 +505,19 @@ private fun CardTitleRow(
 }
 
 /**
- * 计划卡片标题行右端的那块区域：休息中显示「进度条 + 闹钟」，否则给「今日休息」按钮。
+ * 计划卡片标题行右端的那块区域：休息中显示「进度条 + 闹钟」，否则给「放弃」文本。
  *
  * [rest] 由 app 级的休息计时器共享，所以从训练记录页退出来之后这里仍能看到倒计时在走。
  * 归零后计时器还会保留约两秒「休息结束」的状态，期间闹钟摇摆；等状态真的清空，
  * [AnimatedVisibility] 的退场把整块缩小淡化收掉，收干净了（[MutableTransitionState.isIdle]）
- * 「今日休息」才重新出现，免得两者叠在一起。
+ * 「放弃」才重新出现，免得两者叠在一起。
  */
 @Composable
 private fun RestSlot(
     rest: RestState?,
     finishedTick: Int,
     restEnabled: Boolean,
-    onRestToday: () -> Unit,
+    onAbandon: () -> Unit,
 ) {
     val visibleState = remember { MutableTransitionState(false) }
     visibleState.targetState = rest != null
@@ -535,7 +539,7 @@ private fun RestSlot(
             lastRest?.let { RestIndicator(rest = it, finishedTick = finishedTick) }
         }
         if (restEnabled && rest == null && visibleState.isIdle) {
-            RestTodayButton(onRestToday)
+            AbandonTodayButton(onAbandon)
         }
     }
 }
@@ -654,28 +658,28 @@ private fun RestIndicator(
     }
 }
 
-/** 卡片标题行右端的「今日休息」按钮。 */
+/**
+ * 卡片标题行右端的「放弃」入口：一颗没有按钮底色的可点击文本，灰色。
+ *
+ * 与过去的实底按钮相比保持同样的 [TODAY_CARD_HEADER_HEIGHT] 高度，所以它出现 / 消失时
+ * 卡片高度不变；灰色用 `onSurfaceVariant`，与卡片里其它次要说明文字一致。
+ */
 @Composable
-private fun RestTodayButton(onClick: () -> Unit) {
-    // M3 按钮默认容器 40dp、最小触控区 48dp，摆在卡片头部会比计划名高出一截，还会在出现 / 消失时
-    // 顶动整张卡片的高度。这里连容器带最小触控区一起收到 [TODAY_CARD_HEADER_HEIGHT]。
-    CompositionLocalProvider(
-        LocalMinimumInteractiveComponentSize provides TODAY_CARD_HEADER_HEIGHT,
+private fun AbandonTodayButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .heightIn(min = TODAY_CARD_HEADER_HEIGHT)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = MaterialTheme.padding.small),
+        contentAlignment = Alignment.Center,
     ) {
-        FilledTonalButton(
-            onClick = onClick,
-            colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = RestTodayColor,
-                contentColor = Color.White,
-            ),
-            contentPadding = PaddingValues(horizontal = MaterialTheme.padding.small),
-            modifier = Modifier.heightIn(min = TODAY_CARD_HEADER_HEIGHT),
-        ) {
-            Text(
-                text = stringResource(R.string.today_rest_button),
-                maxLines = 1,
-            )
-        }
+        Text(
+            text = stringResource(R.string.today_abandon),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 
@@ -1097,7 +1101,7 @@ private fun UnfinishedSessionCard(
                         rest = rest,
                         finishedTick = restFinishedTick,
                         restEnabled = false,
-                        onRestToday = {},
+                        onAbandon = {},
                     )
                 },
             )
@@ -1380,16 +1384,13 @@ private const val REST_STAGE_EXIT_MILLIS = 140
 /** 休息页的小人图标与「开练！」文字的颜色：深蓝色，不跟随主题的 tertiary（绿／粉／灰）。 */
 private val RestDayAccentColor = Color(0xFF1565C0)
 
-/** 训练卡片右上角「今日休息」按钮的颜色：绿色。 */
-private val RestTodayColor = Color(0xFF2E7D32)
-
 /**
- * 卡片标题行的高度（也是「今日休息」按钮的容器与最小触控区高度）。
+ * 卡片标题行的高度（也是「放弃」文本的最小高度）。
  *
  * 取值只求「比 M3 默认的 40dp / 48dp 矮、又不比计划名的行高（24dp）高出太多」。
  * 关键是它同时用在 [CardTitleRow] 的 `heightIn(min = ...)` 上：休息中右端是约 20dp 的
- * 「进度条 + 闹钟」，结束后换成这个高度的按钮，两边行高都被抬到同一个下限，
- * 于是按钮出现 / 消失不会改变卡片高度。
+ * 「进度条 + 闹钟」，结束后换成这个高度的「放弃」文本，两边行高都被抬到同一个下限，
+ * 于是文本出现 / 消失不会改变卡片高度。
  */
 private val TODAY_CARD_HEADER_HEIGHT = 28.dp
 

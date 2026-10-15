@@ -206,41 +206,4 @@ class ScheduleRepositoryImpl(
             )
         }
     }
-
-    override suspend fun postponeAllFrom(date: LocalDate) {
-        database.transactionWithResult {
-            // 「今天及以后」的排期整体后移一天，enabled 原样保留；
-            // 今天腾空后自然成了休息日。
-            val upcoming = queries.selectOnceFrom(specific_date = date.toDbValue()).awaitAsList()
-            queries.deleteOnceFrom(specific_date = date.toDbValue())
-            upcoming.forEach { entry ->
-                queries.insertOnceWithEnabled(
-                    routine_id = entry.routine_id,
-                    specific_date = requireNotNull(entry.specific_date) + 1,
-                    enabled = entry.enabled,
-                )
-            }
-        }
-    }
-
-    override suspend fun postponeUntilRestDay(date: LocalDate, restDay: LocalDate) {
-        val start = date.toDbValue()
-        val end = restDay.toDbValue()
-        database.transactionWithResult {
-            // 只把 [今天, 休息日) 的排期后移一天：这一天让给它前面那天的训练，之后整体衔接；
-            // 今天空出来自然成了休息日，[休息日) 被搬过来的训练占用后也不再是休息日。
-            val upcoming = queries.selectOnceBetween(
-                specific_date = start,
-                specific_date_ = end,
-            ).awaitAsList()
-            queries.deleteOnceBetween(specific_date = start, specific_date_ = end)
-            upcoming.forEach { entry ->
-                queries.insertOnceWithEnabled(
-                    routine_id = entry.routine_id,
-                    specific_date = requireNotNull(entry.specific_date) + 1,
-                    enabled = entry.enabled,
-                )
-            }
-        }
-    }
 }

@@ -82,16 +82,4 @@ interface ScheduleRepository {
      * [routineId] 落在 [date]，它原本的安排顺移到次日。整批放在一个事务里。
      */
     suspend fun insertPlanBefore(routineId: Long, date: LocalDate)
-
-    /**
-     * 今日休息：把 [date] 及以后的排期整体后移一天，之后每一天都顺延一格；
-     * [date] 腾空后自然成为休息日。整批放在一个事务里。
-     */
-    suspend fun postponeAllFrom(date: LocalDate)
-
-    /**
-     * 今日休息：只把 `[date, restDay)` 内的排期后移一天，让 [restDay] 被训练占用，
-     * [restDay] 之后的排期不动；[date] 腾空后成为休息日。整批放在一个事务里。
-     */
-    suspend fun postponeUntilRestDay(date: LocalDate, restDay: LocalDate)
 }
