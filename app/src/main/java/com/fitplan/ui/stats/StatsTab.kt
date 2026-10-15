@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -73,6 +76,14 @@ object StatsTab : Tab {
                 Column {
                     TopAppBar(
                         title = { Text(text = stringResource(R.string.tab_stats)) },
+                        actions = {
+                            IconButton(onClick = { navigator.push(StatsSettingsScreen) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Settings,
+                                    contentDescription = stringResource(R.string.stats_settings_title),
+                                )
+                            }
+                        },
                         scrollBehavior = scrollBehavior,
                     )
                     // 上方的标签栏：锻炼数据 / 身体数据，时间区间与下面的内容都由同一个状态决定。

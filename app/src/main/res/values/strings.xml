@@ -357,6 +357,10 @@
     <string name="stats_empty">还没有训练记录，先去「今日」练一场吧</string>
     <string name="stats_range_empty">这段时间还没有训练记录</string>
 
+    <!-- 统计页 · 统计设置 -->
+    <string name="stats_settings_title">统计设置</string>
+    <string name="stats_settings_empty">这里暂时还没有可以调整的统计设置</string>
+
     <!-- 统计页 · 身体数据 -->
     <string name="stats_tab_workout">锻炼数据</string>
     <string name="stats_tab_body">身体数据</string>
