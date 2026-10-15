@@ -1,5 +1,6 @@
 package com.fitplan.domain.repository
 
+import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.WorkoutExerciseState
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
@@ -67,6 +68,12 @@ interface WorkoutRepository {
 
     /** 这次训练里各动作的临时状态（跳过 / 组行数 / 组内挑选），只返回真正动过的那些动作。 */
     suspend fun getExerciseStates(sessionId: Long): List<WorkoutExerciseState>
+
+    /** 本次训练里已经被划走的热身提示：这些部位不再提示热身，退出重进也保持。 */
+    suspend fun getDismissedWarmupMuscles(sessionId: Long): Set<MuscleGroup>
+
+    /** 记下这个部位的热身提示已经被划走；同一个部位重复记不会出错。 */
+    suspend fun dismissWarmupHint(sessionId: Long, muscle: MuscleGroup)
 
     suspend fun setExerciseSkipped(sessionId: Long, exerciseId: Long, skipped: Boolean)
 

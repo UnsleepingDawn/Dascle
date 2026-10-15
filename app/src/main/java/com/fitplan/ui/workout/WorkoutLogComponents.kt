@@ -54,6 +54,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,7 +64,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -356,6 +359,67 @@ internal fun SwipeToRevealRemove(
                         }
                     },
             )
+        }
+    }
+}
+
+/** 左滑划走一条热身提示要滑过的距离：按卡片宽度的比例算，太短容易被误触。 */
+private const val WARMUP_DISMISS_FRACTION = 0.3f
+
+/** 划走后把卡片甩出屏幕的动画时长。 */
+private const val WARMUP_DISMISS_DURATION_MS = 180
+
+/**
+ * 左滑把一条热身提示划走：滑过 [WARMUP_DISMISS_FRACTION] 就飞出并回调 [onDismiss]，
+ * 否则回弹归位；右滑本来就在起点，不产生位移。
+ *
+ * 热身条里没有输入框，外层 LazyColumn 又是纵向滚动，横滑不会跟别的手势抢。
+ * 卡片宽度在布局时量出来，量到之前不判定划走，避免还没上屏就误触发。
+ */
+@Composable
+internal fun SwipeToDismissWarmup(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val offsetX = remember { Animatable(0f) }
+    var widthPx by remember { mutableFloatStateOf(0f) }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .onSizeChanged { widthPx = it.width.toFloat() },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    translationX = offsetX.value
+                    alpha = if (widthPx > 0f) (1f + offsetX.value / widthPx).coerceIn(0f, 1f) else 1f
+                }
+                .pointerInput(widthPx) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (widthPx > 0f && offsetX.value < -widthPx * WARMUP_DISMISS_FRACTION) {
+                                scope.launch {
+                                    offsetX.animateTo(-widthPx, tween(durationMillis = WARMUP_DISMISS_DURATION_MS))
+                                    onDismiss()
+                                }
+                            } else {
+                                scope.launch { offsetX.animateTo(0f) }
+                            }
+                        },
+                        onDragCancel = { scope.launch { offsetX.animateTo(0f) } },
+                    ) { change, dragAmount ->
+                        change.consume()
+                        scope.launch {
+                            offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-widthPx, 0f))
+                        }
+                    }
+                },
+        ) {
+            content()
         }
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -175,10 +176,13 @@ class WorkoutLogScreen(
                 )
             }
         val exercisesById = remember(exercises) { exercises.associateBy { it.exerciseId } }
+        val dismissedWarmupMuscles by screenModel.dismissedWarmupMuscles.collectAsState()
         // 某个部位第一次被练到的那些卡片：在它们上方插一条该部位的练前热身提示。
-        // 判定只看计划顺序，与勾选状态无关，所以录入过程中提示条不会上下跳。
-        val warmupByItem = remember(items, exercises) {
+        // 判定只看计划顺序，与勾选状态无关，所以录入过程中提示条不会上下跳；
+        // 本次训练里已经左滑划走的部位整条摘掉，不再出现在任何一张卡上方。
+        val warmupByItem = remember(items, exercises, dismissedWarmupMuscles) {
             warmupMusclesByItemKey(items) { exerciseId -> exercisesById[exerciseId]?.muscleGroups.orEmpty() }
+                .withoutDismissedWarmup(dismissedWarmupMuscles)
         }
 
         Scaffold(
@@ -306,8 +310,17 @@ class WorkoutLogScreen(
                     }
                     items(items, key = { it.key }) { item ->
                         Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                            // 热身提示是这一项的前置兄弟，放在左滑容器之外，不会跟着卡片被划走。
-                            warmupByItem[item.key]?.forEach { muscle -> WarmupBanner(muscle) }
+                            // 热身提示是这一项的前置兄弟，放在动作卡左滑容器之外，不会跟着卡片被划走；
+                            // 它自己支持左滑划走，划走即视为这个部位已经热过身，本次训练不再提示。
+                            warmupByItem[item.key]?.forEach { muscle ->
+                                // 按部位取 key：划走一条后这一项剩下的提示会被顶上同一个组合槽位，
+                                // 不加 key 会把已经飞出去的那条的状态（位移与透明度）一起顶过来，新提示直接隐身。
+                                key(muscle) {
+                                    SwipeToDismissWarmup(onDismiss = { screenModel.dismissWarmupHint(muscle) }) {
+                                        WarmupBanner(muscle)
+                                    }
+                                }
+                            }
                             when (item) {
                                 is LogItem.Exercise -> {
                                     val exercise = exercisesById[item.exerciseId]

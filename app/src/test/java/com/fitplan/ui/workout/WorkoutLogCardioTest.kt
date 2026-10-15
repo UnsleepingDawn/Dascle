@@ -145,6 +145,7 @@ class WorkoutLogCardioTest {
         )
         coEvery { workoutRepository.getSets(session.id) } returns listOf(completedSet)
         coEvery { workoutRepository.getExerciseStates(session.id) } returns states
+        coEvery { workoutRepository.getDismissedWarmupMuscles(session.id) } returns emptySet()
         coEvery { exerciseRepository.getByIds(listOf(cardio.id)) } returns listOf(cardio)
         if (plannedExercise != null) {
             coEvery { routineRepository.getItems(plannedExercise.routineId) } returns listOf(

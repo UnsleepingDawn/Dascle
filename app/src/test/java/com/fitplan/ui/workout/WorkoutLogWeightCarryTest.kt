@@ -105,6 +105,7 @@ class WorkoutLogWeightCarryTest {
         coEvery { workoutRepository.getSession(session.id) } returns session
         coEvery { workoutRepository.getSets(session.id) } returns emptyList()
         coEvery { workoutRepository.getExerciseStates(session.id) } returns emptyList()
+        coEvery { workoutRepository.getDismissedWarmupMuscles(session.id) } returns emptySet()
         coEvery { exerciseRepository.getByIds(listOf(bench.id)) } returns listOf(bench)
         coEvery { routineRepository.getItems(routineId) } returns listOf(RoutineItem.Exercise(plannedBench))
         coEvery { lowReminderRepository.isShown(any(), any()) } returns true

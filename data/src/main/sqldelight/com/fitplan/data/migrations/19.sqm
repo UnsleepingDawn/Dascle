@@ -1,0 +1,7 @@
+-- 训练记录页的热身提示可以左滑划走：按「一次训练 + 一个部位」记住它已经热过身，
+-- 本次训练（包括退出重进）不再显示；训练记录被删时随外键一起清掉。
+CREATE TABLE workout_warmup_dismissed (
+    session_id   INTEGER NOT NULL REFERENCES workout_session(id) ON DELETE CASCADE,
+    muscle_group TEXT NOT NULL,
+    PRIMARY KEY (session_id, muscle_group)
+);

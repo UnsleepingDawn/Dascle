@@ -69,4 +69,33 @@ class WarmupMusclesByItemKeyTest {
 
         result shouldNotContainKey "e1"
     }
+
+    @Test
+    fun `划走的部位整条摘掉，不在更靠后的卡片上再出现`() {
+        val warmup = mapOf(
+            "e1" to listOf(MuscleGroup.CHEST, MuscleGroup.TRICEPS),
+            "e2" to listOf(MuscleGroup.BACK),
+        )
+
+        val result = warmup.withoutDismissedWarmup(setOf(MuscleGroup.TRICEPS))
+
+        result shouldContainExactly mapOf(
+            "e1" to listOf(MuscleGroup.CHEST),
+            "e2" to listOf(MuscleGroup.BACK),
+        )
+    }
+
+    @Test
+    fun `一张卡上的部位全被划走时这一项整条去掉`() {
+        val warmup = mapOf("e1" to listOf(MuscleGroup.CHEST, MuscleGroup.TRICEPS))
+
+        warmup.withoutDismissedWarmup(setOf(MuscleGroup.CHEST, MuscleGroup.TRICEPS)) shouldContainExactly emptyMap()
+    }
+
+    @Test
+    fun `没有划走过任何部位时原样返回`() {
+        val warmup = mapOf("e1" to listOf(MuscleGroup.CHEST))
+
+        warmup.withoutDismissedWarmup(emptySet()) shouldContainExactly warmup
+    }
 }

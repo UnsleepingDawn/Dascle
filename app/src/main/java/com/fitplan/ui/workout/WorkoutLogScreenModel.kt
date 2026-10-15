@@ -228,6 +228,22 @@ internal fun warmupMusclesByItemKey(
 }
 
 /**
+ * 去掉本次训练里已经被划走的热身提示。
+ *
+ * 划走一条就代表这个部位已经热过身，它不该在更靠后的卡片上再冒出来，
+ * 所以这里是把整个部位从表里摘掉，而不是只跳过这一条。
+ */
+internal fun Map<String, List<MuscleGroup>>.withoutDismissedWarmup(
+    dismissed: Set<MuscleGroup>,
+): Map<String, List<MuscleGroup>> = if (dismissed.isEmpty()) {
+    this
+} else {
+    mapNotNull { (key, muscles) ->
+        muscles.filterNot { it in dismissed }.takeIf { it.isNotEmpty() }?.let { key to it }
+    }.toMap()
+}
+
+/**
  * 「计划外动作」里选中了一个今天计划里已经有的动作时的提醒。
  *
  * 同一个动作在同一次训练里重复排进去，记录页会冒出两张同名卡、动作记录被拆成两处，
@@ -393,6 +409,13 @@ class WorkoutLogScreenModel(
     private val _collapsedExerciseIds = MutableStateFlow<Set<Long>>(emptySet())
     val collapsedExerciseIds: StateFlow<Set<Long>> = _collapsedExerciseIds.asStateFlow()
 
+    /**
+     * 本次训练里已经被左滑划走的热身提示：划走就代表这个部位已经热过身，本次训练不再显示。
+     * 落库保存，所以退出重进、甚至换个会话重开 App 都保持；训练记录被删时跟着一起清掉。
+     */
+    private val _dismissedWarmupMuscles = MutableStateFlow<Set<MuscleGroup>>(emptySet())
+    val dismissedWarmupMuscles: StateFlow<Set<MuscleGroup>> = _dismissedWarmupMuscles.asStateFlow()
+
     /** 非空表示正在问「要不要把目标提高一点」；[ProgressHint] 里的动作就是被问的那个。 */
     private val _progressHint = MutableStateFlow<ProgressHint?>(null)
     val progressHint: StateFlow<ProgressHint?> = _progressHint.asStateFlow()
@@ -469,6 +492,7 @@ class WorkoutLogScreenModel(
         celebratedExerciseIds.clear()
         excludedExerciseIds.clear()
         _collapsedExerciseIds.value = emptySet()
+        _dismissedWarmupMuscles.value = emptySet()
         _progressHint.value = null
         _progressTargetInput.value = null
         _progressTargetConfirm.value = null
@@ -568,6 +592,19 @@ class WorkoutLogScreenModel(
     fun toggleExerciseCollapsed(exerciseId: Long) {
         val collapsed = _collapsedExerciseIds.value
         _collapsedExerciseIds.value = if (exerciseId in collapsed) collapsed - exerciseId else collapsed + exerciseId
+    }
+
+    /**
+     * 左滑划走某个部位的热身提示：本次训练不再显示，退出重进也保持。
+     *
+     * 划走即视为这个部位已经热过身，所以同部位更靠后的卡片也不会再冒出来。
+     * 状态落在 `workout_warmup_dismissed` 上，没有 session（还没点「开始训练」）时只改内存。
+     */
+    fun dismissWarmupHint(muscle: MuscleGroup) {
+        if (muscle in _dismissedWarmupMuscles.value) return
+        _dismissedWarmupMuscles.value = _dismissedWarmupMuscles.value + muscle
+        val currentSessionId = sessionId ?: return
+        viewModelScope.launch { workoutRepository.dismissWarmupHint(currentSessionId, muscle) }
     }
 
     /**
@@ -1295,6 +1332,7 @@ class WorkoutLogScreenModel(
         val exercisesById = exerciseRepository.getByIds(exerciseIds).associateBy { it.id }
 
         sessionId = session.id
+        _dismissedWarmupMuscles.value = workoutRepository.getDismissedWarmupMuscles(session.id)
         _sessionName.value = session.name
         _startedAt.value = session.startedAt
         _finishedAt.value = session.finishedAt

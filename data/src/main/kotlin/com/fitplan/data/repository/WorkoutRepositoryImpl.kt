@@ -6,6 +6,8 @@ import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.fitplan.data.Database
 import com.fitplan.data.mapper.toDbValue
 import com.fitplan.data.mapper.toDomain
+import com.fitplan.data.mapper.toMuscleGroup
+import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.WorkoutExerciseState
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
@@ -28,6 +30,7 @@ class WorkoutRepositoryImpl(
     private val sessionQueries get() = database.workoutSessionQueries
     private val setQueries get() = database.workoutSetQueries
     private val stateQueries get() = database.workoutExerciseStateQueries
+    private val warmupQueries get() = database.workoutWarmupDismissedQueries
     private val utilQueries get() = database.utilQueries
 
     override suspend fun getSessions(): List<WorkoutSession> =
@@ -210,5 +213,12 @@ class WorkoutRepositoryImpl(
 
     override suspend fun deleteSet(id: Long) {
         setQueries.deleteById(id)
+    }
+
+    override suspend fun getDismissedWarmupMuscles(sessionId: Long): Set<MuscleGroup> =
+        warmupQueries.selectBySessionId(sessionId).awaitAsList().map { it.toMuscleGroup() }.toSet()
+
+    override suspend fun dismissWarmupHint(sessionId: Long, muscle: MuscleGroup) {
+        warmupQueries.insert(session_id = sessionId, muscle_group = muscle.toDbValue())
     }
 }

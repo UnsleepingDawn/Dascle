@@ -1,0 +1,18 @@
+-- 本次训练里被左滑划走的热身提示：划走就代表这个部位已经热过身，本次训练不再显示。
+-- 状态按「一次训练 + 一个部位」记，退出重进仍然生效；训练记录被删时随外键一起清掉。
+CREATE TABLE workout_warmup_dismissed (
+    session_id   INTEGER NOT NULL REFERENCES workout_session(id) ON DELETE CASCADE,
+    muscle_group TEXT NOT NULL,
+    PRIMARY KEY (session_id, muscle_group)
+);
+
+selectBySessionId:
+SELECT muscle_group
+FROM workout_warmup_dismissed
+WHERE session_id = ?;
+
+-- 同一个部位划两次只会有一行；重复写不报错，也不需要更新任何列。
+insert:
+INSERT INTO workout_warmup_dismissed(session_id, muscle_group)
+VALUES (?, ?)
+ON CONFLICT DO NOTHING;
