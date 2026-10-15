@@ -190,7 +190,7 @@
     <!-- 休息日专属的一次性计划：现编这一天的动作，不进常驻计划列表 -->
     <string name="calendar_temp_plan">临时计划</string>
     <string name="calendar_pick_routine">选择要排入的计划</string>
-    <string name="calendar_no_routine_left">所有计划都已排入这一天</string>
+    <string name="calendar_no_routine_left">（没有可以排入的计划）</string>
     <string name="calendar_remove_plan">移除排期</string>
     <string name="calendar_rest_day">休息</string>
     <string name="calendar_mark_rest">该天休息</string>
@@ -241,7 +241,7 @@
     </string-array>
 
     <!-- 训练记录 -->
-    <string name="workout_title">训练记录</string>
+    <string name="workout_plan_title">训练项目一览</string>
     <string name="workout_free">自由训练</string>
     <string name="workout_started_at">开始于 %1$s</string>
     <string name="workout_start">开始训练</string>

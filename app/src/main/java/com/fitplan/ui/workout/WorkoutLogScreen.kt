@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -130,6 +132,8 @@ class WorkoutLogScreen(
         var revealedKey by remember { mutableStateOf<String?>(null) }
         // 非空表示正在确认「解散整个动作组」，确认后才真的移除。
         var removeGroupTarget by remember { mutableStateOf<LogItem.Group?>(null) }
+        // 非空表示这一格正在播删除动画（卡片右移飞出、剩下的卡片补上来），播完才真的删记录。
+        var removingTarget by remember { mutableStateOf<LogItem?>(null) }
 
         // 非空表示「减一组」减到最后一组，正在问要不要直接跳过这个动作。
         var lastSetSkipId by remember { mutableStateOf<Long?>(null) }
@@ -185,13 +189,35 @@ class WorkoutLogScreen(
                 .withoutDismissedWarmup(dismissedWarmupMuscles)
         }
 
+        // 正在被删的那一格上，删完之后再也不会出现的热身提示：这些要跟着卡片一起收掉。
+        val leavingWarmupMuscles = remember(items, removingTarget, dismissedWarmupMuscles, exercisesById) {
+            removingTarget?.let { removing ->
+                warmupMusclesLeavingWith(
+                    items = items,
+                    removingKey = removing.key,
+                    dismissed = dismissedWarmupMuscles,
+                    musclesOf = { exerciseId -> exercisesById[exerciseId]?.muscleGroups.orEmpty() },
+                )
+            }.orEmpty()
+        }
+
+        // 删除动画播完之后才真的去删记录：先删数据再补动画会闪一帧。红区也一起收回去。
+        val commitRemoval: (LogItem) -> Unit = { removed ->
+            revealedKey = null
+            removingTarget = null
+            when (removed) {
+                is LogItem.Exercise -> screenModel.removeExercise(removed.exerciseId)
+                is LogItem.Group -> screenModel.removeGroup(removed.groupId)
+            }
+        }
+
         Scaffold(
             topBar = { scrollBehavior ->
                 TopAppBar(
                     title = {
                         Text(
                             text = when {
-                                phase == WorkoutPhase.NOT_STARTED -> stringResource(R.string.workout_title)
+                                phase == WorkoutPhase.NOT_STARTED -> stringResource(R.string.workout_plan_title)
                                 editing -> stringResource(R.string.workout_editing_title, sessionName)
                                 else -> sessionName
                             },
@@ -302,66 +328,112 @@ class WorkoutLogScreen(
                         .fillMaxSize()
                         .onGloballyPositioned { scrollTracker.onListPositioned(it) },
                     contentPadding = contentPadding,
-                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
                 ) {
                     val currentSummary = summary
                     if (readOnly && currentSummary != null) {
-                        item { WorkoutSummaryCard(summary = currentSummary) }
+                        // 这一列不再用 spacedBy：每一格自己带着与下一格之间的间距，删掉一格时
+                        // 才能把这段间距跟着高度一起收掉，收尾不会突然少掉一截空隙。
+                        item {
+                            Column {
+                                WorkoutSummaryCard(summary = currentSummary)
+                                Spacer(modifier = Modifier.height(MaterialTheme.padding.small))
+                            }
+                        }
                     }
                     items(items, key = { it.key }) { item ->
-                        Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                            // 热身提示是这一项的前置兄弟，放在动作卡左滑容器之外，不会跟着卡片被划走；
-                            // 它自己支持左滑划走，划走即视为这个部位已经热过身，本次训练不再提示。
-                            warmupByItem[item.key]?.forEach { muscle ->
-                                // 按部位取 key：划走一条后这一项剩下的提示会被顶上同一个组合槽位，
-                                // 不加 key 会把已经飞出去的那条的状态（位移与透明度）一起顶过来，新提示直接隐身。
-                                key(muscle) {
-                                    SwipeToDismissWarmup(onDismiss = { screenModel.dismissWarmupHint(muscle) }) {
-                                        WarmupBanner(muscle)
-                                    }
-                                }
-                            }
-                            when (item) {
-                                is LogItem.Exercise -> {
-                                    val exercise = exercisesById[item.exerciseId]
-                                    // 单独排的动作卡可以左滑删除；动作组里的子卡不给这个入口。
-                                    if (exercise != null) {
-                                        SwipeToRevealRemove(
-                                            revealed = revealedKey == item.key,
-                                            onRevealedChange = { revealedKey = if (it) item.key else null },
-                                            onRequestRemove = { screenModel.removeExercise(item.exerciseId) },
-                                            enabled = !readOnly,
-                                        ) { titleModifier ->
-                                            logExerciseCard(exercise, false, "item:${item.key}", titleModifier)
+                        // 每一格整体交给 RemovingSlot：删除时先把卡片右移飞出，再把整格高度
+                        // 收到 0（连热身提示与尾部间距一起收），收完才真的删记录。
+                        RemovingSlot(
+                            removing = removingTarget?.key == item.key,
+                            onDismissed = { commitRemoval(item) },
+                        ) { cardRegion, bannerCollapsing ->
+                            Column {
+                                // 热身提示是这一项的前置兄弟，不跟着卡片飞出；它自己支持左滑划走，
+                                // 划走即视为这个部位已经热过身，本次训练不再提示。
+                                warmupByItem[item.key]?.forEach { muscle ->
+                                    // 按部位取 key：划走一条后这一项剩下的提示会被顶上同一个组合槽位，
+                                    // 不加 key 会把已经飞出去的那条的状态（位移与透明度）一起顶过来，新提示直接隐身。
+                                    key(muscle) {
+                                        SwipeToDismissWarmup(
+                                            onDismiss = { screenModel.dismissWarmupHint(muscle) },
+                                            // 下面这张卡正在被删、而这个部位后面又不会再提示时，
+                                            // 提示要跟着卡片同时收掉，否则收尾会整块跳一下。
+                                            collapsing = bannerCollapsing && muscle in leavingWarmupMuscles,
+                                        ) {
+                                            WarmupBanner(muscle)
                                         }
                                     }
                                 }
-
-                                // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
-                                // 左滑删除的是整组，先弹一次确认（组内已练的记录会一起删）。
-                                is LogItem.Group -> SwipeToRevealRemove(
-                                    revealed = revealedKey == item.key,
-                                    onRevealedChange = { revealedKey = if (it) item.key else null },
-                                    onRequestRemove = { removeGroupTarget = item },
-                                    enabled = !readOnly,
-                                ) { titleModifier ->
-                                    LogGroupCard(
-                                        group = item,
-                                        exercises = exercises,
-                                        readOnly = readOnly,
-                                        onTogglePick = { exerciseId ->
-                                            if (exerciseId in item.pickedIds) {
-                                                screenModel.unpickGroupExercise(item.groupId, exerciseId)
-                                            } else {
-                                                screenModel.pickGroupExercise(item.groupId, exerciseId)
-                                                // 挑中的动作会在组卡里展开子卡，滚过去让用户直接接着录入。
-                                                revealRequest = RevealRequest("card:$exerciseId")
+                                // 卡片本体（含它身后的红区）连同与下一格之间的间距放在这一块里：
+                                // 删除时先横向飞出、再把整块高度收到 0。
+                                Column(modifier = cardRegion) {
+                                    when (item) {
+                                        is LogItem.Exercise -> {
+                                            val exercise = exercisesById[item.exerciseId]
+                                            // 单独排的动作卡可以左滑删除；动作组里的子卡不给这个入口。
+                                            if (exercise != null) {
+                                                SwipeToRevealRemove(
+                                                    revealed = revealedKey == item.key,
+                                                    onRevealedChange = {
+                                                        revealedKey = if (it) item.key else null
+                                                    },
+                                                    onRequestRemove = {
+                                                        // 前一格的收起动画还没播完就先不接新的删除，
+                                                        // 免得两格动画叠在一起、前面那格的删除被顶掉。
+                                                        if (removingTarget == null) removingTarget = item
+                                                    },
+                                                    enabled = !readOnly,
+                                                ) { titleModifier ->
+                                                    logExerciseCard(
+                                                        exercise,
+                                                        false,
+                                                        "item:${item.key}",
+                                                        titleModifier,
+                                                    )
+                                                }
                                             }
-                                        },
-                                        titleModifier = titleModifier,
-                                    ) { exercise ->
-                                        logExerciseCard(exercise, true, "card:${exercise.exerciseId}", Modifier)
+                                        }
+
+                                        // 动作组卡：先在芯片行里挑动作，挑中的在卡内展开成子卡。
+                                        // 左滑删除的是整组，先弹一次确认（组内已练的记录会一起删）。
+                                        is LogItem.Group -> SwipeToRevealRemove(
+                                            revealed = revealedKey == item.key,
+                                            onRevealedChange = { revealedKey = if (it) item.key else null },
+                                            onRequestRemove = {
+                                                // 同上：动画没播完就不再接新的删除。
+                                                if (removingTarget == null) removeGroupTarget = item
+                                            },
+                                            enabled = !readOnly,
+                                        ) { titleModifier ->
+                                            LogGroupCard(
+                                                group = item,
+                                                exercises = exercises,
+                                                readOnly = readOnly,
+                                                onTogglePick = { exerciseId ->
+                                                    if (exerciseId in item.pickedIds) {
+                                                        screenModel.unpickGroupExercise(
+                                                            item.groupId,
+                                                            exerciseId,
+                                                        )
+                                                    } else {
+                                                        screenModel.pickGroupExercise(item.groupId, exerciseId)
+                                                        // 挑中的动作会在组卡里展开子卡，滚过去让用户直接接着录入。
+                                                        revealRequest = RevealRequest("card:$exerciseId")
+                                                    }
+                                                },
+                                                titleModifier = titleModifier,
+                                            ) { exercise ->
+                                                logExerciseCard(
+                                                    exercise,
+                                                    true,
+                                                    "card:${exercise.exerciseId}",
+                                                    Modifier,
+                                                )
+                                            }
+                                        }
                                     }
+                                    // 与下一格之间的间距；这一列已经不用 spacedBy。
+                                    Spacer(modifier = Modifier.height(MaterialTheme.padding.small))
                                 }
                             }
                         }
@@ -383,8 +455,9 @@ class WorkoutLogScreen(
         removeGroupTarget?.let { target ->
             RemoveGroupDialog(
                 onConfirm = {
+                    // 确认之后才播「卡片右移飞出 + 剩下的卡片补上来」，播完由 commitRemoval 删记录。
                     removeGroupTarget = null
-                    screenModel.removeGroup(target.groupId)
+                    if (removingTarget == null) removingTarget = target
                 },
                 onDismiss = { removeGroupTarget = null },
             )

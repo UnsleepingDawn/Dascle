@@ -244,6 +244,34 @@ internal fun Map<String, List<MuscleGroup>>.withoutDismissedWarmup(
 }
 
 /**
+ * 删掉 [removingKey] 那一格之后，这一格显示的热身提示里再也不会出现的部位。
+ *
+ * 这一格被删掉时，留在它上面的提示必须跟着一起收掉，否则收完高度、记录真的删掉那一帧会整块
+ * 跳一下；而**后面还会出现**的部位要原地留着——移除这一格之后它会被挪到后面那张卡上，落点
+ * 与原来基本重合（相邻两张卡时完全重合），留着反而看不出挪动。
+ *
+ * 算法就是「这一格现在显示的提示 减去 移除之后整张表还会显示的提示」。
+ * [musclesOf] 取某个动作涉及的部位；查不到时返回空列表即可。
+ */
+internal fun warmupMusclesLeavingWith(
+    items: List<LogItem>,
+    removingKey: String,
+    dismissed: Set<MuscleGroup>,
+    musclesOf: (Long) -> List<MuscleGroup>,
+): Set<MuscleGroup> {
+    val current = warmupMusclesByItemKey(items, musclesOf)
+        .withoutDismissedWarmup(dismissed)[removingKey]
+        .orEmpty()
+    if (current.isEmpty()) return emptySet()
+    val stillShown = warmupMusclesByItemKey(items.filterNot { it.key == removingKey }, musclesOf)
+        .withoutDismissedWarmup(dismissed)
+        .values
+        .flatten()
+        .toSet()
+    return current.filterNot { it in stillShown }.toSet()
+}
+
+/**
  * 「计划外动作」里选中了一个今天计划里已经有的动作时的提醒。
  *
  * 同一个动作在同一次训练里重复排进去，记录页会冒出两张同名卡、动作记录被拆成两处，

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -66,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -91,7 +93,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.math.roundToInt
 import kotlin.time.Instant
 
-/** 训练还没开始时的计划预览列表：只展示动作与目标，不能录入。 */
+/** 训练还没开始时的计划预览列表：只展示动作与目标，不能录入，也不给热身提示。 */
 @Composable
 internal fun WorkoutPlanList(
     items: List<LogItem>,
@@ -100,10 +102,6 @@ internal fun WorkoutPlanList(
     modifier: Modifier = Modifier,
 ) {
     val byId = remember(exercises) { exercises.associateBy { it.exerciseId } }
-    // 某个部位第一次被练到的那些卡片：在它们上方插一条该部位的练前热身提示。
-    val warmupByItem = remember(items, exercises) {
-        warmupMusclesByItemKey(items) { exerciseId -> byId[exerciseId]?.muscleGroups.orEmpty() }
-    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -119,20 +117,17 @@ internal fun WorkoutPlanList(
             )
         }
         items(items, key = { it.key }) { item ->
-            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                warmupByItem[item.key]?.forEach { muscle -> WarmupBanner(muscle) }
-                when (item) {
-                    is LogItem.Exercise -> {
-                        val exercise = byId[item.exerciseId]
-                        if (exercise != null) PlanExerciseCard(exercise)
-                    }
-
-                    // 动作组：预览里也把组内动作列出来，并说明会从里面挑几个练。
-                    is LogItem.Group -> PlanGroupCard(
-                        group = item,
-                        members = item.memberIds.mapNotNull(byId::get),
-                    )
+            when (item) {
+                is LogItem.Exercise -> {
+                    val exercise = byId[item.exerciseId]
+                    if (exercise != null) PlanExerciseCard(exercise)
                 }
+
+                // 动作组：预览里也把组内动作列出来，并说明会从里面挑几个练。
+                is LogItem.Group -> PlanGroupCard(
+                    group = item,
+                    members = item.memberIds.mapNotNull(byId::get),
+                )
             }
         }
     }
@@ -271,6 +266,9 @@ private val REMOVE_ACTION_WIDTH = 84.dp
  * 方向与日历页的 `SwipeToRevealDelete` 一致：卡片向左移，删除键从右边露出来。
  * [revealed] 由列表持有，保证同一时间只有一张卡片是滑开的。
  *
+ * 点红色「删除」只回调 [onRequestRemove]（动作组还要先过一遍确认框），不负责播任何动画：
+ * 卡片被推走、剩下的卡片补上来是外面 `RemovingSlot` 的事，这里只管把红区显出来。
+ *
  * 拖动的手势修饰符不贴在整张卡上，而是通过 [content] 的 `titleModifier` 交给调用方
  * 贴到卡片的标题行：动作组卡里有一行横向滚动的芯片、动作卡里有输入框，
  * 贴在整卡上会和它们抢横向手势。
@@ -318,7 +316,8 @@ internal fun SwipeToRevealRemove(
         ) {
             TextButton(
                 onClick = {
-                    onRevealedChange(false)
+                    // 不在这里把卡片收回原位：红区跟着卡片一起右移淡出，观感是整行被推走。
+                    // 真的要播动画、以及最后去数据里删掉，都交给外面的 RemovingSlot。
                     onRequestRemove()
                 },
                 modifier = Modifier
@@ -363,63 +362,174 @@ internal fun SwipeToRevealRemove(
     }
 }
 
+/**
+ * 一格列表项被删掉时的两段动画，节奏与「划走热身提示」完全一致：先把这一格横向推出屏幕，
+ * 再把这一格占的高度收到 0，收完才回调 [onDismissed]。
+ *
+ * 第二段是「下面那些卡片快速往上滑」的来源——父列表每帧都要重新摆放后面的兄弟，它们于是
+ * 被高度一点一点推上去，而不是等记录真的删掉之后整块跳上去。
+ *
+ * 与下一格之间的纵向间距要放在 [cardRegion] 里面跟着一起收：这一列已经不用 `spacedBy`，
+ * 收干净时正好等于「这一格已被移除」应有的位置，收尾不会突然少掉一截空隙。
+ *
+ * 横向飞出的只有 [cardRegion]（卡片本体，含它身后的红区）；[content] 里排在它前面的热身
+ * 提示留在原地：这些提示要么原地保留、要么挪到后面那张卡上，跟着飞出去反而会跳回来。
+ * 该跟着一起收掉的那些由 [bannerCollapsing] 通知。
+ */
+@Composable
+internal fun RemovingSlot(
+    removing: Boolean,
+    onDismissed: () -> Unit,
+    content: @Composable (cardRegion: Modifier, bannerCollapsing: Boolean) -> Unit,
+) {
+    val exitX = remember { Animatable(0f) }
+    // 1 表示还占着完整高度，0 表示已经收干净。
+    val collapse = remember { Animatable(1f) }
+    var widthPx by remember { mutableFloatStateOf(0f) }
+    // 飞出播完之后才置 true：高度收拢与热身提示的收拢据此同时起跑。
+    var collapseStarted by remember { mutableStateOf(false) }
+
+    LaunchedEffect(removing) {
+        if (!removing) {
+            // 半路被换成删别的卡片（外部状态回退）时把这一格放回原样，
+            // 否则会留下一张隐身却仍占高度的卡。
+            if (exitX.value != 0f || collapse.value != 1f) {
+                exitX.snapTo(0f)
+                collapse.snapTo(1f)
+                collapseStarted = false
+            }
+            return@LaunchedEffect
+        }
+        // 宽度还没量到时退化成「直接收高度」，总比原地不动好。
+        exitX.animateTo(widthPx.coerceAtLeast(0f), tween(DISMISS_EXIT_MILLIS))
+        collapseStarted = true
+        collapse.animateTo(0f, tween(DISMISS_COLLAPSE_MILLIS))
+        onDismissed()
+    }
+
+    val cardRegion = Modifier
+        .fillMaxWidth()
+        // 只改自己报给父列表的高度：父列表每帧重新摆放后面的兄弟，它们就被平滑地推上来。
+        // 高度在布局阶段读 collapse，动画只触发重新布局，不触发重组。
+        .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val height = (placeable.height * collapse.value).roundToInt().coerceAtLeast(0)
+            layout(placeable.width, height) { placeable.placeRelative(0, 0) }
+        }
+        .graphicsLayer {
+            translationX = exitX.value
+            // 宽度没量到时别做除法：0 作分母会算出 NaN，整张卡直接画不出来。
+            alpha = if (widthPx > 0f) (1f - exitX.value / widthPx).coerceIn(0f, 1f) else 1f
+        }
+        .onSizeChanged { widthPx = it.width.toFloat() }
+
+    content(cardRegion, collapseStarted)
+}
+
 /** 左滑划走一条热身提示要滑过的距离：按卡片宽度的比例算，太短容易被误触。 */
 private const val WARMUP_DISMISS_FRACTION = 0.3f
 
-/** 划走后把卡片甩出屏幕的动画时长。 */
-private const val WARMUP_DISMISS_DURATION_MS = 180
+/** 删除一条内容时把它甩出屏幕的时长（毫秒）。热身提示与动作卡共用，手感一致。 */
+private const val DISMISS_EXIT_MILLIS = 130
+
+/** 甩出后收起它占的高度、让下面的卡片补上来的时长（毫秒）。 */
+private const val DISMISS_COLLAPSE_MILLIS = 190
 
 /**
  * 左滑把一条热身提示划走：滑过 [WARMUP_DISMISS_FRACTION] 就飞出并回调 [onDismiss]，
  * 否则回弹归位；右滑本来就在起点，不产生位移。
  *
+ * 划走分两步：先把卡片甩出屏幕，再把自己占的高度收到 0，收完才回调 [onDismiss]。第二步是
+ * 「下面那些卡片快速往上滑」的来源——父列表每帧都要重新摆放后面的兄弟，于是它们是被高度
+ * 一点一点推上去的，而不是等卡片移除了整块跳上去。
+ *
+ * 与下一张卡之间的纵向间距（`MaterialTheme.padding.small`）也放在这条提示内部，跟着高度
+ * 一起收：收干净时正好等于「这条提示已被移除」应有的位置，收尾不会突然少掉一截空隙。
+ * 所以调用方不要再在外面加纵向间距。
+ *
  * 热身条里没有输入框，外层 LazyColumn 又是纵向滚动，横滑不会跟别的手势抢。
  * 卡片宽度在布局时量出来，量到之前不判定划走，避免还没上屏就误触发。
+ *
+ * [collapsing] 由列表在「下面那张卡正在被删掉、而这个部位后面又不会再提示」时置 true：
+ * 这条提示留在原地会挡住收拢，数据真正移除那一帧就会整块跳一下，所以要跟着一起收掉。
  */
 @Composable
 internal fun SwipeToDismissWarmup(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    /** true 表示这一条要跟着被删掉的那张卡一起收掉，自己不响应手势。 */
+    collapsing: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
+    // 1 表示还占着完整高度，0 表示已经收干净；划走时从 1 收到 0。
+    val heightFraction = remember { Animatable(1f) }
     var widthPx by remember { mutableFloatStateOf(0f) }
+
+    // 跟着被删的那张卡收掉高度：与卡片收拢同时起跑、同时收完。
+    // 收拢半路被撤销（卡片的删除动画被外部状态回退）时也要跟着还原，别留一条隐形的提示占着高度。
+    LaunchedEffect(collapsing) {
+        if (collapsing) {
+            heightFraction.animateTo(0f, tween(DISMISS_COLLAPSE_MILLIS))
+        } else if (heightFraction.value != 1f && offsetX.value == 0f) {
+            heightFraction.animateTo(1f, tween(DISMISS_COLLAPSE_MILLIS))
+        }
+    }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
+            // 只改自己报给父列表的高度：父列表每帧重新摆放后面的兄弟，它们就被平滑地推上去。
+            // 高度在布局阶段读 heightFraction，动画只触发重新布局，不触发重组。
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val height = (placeable.height * heightFraction.value).roundToInt().coerceAtLeast(0)
+                layout(placeable.width, height) { placeable.placeRelative(0, 0) }
+            }
             .onSizeChanged { widthPx = it.width.toFloat() },
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    translationX = offsetX.value
-                    alpha = if (widthPx > 0f) (1f + offsetX.value / widthPx).coerceIn(0f, 1f) else 1f
-                }
-                .pointerInput(widthPx) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (widthPx > 0f && offsetX.value < -widthPx * WARMUP_DISMISS_FRACTION) {
-                                scope.launch {
-                                    offsetX.animateTo(-widthPx, tween(durationMillis = WARMUP_DISMISS_DURATION_MS))
-                                    onDismiss()
-                                }
-                            } else {
-                                scope.launch { offsetX.animateTo(0f) }
-                            }
-                        },
-                        onDragCancel = { scope.launch { offsetX.animateTo(0f) } },
-                    ) { change, dragAmount ->
-                        change.consume()
-                        scope.launch {
-                            offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-widthPx, 0f))
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        translationX = offsetX.value
+                        val slid = if (widthPx > 0f) {
+                            (1f + offsetX.value / widthPx).coerceIn(0f, 1f)
+                        } else {
+                            1f
                         }
+                        // 自己划走时 slid 归 0，跟着被删的卡片收拢时 heightFraction 归 0；
+                        // 乘在一起，两种收场都是「边缩边淡出」，不会硬裁出一条边。
+                        alpha = slid * heightFraction.value
                     }
-                },
-        ) {
-            content()
+                    .pointerInput(widthPx) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                if (widthPx > 0f && offsetX.value < -widthPx * WARMUP_DISMISS_FRACTION) {
+                                    scope.launch {
+                                        offsetX.animateTo(-widthPx, tween(DISMISS_EXIT_MILLIS))
+                                        heightFraction.animateTo(0f, tween(DISMISS_COLLAPSE_MILLIS))
+                                        onDismiss()
+                                    }
+                                } else {
+                                    scope.launch { offsetX.animateTo(0f) }
+                                }
+                            },
+                            onDragCancel = { scope.launch { offsetX.animateTo(0f) } },
+                        ) { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-widthPx, 0f))
+                            }
+                        }
+                    },
+            ) {
+                content()
+            }
+            // 这条提示与下面内容之间的间距；外层因此不再使用 spacedBy。
+            Spacer(modifier = Modifier.height(MaterialTheme.padding.small))
         }
     }
 }
