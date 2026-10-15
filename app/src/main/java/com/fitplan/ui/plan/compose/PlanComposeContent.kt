@@ -21,19 +21,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,7 +37,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,21 +56,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
 import com.fitplan.domain.model.Routine
 import com.fitplan.presentation.core.components.LabeledCheckbox
-import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
-import com.fitplan.presentation.util.Screen
 import com.fitplan.ui.common.DatePickerButtonsDialog
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.exercise.muscleLabels
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -86,119 +76,73 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
- * 编排健身计划：自上而下是 Day 1 / Day 2 … 的格子，每格安排一个训练计划或休息日，
- * 点顶部「应用」把这套编排按「循环次数」或「截止到」批量铺到日历上。
+ * 「计划」页的第三个子页：编排多日循环。自上而下是 Day 1 / Day 2 … 的格子，每格安排一个训练计划
+ * 或休息日；顶栏的「应用」由 `PlanTab` 提供，把这套编排按「循环次数」或「截止到」批量铺到日历上。
  */
-object PlanComposeScreen : Screen() {
+@Composable
+internal fun PlanComposeContent(contentPadding: PaddingValues) {
+    val screenModel = metroViewModel<PlanComposeScreenModel>()
+    val slots by screenModel.slots.collectAsState()
+    val routines by screenModel.routines.collectAsState()
 
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val screenModel = metroViewModel<PlanComposeScreenModel>()
-        val slots by screenModel.slots.collectAsState()
-        val routines by screenModel.routines.collectAsState()
+    // 编排只在内存里，每次进来都从「只有一个空白格」开始。
+    LaunchedEffect(Unit) {
+        screenModel.reset()
+        screenModel.load()
+    }
 
-        // 编排只在内存里，每次进来都从「只有一个空白格」开始。
-        LaunchedEffect(Unit) {
-            screenModel.reset()
-            screenModel.load()
+    var editIndex by remember { mutableStateOf<Int?>(null) }
+    val cycleLength = composeCycleLength(slots)
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(contentPadding),
+        contentPadding = PaddingValues(
+            horizontal = MaterialTheme.padding.medium,
+            vertical = MaterialTheme.padding.small,
+        ),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+    ) {
+        itemsIndexed(slots) { index, slot ->
+            ComposeSlotCard(
+                slot = slot,
+                dayIndex = index + 1,
+                onClick = { editIndex = index },
+            )
         }
-
-        var editIndex by remember { mutableStateOf<Int?>(null) }
-        var showApply by remember { mutableStateOf(false) }
-        val scope = rememberCoroutineScope()
-        val cycleLength = composeCycleLength(slots)
-
-        Scaffold(
-            topBar = { scrollBehavior ->
-                TopAppBar(
-                    title = { Text(text = stringResource(R.string.plan_compose_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = navigator::pop) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.action_back),
-                            )
-                        }
-                    },
-                    actions = {
-                        TextButton(
-                            onClick = { showApply = true },
-                            enabled = cycleLength > 0,
-                        ) {
-                            Text(text = stringResource(R.string.plan_compose_apply))
-                        }
-                    },
-                    scrollBehavior = scrollBehavior,
+        if (cycleLength == 0) {
+            item {
+                Text(
+                    text = stringResource(R.string.plan_compose_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
                 )
-            },
-        ) { contentPadding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding),
-                contentPadding = PaddingValues(
-                    horizontal = MaterialTheme.padding.medium,
-                    vertical = MaterialTheme.padding.small,
-                ),
-                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-            ) {
-                itemsIndexed(slots) { index, slot ->
-                    ComposeSlotCard(
-                        slot = slot,
-                        dayIndex = index + 1,
-                        onClick = { editIndex = index },
-                    )
-                }
-                if (cycleLength == 0) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.plan_compose_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
             }
         }
+    }
 
-        editIndex?.let { index ->
-            SlotPickerDialog(
-                dayIndex = index + 1,
-                slot = slots.getOrNull(index),
-                routines = routines,
-                onDismiss = { editIndex = null },
-                onPickRoutine = { routine ->
-                    screenModel.setTraining(index, routine)
-                    editIndex = null
-                },
-                onRest = {
-                    screenModel.setRest(index)
-                    editIndex = null
-                },
-                onClear = {
-                    screenModel.clearSlot(index)
-                    editIndex = null
-                },
-            )
-        }
-
-        if (showApply) {
-            ApplyDialog(
-                cycleLength = cycleLength,
-                onDismiss = { showApply = false },
-                onConfirm = { startDate, cycles, until ->
-                    showApply = false
-                    // 写完再 pop：编排页的 ViewModel 会随 pop 一起被清理，提前离开会打断写库。
-                    scope.launch {
-                        screenModel.apply(startDate = startDate, cycles = cycles, until = until)
-                        navigator.pop()
-                    }
-                },
-            )
-        }
+    editIndex?.let { index ->
+        SlotPickerDialog(
+            dayIndex = index + 1,
+            slot = slots.getOrNull(index),
+            routines = routines,
+            onDismiss = { editIndex = null },
+            onPickRoutine = { routine ->
+                screenModel.setTraining(index, routine)
+                editIndex = null
+            },
+            onRest = {
+                screenModel.setRest(index)
+                editIndex = null
+            },
+            onClear = {
+                screenModel.clearSlot(index)
+                editIndex = null
+            },
+        )
     }
 }
 
@@ -390,9 +334,9 @@ private fun SlotPickerDialog(
     )
 }
 
-/** 点顶部「应用」后的弹窗：选起始日期，再选「循环次数」或「截止到」。 */
+/** 点顶栏「应用」后的弹窗：选起始日期，再选「循环次数」或「截止到」。 */
 @Composable
-private fun ApplyDialog(
+internal fun ApplyDialog(
     cycleLength: Int,
     onDismiss: () -> Unit,
     onConfirm: (startDate: LocalDate, cycles: Int?, until: LocalDate?) -> Unit,

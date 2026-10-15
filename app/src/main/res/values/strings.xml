@@ -82,7 +82,9 @@
     </string-array>
 
     <!-- 计划 -->
-    <string name="plan_title">设置单日计划</string>
+    <!-- 顶栏下的三个子页：训练日历 / 单日计划 / 多日循环（第一个沿用 calendar_title） -->
+    <string name="plan_page_single_day">单日计划</string>
+    <string name="plan_page_cycle">多日循环</string>
     <string name="plan_empty">还没有可以被编排的单日计划！\n新建一个，然后在里面添加你的动作！</string>
     <string name="plan_new">新增单日计划</string>
     <string name="plan_rename">编辑名称</string>
@@ -95,7 +97,6 @@
     <string name="field_routine_name">名称</string>
 
     <!-- 编排多日循环 -->
-    <string name="plan_compose_title">编排多日循环</string>
     <string name="plan_compose_apply">应用</string>
     <string name="plan_compose_day_label">Day</string>
     <string name="plan_compose_training">训练</string>
@@ -174,11 +175,7 @@
     <string name="group_preset_collapse">收起动作</string>
 
     <!-- 训练日历 -->
-    <string name="plan_calendar">日历</string>
     <string name="calendar_title">训练日历</string>
-    <!-- 顶栏右上角的两个入口：改单个计划的内容 / 批量铺多日循环 -->
-    <string name="calendar_entry_routine_list">设置单日计划</string>
-    <string name="calendar_entry_compose">编排多日循环</string>
     <string name="calendar_month">%1$d 年 %2$d 月</string>
     <string name="calendar_prev_month">上个月</string>
     <string name="calendar_next_month">下个月</string>

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -28,14 +27,12 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -59,10 +56,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
 import com.fitplan.domain.model.Routine
-import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
-import com.fitplan.presentation.util.Screen
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogDestructiveButton
@@ -75,148 +70,133 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * 训练计划列表：新建 / 重命名 / 删除计划，或者进到计划里编排动作。
+ * 「计划」页的第二个子页：训练计划列表。新建 / 重命名 / 删除计划，或者进到计划里编排动作。
  *
  * 新建走底部整条按钮，并直接落到动作编排页，省得用户再点一次卡片；
  * 删除不摆常驻按钮——长按卡片、或者把卡片往左滑露出红色删除键，都会先弹确认框。
  */
-object RoutineListScreen : Screen() {
+@Composable
+internal fun RoutineListContent(contentPadding: PaddingValues) {
+    val navigator = LocalNavigator.currentOrThrow
+    val screenModel = metroViewModel<PlanScreenModel>()
+    val items by screenModel.items.collectAsState()
+    val loaded by screenModel.loaded.collectAsState()
 
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val screenModel = metroViewModel<PlanScreenModel>()
-        val items by screenModel.items.collectAsState()
-        val loaded by screenModel.loaded.collectAsState()
+    // 从编辑页返回时本组合会重建，顺带刷新一次列表。
+    LaunchedEffect(Unit) { screenModel.refresh() }
 
-        // 从编辑页返回时本组合会重建，顺带刷新一次列表。
-        LaunchedEffect(Unit) { screenModel.refresh() }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var renameTarget by remember { mutableStateOf<Routine?>(null) }
+    var deleteTarget by remember { mutableStateOf<Routine?>(null) }
+    // 同时只允许一张卡片滑开，点别处或弹确认框时自动收回。
+    var revealedId by remember { mutableStateOf<Long?>(null) }
 
-        var showCreateDialog by remember { mutableStateOf(false) }
-        var renameTarget by remember { mutableStateOf<Routine?>(null) }
-        var deleteTarget by remember { mutableStateOf<Routine?>(null) }
-        // 同时只允许一张卡片滑开，点别处或弹确认框时自动收回。
-        var revealedId by remember { mutableStateOf<Long?>(null) }
-
-        Scaffold(
-            topBar = { scrollBehavior ->
-                TopAppBar(
-                    title = { Text(text = stringResource(R.string.plan_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = navigator::pop) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.action_back),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(contentPadding),
+    ) {
+        when {
+            items.isNotEmpty() -> {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = MaterialTheme.padding.small),
+                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                ) {
+                    items(items, key = { it.routine.id }) { item ->
+                        SwipeToRevealDelete(
+                            revealed = revealedId == item.routine.id,
+                            onRevealedChange = { open ->
+                                revealedId = if (open) item.routine.id else null
+                            },
+                            onRequestDelete = {
+                                revealedId = null
+                                deleteTarget = item.routine
+                            },
+                        ) {
+                            RoutineCard(
+                                item = item,
+                                onSchedule = { navigator.push(RoutineEditScreen(item.routine.id)) },
+                                onRename = { renameTarget = item.routine },
                             )
                         }
-                    },
-                    scrollBehavior = scrollBehavior,
-                )
-            },
-            bottomBar = {
-                // 整条铺满的「新增单日计划」，比右下角的加号更容易被发现。
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ) {
-                    Button(
-                        onClick = { showCreateDialog = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(MaterialTheme.padding.medium),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
-                        )
-                        Text(text = stringResource(R.string.plan_new))
                     }
                 }
-            },
-        ) { contentPadding ->
-            when {
-                items.isNotEmpty() -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = contentPadding,
-                        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-                    ) {
-                        items(items, key = { it.routine.id }) { item ->
-                            SwipeToRevealDelete(
-                                revealed = revealedId == item.routine.id,
-                                onRevealedChange = { open ->
-                                    revealedId = if (open) item.routine.id else null
-                                },
-                                onRequestDelete = {
-                                    revealedId = null
-                                    deleteTarget = item.routine
-                                },
-                            ) {
-                                RoutineCard(
-                                    item = item,
-                                    onSchedule = { navigator.push(RoutineEditScreen(item.routine.id)) },
-                                    onRename = { renameTarget = item.routine },
-                                )
-                            }
-                        }
-                    }
-                }
+            }
 
-                loaded -> EmptyScreen(
-                    message = stringResource(R.string.plan_empty),
-                    modifier = Modifier.padding(contentPadding),
+            loaded -> EmptyScreen(
+                message = stringResource(R.string.plan_empty),
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // 整条铺满的「新增单日计划」，比右下角的加号更容易被发现。
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            Button(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(MaterialTheme.padding.medium),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = MaterialTheme.padding.extraSmall),
                 )
+                Text(text = stringResource(R.string.plan_new))
             }
         }
+    }
 
-        if (showCreateDialog) {
-            RoutineDetailDialog(
-                title = stringResource(R.string.plan_new),
-                initialName = "",
-                onDismiss = { showCreateDialog = false },
-                onConfirm = { name ->
-                    // 先收弹窗再跳，避免从编排页返回时弹窗还压在上面。
-                    showCreateDialog = false
-                    screenModel.create(name) { id -> navigator.push(RoutineEditScreen(id)) }
-                },
-            )
-        }
+    if (showCreateDialog) {
+        RoutineDetailDialog(
+            title = stringResource(R.string.plan_new),
+            initialName = "",
+            onDismiss = { showCreateDialog = false },
+            onConfirm = { name ->
+                // 先收弹窗再跳，避免从编排页返回时弹窗还压在上面。
+                showCreateDialog = false
+                screenModel.create(name) { id -> navigator.push(RoutineEditScreen(id)) }
+            },
+        )
+    }
 
-        renameTarget?.let { routine ->
-            RoutineDetailDialog(
-                title = stringResource(R.string.plan_rename),
-                initialName = routine.name,
-                onDismiss = { renameTarget = null },
-                onConfirm = { name ->
-                    screenModel.update(routine.id, name)
-                    renameTarget = null
-                },
-            )
-        }
+    renameTarget?.let { routine ->
+        RoutineDetailDialog(
+            title = stringResource(R.string.plan_rename),
+            initialName = routine.name,
+            onDismiss = { renameTarget = null },
+            onConfirm = { name ->
+                screenModel.update(routine.id, name)
+                renameTarget = null
+            },
+        )
+    }
 
-        deleteTarget?.let { routine ->
-            AlertDialog(
-                onDismissRequest = { deleteTarget = null },
-                title = { Text(text = stringResource(R.string.plan_delete)) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
-                        Text(text = stringResource(R.string.plan_delete_confirm, routine.name))
-                        DialogButtonColumn {
-                            DialogDestructiveButton(
-                                text = stringResource(R.string.action_delete),
-                                onClick = {
-                                    screenModel.delete(routine.id)
-                                    deleteTarget = null
-                                },
-                            )
-                            DialogCancelButton(onClick = { deleteTarget = null })
-                        }
+    deleteTarget?.let { routine ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text(text = stringResource(R.string.plan_delete)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                    Text(text = stringResource(R.string.plan_delete_confirm, routine.name))
+                    DialogButtonColumn {
+                        DialogDestructiveButton(
+                            text = stringResource(R.string.action_delete),
+                            onClick = {
+                                screenModel.delete(routine.id)
+                                deleteTarget = null
+                            },
+                        )
+                        DialogCancelButton(onClick = { deleteTarget = null })
                     }
-                },
-                confirmButton = {},
-            )
-        }
+                }
+            },
+            confirmButton = {},
+        )
     }
 }
 
