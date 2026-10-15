@@ -14,8 +14,11 @@ import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.interactor.TakeRestToday
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
 import com.fitplan.domain.interactor.UseUpcomingTrainingPlanForToday
+import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.repository.ExerciseRepository
+import com.fitplan.domain.repository.RoutineRepository
+import com.fitplan.domain.repository.ScheduleRepository
 import com.fitplan.domain.repository.WorkoutRepository
 import com.fitplan.reminder.RestState
 import com.fitplan.reminder.RestTimer
@@ -62,7 +65,7 @@ data class TodaySessionExercise(
  * 表示「正在训练」；单独排列的动作被「跳过动作」时打删除线并变灰
  * （动作组里的成员不打删除线——组内该显示哪几个由数量规则决定）。
  *
- * [routineId] 是这次训练对应的计划 id；null 表示计划外训练（休息日「临时加一场训练」），
+ * [routineId] 是这次训练对应的计划 id；null 表示计划外训练（今天没照任何计划练），
  * 没有计划卡片可以标注。
  */
 data class TodaySessionProgress(
@@ -112,6 +115,8 @@ class TodayScreenModel(
     private val closeStaleWorkouts: CloseStaleWorkouts,
     private val workoutRepository: WorkoutRepository,
     private val exerciseRepository: ExerciseRepository,
+    private val routineRepository: RoutineRepository,
+    private val scheduleRepository: ScheduleRepository,
     private val widgetManager: WidgetManager,
     private val dataRevision: DataRevision,
     private val restTimer: RestTimer,
@@ -154,7 +159,7 @@ class TodayScreenModel(
 
     /**
      * 今天这次已结束训练练了哪些动作、各自练了多少，供今日页在没有对应计划卡片时
-     * （休息日「临时加一场训练」这类计划外训练）补一张总结卡片；其余情况为空列表。
+     * （今天没照任何计划练的那种）补一张总结卡片；其余情况为空列表。
      */
     private val _todaySessionExercises = MutableStateFlow<List<TodaySessionExercise>>(emptyList())
     val todaySessionExercises: StateFlow<List<TodaySessionExercise>> = _todaySessionExercises.asStateFlow()
@@ -183,6 +188,13 @@ class TodayScreenModel(
     private val _nextRestDay = MutableStateFlow<LocalDate?>(null)
     val nextRestDay: StateFlow<LocalDate?> = _nextRestDay.asStateFlow()
 
+    /**
+     * 可排进今天的常驻计划，休息日「临时加一场训练」弹出的「选择要排入的计划」用它。
+     * 只列常驻计划：临时计划不进列表（用户真要临时计划，弹窗里那个按钮会现编一份）。
+     */
+    private val _pickerRoutines = MutableStateFlow<List<Routine>>(emptyList())
+    val pickerRoutines: StateFlow<List<Routine>> = _pickerRoutines.asStateFlow()
+
     /** 改完排期后要直接开练的计划 id；界面消费完调 [consumeStartRequest] 清掉，避免返回时又跳一次。 */
     private val _startRoutineRequest = MutableStateFlow<Long?>(null)
     val startRoutineRequest: StateFlow<Long?> = _startRoutineRequest.asStateFlow()
@@ -197,47 +209,67 @@ class TodayScreenModel(
     val restFinishedTick: StateFlow<Int> = restTimer.finishedTick
 
     fun refresh() {
+        viewModelScope.launch { load() }
+    }
+
+    /**
+     * 进入今日页时调用：先清掉没用的临时计划，再取一次数。
+     *
+     * 之所以要连着取数、而且放在同一个协程里：刚在临时计划的编排页里什么都没加就退回来时，
+     * 那张空壳计划正是排在今天、马上要被清掉的那张；若「取数」与「清扫」各起一个协程，
+     * 取数可能先读到它，今日页就留下一张指向已经删掉的计划的卡片（点「开始训练」进去是空的）。
+     *
+     * 不把清扫并进 [refresh]：用户可能正停在编排页里给刚建好的空计划加动作，
+     * 那种时刻刷新一次就会把它删掉。
+     */
+    fun clearUnusedTempPlans() {
         viewModelScope.launch {
-            // 先把隔天遗留的旧账收尾（有已勾组就补记成已结束），后面的取数才是一致的。
-            closeStaleWorkouts()
-            val date = today()
-            _date.value = date
-            _restDay.value = isRestDay(date)
-            val routines = getScheduledRoutinesForDate(date)
-            _routines.value = routines
-            val todaySession = getTodayWorkoutSession()
-            _todaySession.value = todaySession
-            // 「继续训练」只照顾当天没练完的那次：隔天的旧账已被 CloseStaleWorkouts 收尾，
-            // 当天这次也已经结束时更不该再给续练入口（否则会和「再来！」一起亮）。
-            _unfinished.value = workoutRepository.getUnfinishedSessions()
-                .filter { it.startedAt >= date.atStartOfDayIn(TimeZone.currentSystemDefault()) }
-                .maxByOrNull { it.startedAt }
-                .takeIf { todaySession?.isFinished != true }
-
-            // 今天照哪张计划练：找得到当天的排期卡片才谈得上「计划内 / 临时」，找不到
-            // （休息日「临时加一场训练」这类计划外训练）就没有计划编排可比；这张卡片也给出计划内动作的目标组数。
-            val plannedRoutine = todaySession?.routineId
-                ?.let { routineId -> routines.firstOrNull { it.routine.id == routineId } }
-            val plannedExerciseIds = plannedRoutine?.exercises?.map { it.exerciseId }?.toSet()
-
-            // 今天练过的动作汇总（只含已完成组）；训练中与已结束都算，只查一次给两处共用。
-            val loggedExercises = todaySession?.let { loadSessionExercises(it.id) }.orEmpty()
-
-            // 没有计划卡片时，练了什么全靠总结卡片列出来（口径与界面的 standaloneFinished 一致，
-            // 只有已结束的训练才给卡片）；有计划卡片时改由计划卡片自己展示，这里不再重复。
-            _todaySessionExercises.value = when {
-                plannedExerciseIds != null -> emptyList()
-                else -> loggedExercises.takeIf { todaySession?.isFinished == true }.orEmpty()
-            }
-
-            // 有计划卡片时，把练过、计划编排里却没有的动作标出来：它们就是训练中临时加的。
-            val extras = loggedExercises.filterNot { it.exerciseId in plannedExerciseIds.orEmpty() }
-            _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it, plannedRoutine, extras) }
-
-            _upcomingPlan.value = getUpcomingTrainingPlan(date)
-            _nextRestDay.value = getNextRestDay(date)
-            _loaded.value = true
+            routineRepository.deleteUnusedTempPlans()
+            load()
         }
+    }
+
+    private suspend fun load() {
+        // 先把隔天遗留的旧账收尾（有已勾组就补记成已结束），后面的取数才是一致的。
+        closeStaleWorkouts()
+        val date = today()
+        _date.value = date
+        _restDay.value = isRestDay(date)
+        val routines = getScheduledRoutinesForDate(date)
+        _routines.value = routines
+        val todaySession = getTodayWorkoutSession()
+        _todaySession.value = todaySession
+        // 「继续训练」只照顾当天没练完的那次：隔天的旧账已被 CloseStaleWorkouts 收尾，
+        // 当天这次也已经结束时更不该再给续练入口（否则会和「再来！」一起亮）。
+        _unfinished.value = workoutRepository.getUnfinishedSessions()
+            .filter { it.startedAt >= date.atStartOfDayIn(TimeZone.currentSystemDefault()) }
+            .maxByOrNull { it.startedAt }
+            .takeIf { todaySession?.isFinished != true }
+
+        // 今天照哪张计划练：找得到当天的排期卡片才谈得上「计划内 / 临时」，找不到
+        // （今天没照排期练的计划外训练）就没有计划编排可比；这张卡片也给出计划内动作的目标组数。
+        val plannedRoutine = todaySession?.routineId
+            ?.let { routineId -> routines.firstOrNull { it.routine.id == routineId } }
+        val plannedExerciseIds = plannedRoutine?.exercises?.map { it.exerciseId }?.toSet()
+
+        // 今天练过的动作汇总（只含已完成组）；训练中与已结束都算，只查一次给两处共用。
+        val loggedExercises = todaySession?.let { loadSessionExercises(it.id) }.orEmpty()
+
+        // 没有计划卡片时，练了什么全靠总结卡片列出来（口径与界面的 standaloneFinished 一致，
+        // 只有已结束的训练才给卡片）；有计划卡片时改由计划卡片自己展示，这里不再重复。
+        _todaySessionExercises.value = when {
+            plannedExerciseIds != null -> emptyList()
+            else -> loggedExercises.takeIf { todaySession?.isFinished == true }.orEmpty()
+        }
+
+        // 有计划卡片时，把练过、计划编排里却没有的动作标出来：它们就是训练中临时加的。
+        val extras = loggedExercises.filterNot { it.exerciseId in plannedExerciseIds.orEmpty() }
+        _todaySessionProgress.value = todaySession?.let { loadSessionProgress(it, plannedRoutine, extras) }
+
+        _upcomingPlan.value = getUpcomingTrainingPlan(date)
+        _nextRestDay.value = getNextRestDay(date)
+        _pickerRoutines.value = routineRepository.getPermanent()
+        _loaded.value = true
     }
 
     /**
@@ -338,16 +370,47 @@ class TodayScreenModel(
         val plan = _upcomingPlan.value ?: return
         viewModelScope.launch {
             val routineId = useUpcomingTrainingPlanForToday(plan)
-            refresh()
-            // 日历页可能已经取过数，改完排期要让它跟着重算。
-            dataRevision.bump()
-            widgetManager.updateTodayWidget()
+            afterScheduleChange()
             _startRoutineRequest.value = routineId
         }
     }
 
     fun consumeStartRequest() {
         _startRoutineRequest.value = null
+    }
+
+    /**
+     * 休息日「临时加一场训练」里挑了一个已有计划：把它排进今天，**不**跳训练页。
+     *
+     * 排完今日页自然从休息页变成这张计划的卡片，用户在卡片上点「开始训练」再开练；
+     * 与「使用未来的计划」那种「改完就开练」的入口刻意区分开。
+     */
+    fun scheduleRoutineForToday(routineId: Long) {
+        viewModelScope.launch {
+            scheduleRepository.replacePlanOn(routineId, today())
+            afterScheduleChange()
+        }
+    }
+
+    /**
+     * 休息日「临时加一场训练」里选了「临时计划」：现编一份只排今天的临时计划，然后把新计划 id 回调出去
+     * 进编排页加动作。口径与日历「添加计划 → 临时计划」（`PlanCalendarScreenModel.createTempPlan`）一致。
+     */
+    fun createTempPlanForToday(name: String, onCreated: (Long) -> Unit) {
+        viewModelScope.launch {
+            val routineId = routineRepository.insertTemp(name, Clock.System.now())
+            scheduleRepository.replacePlanOn(routineId, today())
+            afterScheduleChange()
+            onCreated(routineId)
+        }
+    }
+
+    /** 改完排期后的收尾：刷新今日页、通知其它页面重算、刷新桌面组件。 */
+    private suspend fun afterScheduleChange() {
+        load()
+        // 日历页可能已经取过数，改完排期要让它跟着重算。
+        dataRevision.bump()
+        widgetManager.updateTodayWidget()
     }
 
     /**
@@ -362,10 +425,7 @@ class TodayScreenModel(
                 ?.takeUnless { it.isFinished }
                 ?.let { workoutRepository.deleteSession(it.id) }
             takeRestToday(mode)
-            refresh()
-            // 日历页可能已经取过数，改完排期要让它跟着重算。
-            dataRevision.bump()
-            widgetManager.updateTodayWidget()
+            afterScheduleChange()
         }
     }
 

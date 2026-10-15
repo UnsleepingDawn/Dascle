@@ -19,7 +19,8 @@ data class UpcomingTrainingPlan(
 
 /**
  * 找今天之后最近的一个训练日。之后完全没有启用排期时返回 null——
- * 那种情况下「使用明天的计划」没有内容可搬，只能走临时加一场训练。
+ * 那种情况下「使用明天 / 未来的计划」没有内容可搬，只能走「临时加一场训练」那条路
+ * （挑一个已有计划排进今天，或现编一份临时计划）。
  */
 @Inject
 class GetUpcomingTrainingPlan(

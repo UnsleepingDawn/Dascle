@@ -2,7 +2,6 @@ package com.fitplan.ui.today
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -86,6 +85,7 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import com.fitplan.app.R
 import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
+import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.presentation.core.components.material.Scaffold
@@ -95,12 +95,15 @@ import com.fitplan.reminder.RestState
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogPrimaryButton
+import com.fitplan.ui.plan.calendar.RoutinePickerDialog
+import com.fitplan.ui.plan.routine.RoutineEditScreen
 import com.fitplan.ui.plan.routine.targetText
 import com.fitplan.ui.workout.WorkoutLogScreen
 import com.fitplan.ui.workout.toClockText
 import com.fitplan.ui.workout.toWeightText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.isoDayNumber
 import kotlin.math.PI
@@ -129,6 +132,7 @@ object TodayTab : Tab {
         val loaded by screenModel.loaded.collectAsState()
         val upcomingPlan by screenModel.upcomingPlan.collectAsState()
         val nextRestDay by screenModel.nextRestDay.collectAsState()
+        val pickerRoutines by screenModel.pickerRoutines.collectAsState()
         val startRoutineRequest by screenModel.startRoutineRequest.collectAsState()
         val rest by screenModel.rest.collectAsState()
         val restFinishedTick by screenModel.restFinishedTick.collectAsState()
@@ -136,8 +140,9 @@ object TodayTab : Tab {
         // 训练卡片右上角「今日休息」的选择框是否展开。
         var showRestDialog by remember { mutableStateOf(false) }
 
-        // 从训练记录页返回时本组合会重建，顺带刷新一次。
-        LaunchedEffect(Unit) { screenModel.refresh() }
+        // 从训练记录页返回时本组合会重建，顺带刷新一次；这一步同时把没用的临时计划（空壳或已不在排期上）
+        // 清掉再取数，免得在临时计划的编排页里什么都没加就退回来时，今日页还挂着这张空计划卡片。
+        LaunchedEffect(Unit) { screenModel.clearUnusedTempPlans() }
 
         // 休息日改用之后最近的计划之后，直接进训练记录页把今天的训练开起来。
         LaunchedEffect(startRoutineRequest) {
@@ -147,6 +152,9 @@ object TodayTab : Tab {
         }
 
         val weekdayNames = stringArrayResource(R.array.weekday_names)
+
+        // 临时计划的名字存进库、要显示在日历与今日页上，所以取文案在这里取好再传下去。
+        val tempPlanName = stringResource(R.string.calendar_temp_plan)
 
         // 今天的训练已经做完：计划卡片的「开始训练」置灰，下方改给一张「还想练？」卡片。
         val finishedSession = todaySession?.takeIf { it.isFinished }
@@ -160,7 +168,7 @@ object TodayTab : Tab {
             routines.none { it.routine.id == session.routineId }
         }
 
-        // 今天这次已结束的训练没有对应的计划卡片（休息日「临时加一场训练」这类计划外训练）时，
+        // 今天这次已结束的训练没有对应的计划卡片（今天没有照任何计划练）时，
         // 页面原本只剩鼓励语，看不到今天到底练了什么，这里补一张总结卡片放在鼓励语上面。
         // 练完的动作一条都没记录（组数全没勾）时不给空卡片。
         val standaloneFinished = finishedSession?.takeIf { session ->
@@ -204,8 +212,14 @@ object TodayTab : Tab {
                     RestDayBlock(
                         interactive = unfinished == null && finishedSession == null,
                         upcomingPlan = upcomingPlan,
+                        routines = pickerRoutines,
                         onUseUpcoming = screenModel::useUpcomingPlan,
-                        onStartFreeWorkout = { navigator.push(WorkoutLogScreen(tempPlan = true)) },
+                        onPickRoutine = screenModel::scheduleRoutineForToday,
+                        onCreateTempPlan = {
+                            screenModel.createTempPlanForToday(tempPlanName) { routineId ->
+                                navigator.push(RoutineEditScreen(routineId))
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
@@ -934,8 +948,8 @@ private fun TodayExerciseRow(
 }
 
 /**
- * 今天这场训练没有对应的计划卡片（休息日「临时加一场训练」这类计划外训练的入口是「开始训练」，
- * 练完之后原先只在页面上留一句鼓励语）时，在鼓励语上面补一张总结卡片，
+ * 今天这场训练没有对应的计划卡片（今天没有照任何计划练）时，练完之后原先只在页面上留一句鼓励语，
+ * 这里在鼓励语上面补一张总结卡片，
  * 让用户看得到今天到底练了什么：计划名 + 动作数 + 每个动作的实际训练量。
  *
  * 版式与计划卡片同规格，但只展示、不给入口。[progress] 非空表示这张卡就是今天这场训练的总结，
@@ -1042,9 +1056,9 @@ private fun ExtraWorkoutCard(
 }
 
 /**
- * 还没结束的训练（含休息日「临时加一场训练」这类计划外训练），点一下接着练。
+ * 还没结束的训练（计划外训练也算），点一下接着练。
  *
- * 与计划卡片**同地位**：标题就是这次训练的名字（计划外训练叫「临时训练」），
+ * 与计划卡片**同地位**：标题就是这次训练的名字（计划外训练叫「自由训练」），
  * 右侧同样能放下组间休息的「进度条 + 闹钟」；已经练过的动作照计划卡片的样式铺出来。
  */
 @Composable
@@ -1123,15 +1137,18 @@ private fun UnfinishedSessionCard(
  *
  * [interactive] 为 true（今天还没开练）时，小人图标可以连点三下「升级」——
  * 图标 →「不想休息？」→「还想练？」→「开练！」，字号一步步变大，最后浮出两个开练的出口：
- * 「使用明天的计划」把之后最近一次训练挪到今天，或「临时加一场训练」直接开一场计划外训练。
+ * 「使用明天的计划 / 使用未来的计划」（文案按之后最近的排期是不是明天来定）把那次训练挪到今天，
+ * 或「临时加一场训练」弹出「选择要排入的计划」——挑一个已有计划排进今天，或现编一份临时计划。
  * 不满足条件时退回静态的休息页，不摆这些出口。
  */
 @Composable
 private fun RestDayBlock(
     interactive: Boolean,
     upcomingPlan: UpcomingTrainingPlan?,
+    routines: List<Routine>,
     onUseUpcoming: () -> Unit,
-    onStartFreeWorkout: () -> Unit,
+    onPickRoutine: (Long) -> Unit,
+    onCreateTempPlan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 寄语每次进今日页随机取一条，进来就固定。这里不能用 stringArrayResource 的结果当
@@ -1139,12 +1156,37 @@ private fun RestDayBlock(
     val messages = stringArrayResource(R.array.today_rest_encouragements)
     val message = remember { messages.random() }
 
+    // 之后最近的排期正好在明天才叫「明天的计划」，落在更远的某天（或之后完全没有排期）都按「未来的计划」说。
+    val useUpcomingLabel = if (upcomingPlan?.dayOffset == 1) {
+        R.string.today_rest_use_upcoming
+    } else {
+        R.string.today_rest_use_future
+    }
+
     // 点了几次图标。用 rememberSaveable：转屏、切到别的 Tab 再回来都停在原来那一档，
     // 不会把已经点出来的「开练！」又收回去。
     var stage by rememberSaveable { mutableIntStateOf(0) }
     var showUpcomingDialog by remember { mutableStateOf(false) }
+    var showRoutinePicker by remember { mutableStateOf(false) }
     // 条件不满足时按第一档渲染，但不动 stage，免得条件一变回就跳过中间几档。
     val shownStage = if (interactive) stage else 0
+
+    // 按钮不能跟着 shownStage 直接进入可见状态：`AnimatedVisibility` 只要变可见就立刻占住布局，
+    // 哪怕它的淡入还停在延时起点、一个像素都没画出来。提前占位会把上面的「还想练？」和寄语
+    // 在点击当帧整体顶上去（实测上窜 202px），看着就是「先跳到上面再消失」。所以这里显式等
+    // 退场走完再放它进来，让位置改写落在「上一档已经淡干净、下一档还没亮」的那一帧上。
+    // 初值按「进来时已经停在最后一档」算（转屏、切 Tab 回来、进程重建后 stage 被恢复）：
+    // 那种情况下按钮本来就在屏上，不能再等一段，否则满不透明的「开练！」会被迟到 140ms 的
+    // 按钮顶上去一次。
+    val buttonsVisible = remember { MutableTransitionState(shownStage == REST_LAST_STAGE) }
+    LaunchedEffect(shownStage == REST_LAST_STAGE) {
+        if (shownStage == REST_LAST_STAGE) {
+            delay(REST_STAGE_EXIT_MILLIS.toLong())
+            buttonsVisible.targetState = true
+        } else {
+            buttonsVisible.targetState = false
+        }
+    }
 
     Column(
         modifier = modifier.padding(horizontal = MaterialTheme.padding.extraLarge),
@@ -1154,8 +1196,18 @@ private fun RestDayBlock(
         AnimatedContent(
             targetState = shownStage,
             transitionSpec = {
-                (fadeIn(tween(REST_STAGE_ANIM_MILLIS)) + scaleIn(initialScale = 0.7f))
-                    .togetherWith(fadeOut(tween(REST_STAGE_ANIM_MILLIS)))
+                // 升到最后一档时退场先走完、进场再开始：让「还想练？」与下面的寄语先安静淡出，
+                // 空一下之后「开练！」才浮出来；其余档位仍是新旧内容交叉淡化。
+                if (targetState == REST_LAST_STAGE) {
+                    (
+                        fadeIn(tween(REST_STAGE_ANIM_MILLIS, delayMillis = REST_STAGE_EXIT_MILLIS)) +
+                            scaleIn(tween(REST_STAGE_ANIM_MILLIS), initialScale = 0.7f)
+                        )
+                        .togetherWith(fadeOut(tween(REST_STAGE_EXIT_MILLIS)))
+                } else {
+                    (fadeIn(tween(REST_STAGE_ANIM_MILLIS)) + scaleIn(initialScale = 0.7f))
+                        .togetherWith(fadeOut(tween(REST_STAGE_ANIM_MILLIS)))
+                }
             },
             contentAlignment = Alignment.Center,
             label = "restDayEscalate",
@@ -1204,11 +1256,11 @@ private fun RestDayBlock(
             }
         }
 
-        // 问到「开练！」时寄语让位给下面的按钮。退场不做过场：这一档要寄语当帧就消失，
-        // 否则淡出的那句话会和稍后冒出来的按钮叠在同一屏上。
+        // 问到「开练！」时寄语跟着「还想练？」一起快速淡出（与上面的退场同一个时长），
+        // 把这一屏先清空，稍后再让「开练！」与按钮依次冒出来。
         AnimatedVisibility(
             visible = shownStage < REST_LAST_STAGE,
-            exit = ExitTransition.None,
+            exit = fadeOut(tween(REST_STAGE_EXIT_MILLIS)),
         ) {
             Text(
                 text = message,
@@ -1219,9 +1271,10 @@ private fun RestDayBlock(
             )
         }
 
-        // 稍晚一点淡入，做出「先出现开练、再冒按钮」的层次。
+        // 等「开练！」淡入之后再淡入，做出「先把文字清空、再出现开练、最后冒按钮」的层次。
+        // 可见性走 buttonsVisible：占位时机由上面那个 LaunchedEffect 掐，不能直接跟着档位。
         AnimatedVisibility(
-            visible = shownStage == REST_LAST_STAGE,
+            visibleState = buttonsVisible,
             enter = fadeIn(tween(REST_STAGE_ANIM_MILLIS, delayMillis = REST_STAGE_ANIM_MILLIS)),
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -1237,7 +1290,7 @@ private fun RestDayBlock(
                     enabled = upcomingPlan != null,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(text = stringResource(R.string.today_rest_use_upcoming))
+                    Text(text = stringResource(useUpcomingLabel))
                 }
                 if (upcomingPlan == null) {
                     Text(
@@ -1249,7 +1302,7 @@ private fun RestDayBlock(
                     )
                 }
                 OutlinedButton(
-                    onClick = onStartFreeWorkout,
+                    onClick = { showRoutinePicker = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(text = stringResource(R.string.today_rest_start_free))
@@ -1263,7 +1316,7 @@ private fun RestDayBlock(
     if (showUpcomingDialog && plan != null) {
         AlertDialog(
             onDismissRequest = { showUpcomingDialog = false },
-            title = { Text(text = stringResource(R.string.today_rest_upcoming_title)) },
+            title = { Text(text = stringResource(useUpcomingLabel)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
                     Text(
@@ -1289,6 +1342,24 @@ private fun RestDayBlock(
             confirmButton = {},
         )
     }
+
+    // 「临时加一场训练」复用日历那套「选择要排入的计划」：挑一个已有计划排进今天（只排期、不跳页），
+    // 或现编一份只排今天的临时计划再进编排页加动作。
+    if (showRoutinePicker) {
+        RoutinePickerDialog(
+            title = stringResource(R.string.calendar_pick_routine),
+            routines = routines,
+            onPick = { routineId ->
+                showRoutinePicker = false
+                onPickRoutine(routineId)
+            },
+            onDismiss = { showRoutinePicker = false },
+            onCreateTempPlan = {
+                showRoutinePicker = false
+                onCreateTempPlan()
+            },
+        )
+    }
 }
 
 /** 休息页三档升级的档数：0 小人图标，1「不想休息？」，2「还想练？」，3「开练！」+ 两个出口。 */
@@ -1296,6 +1367,15 @@ private const val REST_LAST_STAGE = 3
 
 /** 休息页每档之间的淡入淡出时长（毫秒）。 */
 private const val REST_STAGE_ANIM_MILLIS = 220
+
+/**
+ * 升到最后一档时，「还想练？」与寄语淡出的时长（毫秒）。
+ *
+ * 比 [REST_STAGE_ANIM_MILLIS] 短一截，观感上就是「文字先快速散掉、再让开练与按钮浮出来」；
+ * 「开练！」与按钮的淡入都往后等这一段，所以这一档的总时长是
+ * [REST_STAGE_EXIT_MILLIS]（清空）+ [REST_STAGE_ANIM_MILLIS]（开练）+ [REST_STAGE_ANIM_MILLIS]（按钮）。
+ */
+private const val REST_STAGE_EXIT_MILLIS = 140
 
 /** 休息页的小人图标与「开练！」文字的颜色：深蓝色，不跟随主题的 tertiary（绿／粉／灰）。 */
 private val RestDayAccentColor = Color(0xFF1565C0)

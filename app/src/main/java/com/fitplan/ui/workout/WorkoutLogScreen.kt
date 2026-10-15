@@ -55,13 +55,6 @@ class WorkoutLogScreen(
     private val editing: Boolean = false,
     /** true 表示把这次已结束的训练重新置为进行中（今日页「还想练？」入口），新加内容追加到同一次训练。 */
     private val reopen: Boolean = false,
-    /**
-     * true 表示这是休息日「临时加一场训练」开出来的训练，只影响这场训练的名字（叫「临时训练」）。
-     *
-     * 撤掉 / 还原今天的休息日状态不靠这个参数：休息日由「没有排期也没有训练记录」推导，
-     * 开练之后今天自然不再是休息日，放弃之后又会变回休息日——只有库里的事实靠得住。
-     */
-    private val tempPlan: Boolean = false,
 ) : Screen() {
 
     @Composable
@@ -91,20 +84,16 @@ class WorkoutLogScreen(
         val scrollTracker = remember { WorkoutScrollTracker() }
         var revealRequest by remember { mutableStateOf<RevealRequest?>(null) }
 
-        // 计划外训练的名字：休息日的「临时加一场训练」用「临时训练」，其余用「自由训练」。
-        val freeName = stringResource(
-            if (tempPlan) R.string.today_rest_temp_plan else R.string.workout_free,
-        )
+        // 计划外训练（没有计划，计划名也就是空的）用的兜底名字，也是这场的 session 名。
+        val freeName = stringResource(R.string.workout_free)
 
         // 从「今日」页进来时只带参数，真正的状态由 ScreenModel 按 sessionId / routineId 还原。
-        // 「临时加一场训练」进来时直接带上名字自动开练，省掉再点一次「开始训练」。
         LaunchedEffect(sessionId, routineId, editing, reopen) {
             screenModel.load(
                 sessionId = sessionId,
                 routineId = routineId,
                 editing = editing,
                 reopen = reopen,
-                autoStartName = freeName.takeIf { tempPlan },
             )
         }
 
