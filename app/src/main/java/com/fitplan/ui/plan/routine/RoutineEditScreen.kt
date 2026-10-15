@@ -1,5 +1,6 @@
 package com.fitplan.ui.plan.routine
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
+import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineGroup
 import com.fitplan.domain.model.RoutineItem
@@ -83,13 +85,22 @@ class RoutineEditScreen(
         var editTarget by remember { mutableStateOf<RoutineExercise?>(null) }
         var groupRenameTarget by remember { mutableStateOf<RoutineGroup?>(null) }
         var showGroupActionDialog by remember { mutableStateOf(false) }
+        // true 表示正在提醒「这一天同时排了胸和背」，用户确认之后才真的退出编排页。
+        var showImbalanceDialog by remember { mutableStateOf(false) }
+
+        // 返回前先看一眼编排：同一天既排了胸又排了背就先提醒，确认之后才退出。
+        val requestExit = {
+            if (items.hasChestAndBack()) showImbalanceDialog = true else navigator.pop()
+        }
+        // 系统返回键与顶栏返回箭头走同一套判断；提醒弹窗开着时由弹窗自己处理返回。
+        BackHandler(enabled = !showImbalanceDialog) { requestExit() }
 
         Scaffold(
             topBar = { scrollBehavior ->
                 TopAppBar(
                     title = { Text(text = routineName) },
                     navigationIcon = {
-                        IconButton(onClick = navigator::pop) {
+                        IconButton(onClick = { requestExit() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.action_back),
@@ -168,7 +179,59 @@ class RoutineEditScreen(
         if (showWeightIntro) {
             WeightIntroDialog(onDismiss = screenModel::dismissWeightIntro)
         }
+
+        if (showImbalanceDialog) {
+            ImbalanceDialog(
+                onDismiss = { showImbalanceDialog = false },
+                onConfirm = {
+                    showImbalanceDialog = false
+                    navigator.pop()
+                },
+            )
+        }
     }
+}
+
+/**
+ * 这一天是不是同时排了胸和背的动作。
+ *
+ * 动作组按组内全部动作算：组里既有胸又有背，也算这一天会同时练到两块大肌群。
+ */
+internal fun List<RoutineItem>.hasChestAndBack(): Boolean {
+    val muscles = flatMap { it.exercises }.flatMap { it.muscleGroups }
+    return MuscleGroup.CHEST in muscles && MuscleGroup.BACK in muscles
+}
+
+/**
+ * 返回前的提醒：同一天既排了胸又排了背。
+ *
+ * 「返回修改」只收起弹窗，让用户回去接着调整；「仍然返回」才真的退出编排页。
+ */
+@Composable
+private fun ImbalanceDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.routine_edit_imbalance_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.routine_edit_imbalance_message))
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.routine_edit_imbalance_back),
+                        onClick = onDismiss,
+                    )
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.routine_edit_imbalance_keep),
+                        onClick = onConfirm,
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+    )
 }
 
 /**
