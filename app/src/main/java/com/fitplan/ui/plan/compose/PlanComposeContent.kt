@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -38,10 +39,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -72,12 +75,15 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
  * 「计划」页的第三个子页：编排多日循环。自上而下是 Day 1 / Day 2 … 的格子，每格安排一个训练计划
- * 或休息日；顶栏的「应用」由 `PlanTab` 提供，把这套编排按「循环次数」或「截止到」批量铺到日历上。
+ * 或休息日；长按任意一格可以上下拖动调整顺序，末尾「加一天」的空格固定留在最后。
+ * 顶栏的「应用」由 `PlanTab` 提供，把这套编排按「循环次数」或「截止到」批量铺到日历上。
  */
 @Composable
 internal fun PlanComposeContent(contentPadding: PaddingValues) {
@@ -94,25 +100,61 @@ internal fun PlanComposeContent(contentPadding: PaddingValues) {
     var editIndex by remember { mutableStateOf<Int?>(null) }
     val cycleLength = composeCycleLength(slots)
 
+    // 拖动过程中先改本地列表，落位后再回写 ScreenModel；末尾那个「加一天」的空白格不参与排序。
+    val slotsState = remember { slots.toMutableStateList() }
+    val lazyListState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(lazyListState, contentPadding) { from, to ->
+        val lastRealIndex = slotsState.lastIndex - 1
+        val targetIndex = to.index.coerceAtMost(lastRealIndex)
+        if (targetIndex >= 0 && from.index != targetIndex) {
+            slotsState.add(targetIndex, slotsState.removeAt(from.index))
+            screenModel.reorder(from.index, targetIndex)
+        }
+    }
+
+    LaunchedEffect(slots) {
+        if (!reorderableState.isAnyItemDragging) {
+            slotsState.clear()
+            slotsState.addAll(slots)
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding),
+        state = lazyListState,
         contentPadding = PaddingValues(
             horizontal = MaterialTheme.padding.medium,
             vertical = MaterialTheme.padding.small,
         ),
         verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
     ) {
-        itemsIndexed(slots) { index, slot ->
-            ComposeSlotCard(
-                slot = slot,
-                dayIndex = index + 1,
-                onClick = { editIndex = index },
-            )
+        // 只有实际参与循环的格子能拖；末尾那一格是「加一天」的入口，永远排最后。
+        itemsIndexed(slotsState.dropLast(1), key = { _, slot -> slot.id }) { index, slot ->
+            ReorderableItem(reorderableState, slot.id) { isDragging ->
+                ComposeSlotCard(
+                    slot = slot,
+                    dayIndex = index + 1,
+                    isDragging = isDragging,
+                    onClick = { editIndex = index },
+                    modifier = Modifier
+                        .animateItem()
+                        .longPressDraggableHandle(),
+                )
+            }
+        }
+        slotsState.lastOrNull()?.let { tail ->
+            item(key = tail.id) {
+                ComposeSlotCard(
+                    slot = tail,
+                    dayIndex = slotsState.size,
+                    onClick = { editIndex = slotsState.lastIndex },
+                )
+            }
         }
         if (cycleLength == 0) {
-            item {
+            item(key = EMPTY_HINT_KEY) {
                 Text(
                     text = stringResource(R.string.plan_compose_empty),
                     style = MaterialTheme.typography.bodySmall,
@@ -151,6 +193,8 @@ private fun ComposeSlotCard(
     slot: ComposeSlot,
     dayIndex: Int,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isDragging: Boolean = false,
 ) {
     val containerColor: Color
     val outlineColor: Color
@@ -183,7 +227,7 @@ private fun ComposeSlotCard(
 
     val shape = MaterialTheme.shapes.large
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
@@ -207,6 +251,7 @@ private fun ComposeSlotCard(
             modifier = Modifier
                 .weight(1f)
                 .height(SLOT_HEIGHT)
+                .shadow(elevation = if (isDragging) SLOT_DRAG_ELEVATION else 0.dp, shape = shape)
                 .clip(shape)
                 .background(containerColor)
                 .then(
@@ -523,11 +568,17 @@ private val DAY_LABEL_WIDTH = 52.dp
 
 private val SLOT_BORDER_WIDTH = 1.5.dp
 
+/** 拖动时把卡片抬高一点，和别的格子区分开。 */
+private val SLOT_DRAG_ELEVATION = 8.dp
+
 private val SLOT_ADD_ICON_SIZE = 40.dp
 
 private val DASH_LENGTH = 8.dp
 
 private val DASH_GAP = 6.dp
+
+/** 「先给 Day 1 安排训练或休息」那句提示在 LazyColumn 里的 key（与格子 id 区分开）。 */
+private const val EMPTY_HINT_KEY = "plan_compose_empty_hint"
 
 /** 计划勾选列表最高占这么高，再多就滚动，避免小屏顶到状态栏。 */
 private val PICKER_MAX_HEIGHT = 320.dp

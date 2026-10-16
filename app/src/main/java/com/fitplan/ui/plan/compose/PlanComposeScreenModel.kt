@@ -25,6 +25,8 @@ import kotlinx.datetime.plus
  * 三者互斥——`routineId` 非空是训练，`isRest` 为 true 是休息，都为空则是待填的空白格。
  */
 data class ComposeSlot(
+    /** 这一格的稳定标识，只用来给拖动排序认人 / 当列表 key，与「第几天」无关。 */
+    val id: Long,
     val routineId: Long? = null,
     val routineName: String = "",
     val muscleGroups: List<MuscleGroup> = emptyList(),
@@ -64,7 +66,10 @@ class PlanComposeScreenModel(
     private val widgetManager: WidgetManager,
 ) : ViewModel() {
 
-    private val _slots = MutableStateFlow(listOf(ComposeSlot()))
+    /** 空格子的自增标识；只增不减，保证拖动排序时每一格都有稳定且唯一的 key。 */
+    private var nextSlotId = 0L
+
+    private val _slots = MutableStateFlow(listOf(newEmptySlot()))
     val slots: StateFlow<List<ComposeSlot>> = _slots.asStateFlow()
 
     private val _routines = MutableStateFlow<List<Routine>>(emptyList())
@@ -72,7 +77,7 @@ class PlanComposeScreenModel(
 
     /** 每次进入编排页都从零开始，编排本身只在内存里，退出即丢弃。 */
     fun reset() {
-        _slots.value = listOf(ComposeSlot())
+        _slots.value = listOf(newEmptySlot())
     }
 
     fun load() {
@@ -83,9 +88,10 @@ class PlanComposeScreenModel(
 
     /** 把第 [index] 格设成练 [routine]，肌群取自该计划已编排的动作。 */
     fun setTraining(index: Int, routine: Routine) {
-        if (index !in _slots.value.indices) return
+        val current = _slots.value.getOrNull(index) ?: return
         viewModelScope.launch {
             val slot = ComposeSlot(
+                id = current.id,
                 routineId = routine.id,
                 routineName = routine.name,
                 muscleGroups = routineRepository.getExercises(routine.id)
@@ -97,8 +103,8 @@ class PlanComposeScreenModel(
     }
 
     fun setRest(index: Int) {
-        if (index !in _slots.value.indices) return
-        val slot = ComposeSlot(isRest = true)
+        val current = _slots.value.getOrNull(index) ?: return
+        val slot = ComposeSlot(id = current.id, isRest = true)
         _slots.value = normalize(_slots.value.toMutableList().apply { this[index] = slot })
     }
 
@@ -106,6 +112,20 @@ class PlanComposeScreenModel(
     fun clearSlot(index: Int) {
         if (index !in _slots.value.indices) return
         _slots.value = normalize(_slots.value.toMutableList().apply { removeAt(index) })
+    }
+
+    /**
+     * 把第 [from] 格拖到第 [to] 格。末尾那个「加一天」的空白格不参与排序，
+     * 始终留在最后，所以能落到的位置最多是倒数第二格。
+     */
+    fun reorder(from: Int, to: Int) {
+        val slots = _slots.value
+        if (slots.size <= 2) return
+        val lastRealIndex = slots.size - 2
+        val fromIndex = from.coerceIn(0, lastRealIndex)
+        val toIndex = to.coerceIn(0, lastRealIndex)
+        if (fromIndex == toIndex) return
+        _slots.value = slots.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
     }
 
     /**
@@ -137,8 +157,14 @@ class PlanComposeScreenModel(
     }
 
     /** 维持不变式：末尾恰好留一个空白格，随时可以继续往下加。 */
-    private fun normalize(slots: List<ComposeSlot>): List<ComposeSlot> =
-        slots.dropLastWhile { it.isEmpty } + ComposeSlot()
+    private fun normalize(slots: List<ComposeSlot>): List<ComposeSlot> {
+        val realSlots = slots.dropLastWhile { it.isEmpty }
+        // 末尾空格的 id 尽量沿用，免得只是改动中间某格时，「加一天」那张卡被当成新条目重建。
+        val tail = slots.lastOrNull { it.isEmpty } ?: newEmptySlot()
+        return realSlots + tail
+    }
+
+    private fun newEmptySlot(): ComposeSlot = ComposeSlot(id = nextSlotId++)
 }
 
 /** 单次应用最多铺这么多天，超出就截断。 */
