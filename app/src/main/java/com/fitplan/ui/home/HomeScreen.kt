@@ -30,6 +30,8 @@ import androidx.compose.ui.util.fastForEach
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
@@ -66,6 +68,15 @@ object HomeScreen : Screen() {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        // Voyager 给每个屏幕配了独立的 ViewModelStore（`AndroidScreenLifecycleOwner`），屏幕退出组合时
+        // 会 `viewModelStore.clear()`。Tab 内容的宿主是 `TabNavigator` 里那层屏幕（见下面
+        // `saveableState`），所以「进编排页 / 训练记录页再返回」会把选中的子页、日历月份、统计区间这些
+        // 状态一起清掉（实测：日历切到 11 月，进一次编排页回来又变回 10 月）。这里把 Tab 内容的
+        // ViewModel 宿主换成 Activity，让它们与 Activity 同生命周期——这也正是 `PlanTabScreenModel`
+        // 注释里写的假设。push 出去的全屏页挂在根 Navigator 上、看不到这个 local，仍然各用各自的 store，
+        // 退出即销毁（训练记录页的倒计时等状态照旧不残留）。
+        // `LocalNavigator` 已经在上面强取过，说明这一屏必然挂在 Activity 上，直接取就行。
+        val viewModelHost = LocalActivity.current as ViewModelStoreOwner
         TabNavigator(
             tab = TodayTab,
             key = TabNavigatorKey,
@@ -101,7 +112,11 @@ object HomeScreen : Screen() {
                         label = "tabContent",
                     ) { tab ->
                         tabNavigator.saveableState(key = "currentTab", tab) {
-                            tab.Content()
+                            // 这层必须套在 saveableState 里面：`saveableState` 自己会给 Tab 套一层
+                            // `LocalViewModelStoreOwner`（屏幕级 store），套在外面会被它盖掉。
+                            CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelHost) {
+                                tab.Content()
+                            }
                         }
                     }
                 }
