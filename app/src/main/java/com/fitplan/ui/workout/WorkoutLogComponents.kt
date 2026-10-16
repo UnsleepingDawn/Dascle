@@ -64,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -92,6 +93,16 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.roundToInt
 import kotlin.time.Instant
+
+/**
+ * 记录页上所有卡片与热身提示条共用的圆角。
+ *
+ * 取 `MaterialTheme.shapes.large`（16dp）：这几张卡原来用的 `extraLarge`（28dp）在手机上显得
+ * 过圆，统一收到与热身提示条 [WarmupBanner] 相同的弧度。整页共用一处定义，免得卡片与它身后
+ * 的左滑删除红底（[SwipeToRevealRemove]）圆角对不上。
+ */
+private val workoutCardShape: Shape
+    @Composable get() = MaterialTheme.shapes.large
 
 /** 训练还没开始时的计划预览列表：只展示动作与目标，不能录入，也不给热身提示。 */
 @Composable
@@ -139,7 +150,7 @@ private fun PlanExerciseCard(exercise: LogExercise) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = workoutCardShape,
     ) {
         Column(modifier = Modifier.padding(MaterialTheme.padding.medium)) {
             Text(
@@ -164,7 +175,7 @@ private fun PlanGroupCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = workoutCardShape,
     ) {
         Column(
             modifier = Modifier
@@ -220,7 +231,7 @@ internal fun WarmupBanner(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.large,
+        shape = workoutCardShape,
         color = MaterialTheme.colorScheme.tertiaryContainer,
         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
     ) {
@@ -300,7 +311,7 @@ internal fun SwipeToRevealRemove(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.extraLarge),
+            .clip(workoutCardShape),
     ) {
         // 铺满整张卡的红色底，只有卡片左移之后右侧那一截才露出来。
         // 左右按与卡片一致的留白内缩：卡片本身带 16dp 外边距，不内缩的话不滑动时
@@ -309,7 +320,7 @@ internal fun SwipeToRevealRemove(
             modifier = Modifier
                 .matchParentSize()
                 .padding(horizontal = MaterialTheme.padding.medium)
-                .clip(MaterialTheme.shapes.extraLarge)
+                .clip(workoutCardShape)
                 .background(MaterialTheme.colorScheme.error),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
@@ -584,7 +595,7 @@ internal fun LogGroupCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = workoutCardShape,
     ) {
         Column(
             modifier = Modifier
@@ -665,7 +676,7 @@ internal fun LogExerciseCard(
     onToggleSkipped: () -> Unit,
     onToggleCollapsed: () -> Unit,
     modifier: Modifier = Modifier,
-    /** true 表示这是动作组卡里的子卡：少一层外边距、用更紧凑的圆角。 */
+    /** true 表示这是动作组卡里的子卡：外边距由外层卡片提供，这里不再自己内缩。 */
     nested: Boolean = false,
     /** 贴到标题行上的额外修饰符：列表用它挂左滑删除的拖动手势。 */
     titleModifier: Modifier = Modifier,
@@ -678,7 +689,7 @@ internal fun LogExerciseCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = if (nested) 0.dp else MaterialTheme.padding.medium),
-        shape = if (nested) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
+        shape = workoutCardShape,
     ) {
         Column(
             modifier = Modifier
@@ -1371,7 +1382,7 @@ internal fun WorkoutSummaryCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = workoutCardShape,
     ) {
         Column(
             modifier = Modifier
