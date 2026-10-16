@@ -2,6 +2,8 @@ package com.fitplan.ui.plan.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.core.common.preference.Preference
+import com.fitplan.core.common.preference.PreferenceStore
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.repository.RoutineRepository
@@ -19,6 +21,8 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * 编排页里的一格：`Day N` 要练哪个计划，或者干脆休息。
@@ -64,7 +68,15 @@ class PlanComposeScreenModel(
     private val scheduleRepository: ScheduleRepository,
     private val routineRepository: RoutineRepository,
     private val widgetManager: WidgetManager,
+    private val json: Json,
+    preferenceStore: PreferenceStore,
 ) : ViewModel() {
+
+    /**
+     * 编排的暂存：切走子页乃至杀掉进程再回来，都还能接着上次那套编排继续改。
+     * 属于内部状态、不进备份，所以键放在 `__APP_STATE_` 前缀下。
+     */
+    private val draft = preferenceStore.getString(Preference.appStateKey(KEY_DRAFT))
 
     /** 空格子的自增标识；只增不减，保证拖动排序时每一格都有稳定且唯一的 key。 */
     private var nextSlotId = 0L
@@ -75,9 +87,32 @@ class PlanComposeScreenModel(
     private val _routines = MutableStateFlow<List<Routine>>(emptyList())
     val routines: StateFlow<List<Routine>> = _routines.asStateFlow()
 
-    /** 每次进入编排页都从零开始，编排本身只在内存里，退出即丢弃。 */
-    fun reset() {
-        _slots.value = listOf(newEmptySlot())
+    /**
+     * 把暂存的编排读回来。返回 true 表示有内容可以接着编辑，界面该弹一次窗问用户；
+     * 没有暂存（或暂存已经读不出来）时返回 false，并把编排清成「只有一个空白格」。
+     */
+    fun restoreDraft(): Boolean {
+        val text = draft.get()
+        val restored = if (text.isBlank()) {
+            emptyList()
+        } else {
+            runCatching { json.decodeFromString<List<ComposeDraft>>(text) }
+                .getOrDefault(emptyList())
+                .map { it.toSlot() }
+        }
+        if (restored.isEmpty()) {
+            clearDraft()
+            resetToEmpty()
+            return false
+        }
+        _slots.value = normalize(restored)
+        return true
+    }
+
+    /** 用户选了「不要了」：丢掉暂存，回到只有一个空白格的初始状态。 */
+    fun discardDraft() {
+        clearDraft()
+        resetToEmpty()
     }
 
     fun load() {
@@ -98,20 +133,20 @@ class PlanComposeScreenModel(
                     .flatMap { it.muscleGroups }
                     .distinct(),
             )
-            _slots.value = normalize(_slots.value.toMutableList().apply { this[index] = slot })
+            update(_slots.value.toMutableList().apply { this[index] = slot })
         }
     }
 
     fun setRest(index: Int) {
         val current = _slots.value.getOrNull(index) ?: return
         val slot = ComposeSlot(id = current.id, isRest = true)
-        _slots.value = normalize(_slots.value.toMutableList().apply { this[index] = slot })
+        update(_slots.value.toMutableList().apply { this[index] = slot })
     }
 
     /** 移除这一天：整格抽走，后面的 Day 顺次前移，而不是留一个空洞。 */
     fun clearSlot(index: Int) {
         if (index !in _slots.value.indices) return
-        _slots.value = normalize(_slots.value.toMutableList().apply { removeAt(index) })
+        update(_slots.value.toMutableList().apply { removeAt(index) })
     }
 
     /**
@@ -125,7 +160,7 @@ class PlanComposeScreenModel(
         val fromIndex = from.coerceIn(0, lastRealIndex)
         val toIndex = to.coerceIn(0, lastRealIndex)
         if (fromIndex == toIndex) return
-        _slots.value = slots.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
+        update(slots.toMutableList().apply { add(toIndex, removeAt(fromIndex)) })
     }
 
     /**
@@ -154,6 +189,28 @@ class PlanComposeScreenModel(
             routineDates = routineDates,
         )
         widgetManager.updateTodayWidget()
+        // 已经铺到日历上了，暂存就没有意义了：清掉，免得下次进来又问一遍。
+        clearDraft()
+    }
+
+    /** 编排有改动就顺手写一次暂存，界面只需要一个 [update] 入口。 */
+    private fun update(slots: List<ComposeSlot>) {
+        val next = normalize(slots)
+        _slots.value = next
+        val realSlots = next.dropLastWhile { it.isEmpty }
+        if (realSlots.isEmpty()) {
+            draft.delete()
+        } else {
+            draft.set(json.encodeToString(realSlots.map { it.toDraft() }))
+        }
+    }
+
+    /** 丢掉暂存；编排留在原地不动，界面自己决定要不要 [resetToEmpty]。 */
+    private fun clearDraft() = draft.delete()
+
+    /** 编排清成「只有一个空白格」，等着用户重新排。 */
+    private fun resetToEmpty() {
+        _slots.value = listOf(newEmptySlot())
     }
 
     /** 维持不变式：末尾恰好留一个空白格，随时可以继续往下加。 */
@@ -165,7 +222,40 @@ class PlanComposeScreenModel(
     }
 
     private fun newEmptySlot(): ComposeSlot = ComposeSlot(id = nextSlotId++)
+
+    private fun ComposeDraft.toSlot(): ComposeSlot = ComposeSlot(
+        id = nextSlotId++,
+        routineId = routineId,
+        routineName = routineName,
+        muscleGroups = muscleGroups.mapNotNull(MuscleGroup::fromValue),
+        isRest = isRest,
+    )
+
+    private fun ComposeSlot.toDraft(): ComposeDraft = ComposeDraft(
+        routineId = routineId,
+        routineName = routineName,
+        muscleGroups = muscleGroups.map(MuscleGroup::name),
+        isRest = isRest,
+    )
+
+    private companion object {
+        /** 暂存键；改键名等于放弃所有人已有的暂存。 */
+        const val KEY_DRAFT = "plan_compose_draft"
+    }
 }
+
+/**
+ * 暂存用的扁平结构：只存能重建编排的最小信息。
+ *
+ * 肌群按枚举名存，读回来时认不出的名字直接丢掉——以后改动 [MuscleGroup] 也不会让老暂存整条读不出来。
+ */
+@Serializable
+private data class ComposeDraft(
+    val routineId: Long? = null,
+    val routineName: String = "",
+    val muscleGroups: List<String> = emptyList(),
+    val isRest: Boolean = false,
+)
 
 /** 单次应用最多铺这么多天，超出就截断。 */
 @Suppress("ConstPropertyName")

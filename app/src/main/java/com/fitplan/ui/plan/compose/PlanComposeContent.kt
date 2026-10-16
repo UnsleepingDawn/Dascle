@@ -91,10 +91,11 @@ internal fun PlanComposeContent(contentPadding: PaddingValues) {
     val slots by screenModel.slots.collectAsState()
     val routines by screenModel.routines.collectAsState()
 
-    // 编排只在内存里，每次进来都从「只有一个空白格」开始。
+    // 进来时先把上次没应用完的暂存读回来，有的话弹一次窗问要不要接着编辑。
+    var showDraftDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        screenModel.reset()
         screenModel.load()
+        showDraftDialog = screenModel.restoreDraft()
     }
 
     var editIndex by remember { mutableStateOf<Int?>(null) }
@@ -186,6 +187,49 @@ internal fun PlanComposeContent(contentPadding: PaddingValues) {
             },
         )
     }
+
+    if (showDraftDialog) {
+        DraftDialog(
+            onKeep = { showDraftDialog = false },
+            onDiscard = {
+                showDraftDialog = false
+                screenModel.discardDraft()
+            },
+        )
+    }
+}
+
+/**
+ * 再次进入这一页并且上次的编排还没应用时的询问：接着改，还是丢掉重来。
+ *
+ * 两个选项是平等的「要」与「不要」，所以不给取消出口——点弹窗外或按返回键都不关闭，
+ * 免得用户以为已经做了选择、其实还挂在旧的暂存上。
+ */
+@Composable
+private fun DraftDialog(
+    onKeep: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text(text = stringResource(R.string.plan_compose_draft_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.plan_compose_draft_message))
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.plan_compose_draft_keep),
+                        onClick = onKeep,
+                    )
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.plan_compose_draft_discard),
+                        onClick = onDiscard,
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+    )
 }
 
 @Composable

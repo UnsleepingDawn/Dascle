@@ -95,6 +95,10 @@
     <string name="plan_compose_pick_empty">还没有训练计划\n先到「设置单日计划」里新建一个</string>
     <string name="plan_compose_remove_day">移除这一天</string>
     <string name="plan_compose_apply_title">应用编排</string>
+    <string name="plan_compose_draft_title">接着上次编辑？</string>
+    <string name="plan_compose_draft_message">上次这套多日循环还没应用到日历。</string>
+    <string name="plan_compose_draft_keep">是的</string>
+    <string name="plan_compose_draft_discard">不要了</string>
     <string name="plan_compose_start_date">起始日期</string>
     <string name="plan_compose_mode_cycles">循环次数</string>
     <string name="plan_compose_mode_until">截止到</string>
