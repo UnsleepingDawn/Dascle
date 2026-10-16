@@ -12,6 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.fitplan.presentation.core.components.material.padding
 
+/**
+ * 统计页等页面用的分组卡片：可选一行小标题，下面是内容。
+ *
+ * 圆角取 `large`（16dp），与记录页的卡片、热身提示条一致；原来的 `extraLarge`（28dp）在手机上显得过圆。
+ */
 @Composable
 fun LazyItemScope.SectionCard(
     title: String? = null,
@@ -32,7 +37,7 @@ fun LazyItemScope.SectionCard(
                 horizontal = MaterialTheme.padding.medium,
                 vertical = MaterialTheme.padding.small,
             ),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
     ) {
         Column(modifier = Modifier.padding(MaterialTheme.padding.medium)) {
             content()

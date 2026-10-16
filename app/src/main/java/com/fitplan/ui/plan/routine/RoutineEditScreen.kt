@@ -520,7 +520,7 @@ private fun ReorderableCollectionItemScope.RoutineExerciseCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
     ) {
         Row(
             modifier = Modifier
@@ -579,7 +579,7 @@ private fun ReorderableCollectionItemScope.RoutineGroupCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
     ) {
         Column(
             modifier = Modifier

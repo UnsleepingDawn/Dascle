@@ -205,7 +205,8 @@ private fun SwipeToRevealDelete(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium)
-            .clip(MaterialTheme.shapes.extraLarge),
+            // 与卡片本体同一种圆角，卡片左移后露出的红底才不会在四角冒尖。
+            .clip(MaterialTheme.shapes.large),
     ) {
         // 铺满整张卡片的红色底，只有卡片左移之后右侧那一截才露出来。
         Row(
@@ -269,12 +270,16 @@ private fun SwipeToRevealDelete(
     }
 }
 
-/** 计划卡片：只有计划名一行，整张卡片可点进编排页，高度收到 [ROUTINE_CARD_MIN_HEIGHT]。 */
+/**
+ * 计划卡片：只有计划名一行，整张卡片可点进编排页，高度收到 [ROUTINE_CARD_MIN_HEIGHT]。
+ *
+ * 圆角取 `large`（16dp），与记录页的卡片、热身提示条一致；原来的 `extraLarge`（28dp）在手机上显得过圆。
+ */
 @Composable
 private fun RoutineCard(name: String) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
     ) {
         Row(
             modifier = Modifier

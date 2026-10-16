@@ -166,7 +166,7 @@ internal fun ExerciseProgressPicker(
     }
 }
 
-/** 训练历史列表的一项，点进去看那次的训练详情。 */
+/** 训练历史列表的一项，点进去看那次的训练详情；圆角与统计页的分组卡片一致。 */
 @Composable
 internal fun WorkoutHistoryRow(
     item: WorkoutHistoryItem,
@@ -177,7 +177,7 @@ internal fun WorkoutHistoryRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MaterialTheme.padding.medium),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
     ) {
         Row(
             modifier = Modifier
