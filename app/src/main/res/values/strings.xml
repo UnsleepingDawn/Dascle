@@ -82,9 +82,6 @@
     <string name="plan_delete">删除计划</string>
     <string name="plan_delete_confirm">「%1$s」及其动作编排、日程安排都会一并删除。</string>
     <string name="plan_schedule">日程</string>
-    <string name="plan_action_schedule">安排动作</string>
-    <string name="plan_action_rename">编辑名称</string>
-    <string name="plan_exercise_count">%1$d 个动作</string>
     <string name="field_routine_name">名称</string>
 
     <!-- 编排多日循环 -->

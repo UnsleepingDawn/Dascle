@@ -22,19 +22,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -63,17 +57,17 @@ import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogDestructiveButton
 import com.fitplan.ui.common.DialogPrimaryButton
 import com.fitplan.ui.plan.PlanScreenModel
-import com.fitplan.ui.plan.RoutineListItem
 import com.fitplan.ui.plan.routine.RoutineEditScreen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * 「计划」页的第二个子页：训练计划列表。新建 / 重命名 / 删除计划，或者进到计划里编排动作。
+ * 「计划」页的第二个子页：训练计划列表。新建 / 删除计划，点卡片进到计划里编排动作。
  *
  * 新建走底部整条按钮，并直接落到动作编排页，省得用户再点一次卡片；
- * 删除不摆常驻按钮——长按卡片、或者把卡片往左滑露出红色删除键，都会先弹确认框。
+ * 卡片本身不摆按钮——点一下进编排页，长按、或者把卡片往左滑露出红色删除键，都会先弹确认框再删。
+ * 改名搬到编排页顶栏（点标题即可改），列表这层不再提供入口。
  */
 @Composable
 internal fun RoutineListContent(contentPadding: PaddingValues) {
@@ -86,7 +80,6 @@ internal fun RoutineListContent(contentPadding: PaddingValues) {
     LaunchedEffect(Unit) { screenModel.refresh() }
 
     var showCreateDialog by remember { mutableStateOf(false) }
-    var renameTarget by remember { mutableStateOf<Routine?>(null) }
     var deleteTarget by remember { mutableStateOf<Routine?>(null) }
     // 同时只允许一张卡片滑开，点别处或弹确认框时自动收回。
     var revealedId by remember { mutableStateOf<Long?>(null) }
@@ -103,22 +96,19 @@ internal fun RoutineListContent(contentPadding: PaddingValues) {
                     contentPadding = PaddingValues(vertical = MaterialTheme.padding.small),
                     verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
                 ) {
-                    items(items, key = { it.routine.id }) { item ->
+                    items(items, key = { it.id }) { routine ->
                         SwipeToRevealDelete(
-                            revealed = revealedId == item.routine.id,
+                            revealed = revealedId == routine.id,
                             onRevealedChange = { open ->
-                                revealedId = if (open) item.routine.id else null
+                                revealedId = if (open) routine.id else null
                             },
                             onRequestDelete = {
                                 revealedId = null
-                                deleteTarget = item.routine
+                                deleteTarget = routine
                             },
+                            onClick = { navigator.push(RoutineEditScreen(routine.id)) },
                         ) {
-                            RoutineCard(
-                                item = item,
-                                onSchedule = { navigator.push(RoutineEditScreen(item.routine.id)) },
-                                onRename = { renameTarget = item.routine },
-                            )
+                            RoutineCard(name = routine.name)
                         }
                     }
                 }
@@ -164,18 +154,6 @@ internal fun RoutineListContent(contentPadding: PaddingValues) {
         )
     }
 
-    renameTarget?.let { routine ->
-        RoutineDetailDialog(
-            title = stringResource(R.string.plan_rename),
-            initialName = routine.name,
-            onDismiss = { renameTarget = null },
-            onConfirm = { name ->
-                screenModel.update(routine.id, name)
-                renameTarget = null
-            },
-        )
-    }
-
     deleteTarget?.let { routine ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -203,14 +181,15 @@ internal fun RoutineListContent(contentPadding: PaddingValues) {
 /**
  * 左滑露出红色删除键的容器，卡片本身长按也能触发同一个删除入口。
  *
- * [revealed] 由列表持有，保证同一时间只有一张卡片是滑开的；点一下卡片、或者点了删除键，
- * 都会把它收回原处。
+ * [revealed] 由列表持有，保证同一时间只有一张卡片是滑开的；点一下卡片，或者点了删除键，
+ * 都会把它收回原处。卡片滑开时点击先归位、不触发 [onClick]，免得顺手点开一个并不想进的计划。
  */
 @Composable
 private fun SwipeToRevealDelete(
     revealed: Boolean,
     onRevealedChange: (Boolean) -> Unit,
     onRequestDelete: () -> Unit,
+    onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val revealPx = with(LocalDensity.current) { DELETE_ACTION_WIDTH.toPx() }
@@ -279,8 +258,8 @@ private fun SwipeToRevealDelete(
                 modifier = Modifier
                     .fillMaxWidth()
                     .combinedClickable(
-                        // 卡片没有主操作，点一下只用来把滑开的卡片收回。
-                        onClick = { if (revealed) onRevealedChange(false) },
+                        // 卡片的主操作是进编排页；滑开的卡片上点一下只是收回。
+                        onClick = { if (revealed) onRevealedChange(false) else onClick() },
                         onLongClick = onRequestDelete,
                     ),
             ) {
@@ -290,12 +269,9 @@ private fun SwipeToRevealDelete(
     }
 }
 
+/** 计划卡片：只有计划名一行，整张卡片可点进编排页，高度收到 [ROUTINE_CARD_MIN_HEIGHT]。 */
 @Composable
-private fun RoutineCard(
-    item: RoutineListItem,
-    onSchedule: () -> Unit,
-    onRename: () -> Unit,
-) {
+private fun RoutineCard(name: String) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -303,72 +279,16 @@ private fun RoutineCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // 卡片高度由按钮那一列决定。
                 .heightIn(min = ROUTINE_CARD_MIN_HEIGHT)
                 .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.routine.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.plan_exercise_count, item.exerciseCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Column(
-                modifier = Modifier.padding(start = MaterialTheme.padding.small),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-            ) {
-                CompactActionButton(
-                    text = stringResource(R.string.plan_action_schedule),
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    onClick = onSchedule,
-                )
-                CompactActionButton(
-                    text = stringResource(R.string.plan_action_rename),
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    onClick = onRename,
-                )
-            }
-        }
-    }
-}
-
-/**
- * 卡片用的紧凑操作按钮：M3 按钮容器默认 40dp、最小触控区 48dp，两枚竖排会把卡片顶到 136dp，
- * 这里把容器与触控区一起收到 36dp，左右内边距也从默认的 24dp 收到 8dp。
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CompactActionButton(
-    text: String,
-    containerColor: Color,
-    contentColor: Color,
-    onClick: () -> Unit,
-) {
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides COMPACT_ACTION_BUTTON_HEIGHT) {
-        FilledTonalButton(
-            onClick = onClick,
-            colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = containerColor,
-                contentColor = contentColor,
-            ),
-            contentPadding = PaddingValues(
-                horizontal = MaterialTheme.padding.small,
-                vertical = MaterialTheme.padding.extraSmall,
-            ),
-            modifier = Modifier.heightIn(min = COMPACT_ACTION_BUTTON_HEIGHT),
-        ) {
-            Text(text = text, maxLines = 1)
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -408,11 +328,8 @@ private fun RoutineDetailDialog(
     )
 }
 
-/** 卡片里的紧凑按钮高度：容器与最小触控区都收到这个值，比 M3 默认的 40dp / 48dp 矮一截。 */
-private val COMPACT_ACTION_BUTTON_HEIGHT = 36.dp
-
-/** 卡片高度下限：36 + 8 + 36 的按钮列，加上下各 8dp 内边距。 */
-private val ROUTINE_CARD_MIN_HEIGHT = 96.dp
+/** 卡片高度下限：一行 titleMedium（24dp）加上下各 8dp 内边距，保证不小于最小触控区。 */
+private val ROUTINE_CARD_MIN_HEIGHT = 56.dp
 
 /** 左滑后露出的红色删除键宽度。 */
 private val DELETE_ACTION_WIDTH = 96.dp

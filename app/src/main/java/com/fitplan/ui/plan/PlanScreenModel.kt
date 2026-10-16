@@ -16,12 +16,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
 
-/** 计划列表的一项：计划本身 + 已编排的动作数。 */
-data class RoutineListItem(
-    val routine: Routine,
-    val exerciseCount: Int,
-)
-
 @Inject
 @ViewModelKey
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -30,8 +24,8 @@ class PlanScreenModel(
     private val widgetManager: WidgetManager,
 ) : ViewModel() {
 
-    private val _items = MutableStateFlow<List<RoutineListItem>>(emptyList())
-    val items: StateFlow<List<RoutineListItem>> = _items.asStateFlow()
+    private val _items = MutableStateFlow<List<Routine>>(emptyList())
+    val items: StateFlow<List<Routine>> = _items.asStateFlow()
 
     /** 是否已经完成过一次加载，用来区分「加载中」与「确实没有计划」。 */
     private val _loaded = MutableStateFlow(false)
@@ -39,13 +33,7 @@ class PlanScreenModel(
 
     fun refresh() {
         viewModelScope.launch {
-            _items.value = routineRepository.getPermanent().map { routine ->
-                RoutineListItem(
-                    routine = routine,
-                    // 本地库数据量很小，逐个查动作数比再加一条聚合查询更省事。
-                    exerciseCount = routineRepository.getExercises(routine.id).size,
-                )
-            }
+            _items.value = routineRepository.getPermanent()
             _loaded.value = true
         }
     }
@@ -56,15 +44,6 @@ class PlanScreenModel(
             val id = routineRepository.insert(name = name, createdAt = Clock.System.now())
             refresh()
             onCreated(id)
-        }
-    }
-
-    fun update(id: Long, name: String) {
-        viewModelScope.launch {
-            routineRepository.update(id = id, name = name)
-            refresh()
-            // 计划名会出现在组件上，改完顺手重画。
-            widgetManager.updateTodayWidget()
         }
     }
 

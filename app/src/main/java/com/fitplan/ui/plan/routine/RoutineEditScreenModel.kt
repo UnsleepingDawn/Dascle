@@ -58,6 +58,15 @@ class RoutineEditScreenModel(
         _showWeightIntro.value = false
     }
 
+    /** 改计划名（编排页顶栏点标题进来）；名字也会出现在桌面组件上，`refresh()` 里顺手重画。 */
+    fun updateName(name: String) {
+        viewModelScope.launch {
+            val id = routineId ?: return@launch
+            routineRepository.update(id = id, name = name)
+            refresh()
+        }
+    }
+
     /** 新增一个空的动作组，放在计划末尾；之后往里加动作、设「建议做 x 个」。 */
     fun addGroup() {
         viewModelScope.launch {

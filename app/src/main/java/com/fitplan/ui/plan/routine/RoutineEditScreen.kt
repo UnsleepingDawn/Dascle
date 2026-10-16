@@ -1,6 +1,7 @@
 package com.fitplan.ui.plan.routine
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,8 +42,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
@@ -85,6 +90,8 @@ class RoutineEditScreen(
         var editTarget by remember { mutableStateOf<RoutineExercise?>(null) }
         var groupRenameTarget by remember { mutableStateOf<RoutineGroup?>(null) }
         var showGroupActionDialog by remember { mutableStateOf(false) }
+        // true 表示正在改这个计划的名字（点顶栏标题触发）。
+        var showRenameDialog by remember { mutableStateOf(false) }
         // true 表示正在提醒「这一天同时排了胸和背」，用户确认之后才真的退出编排页。
         var showImbalanceDialog by remember { mutableStateOf(false) }
 
@@ -98,7 +105,33 @@ class RoutineEditScreen(
         Scaffold(
             topBar = { scrollBehavior ->
                 TopAppBar(
-                    title = { Text(text = routineName) },
+                    title = {
+                        // 标题即改名入口：点一下弹改名弹窗，右侧小铅笔图标提示这里能改。
+                        Row(
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { showRenameDialog = true }
+                                .padding(
+                                    horizontal = MaterialTheme.padding.extraSmall,
+                                    vertical = MaterialTheme.padding.small,
+                                ),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = routineName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = stringResource(R.string.plan_rename),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .padding(start = MaterialTheme.padding.small)
+                                    .size(PLAN_TITLE_EDIT_ICON_SIZE),
+                            )
+                        }
+                    },
                     navigationIcon = {
                         IconButton(onClick = { requestExit() }) {
                             Icon(
@@ -180,6 +213,17 @@ class RoutineEditScreen(
             WeightIntroDialog(onDismiss = screenModel::dismissWeightIntro)
         }
 
+        if (showRenameDialog) {
+            RoutineRenameDialog(
+                initialName = routineName,
+                onDismiss = { showRenameDialog = false },
+                onConfirm = { name ->
+                    screenModel.updateName(name)
+                    showRenameDialog = false
+                },
+            )
+        }
+
         if (showImbalanceDialog) {
             ImbalanceDialog(
                 onDismiss = { showImbalanceDialog = false },
@@ -258,7 +302,46 @@ private fun WeightIntroDialog(onDismiss: () -> Unit) {
     )
 }
 
-/** 新建动作组的入口：空组自己往里加动作，预设组直接整组带动作加进来。 */
+/**
+ * 改这个计划的名字；编排页顶栏点标题进来。空名不让保存，避免计划在列表里变成一条空白卡片。
+ */
+@Composable
+private fun RoutineRenameDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.plan_rename)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(text = stringResource(R.string.field_routine_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_save),
+                        onClick = { onConfirm(name.trim()) },
+                        enabled = name.isNotBlank(),
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+/**
+ * 新建动作组的入口：空组自己往里加动作，预设组直接整组带动作加进来。
+ */
 @Composable
 private fun GroupActionDialog(
     onDismiss: () -> Unit,
@@ -793,3 +876,6 @@ private fun NumberField(
         modifier = Modifier.fillMaxWidth(),
     )
 }
+
+/** 顶栏标题右侧那个「可改名」铅笔图标的大小：比正文小一号，不喧宾夺主。 */
+private val PLAN_TITLE_EDIT_ICON_SIZE = 18.dp
