@@ -1,0 +1,3 @@
+-- 训练重量的显示 / 录入单位可以按动作覆盖：为空表示跟随全局设置。
+-- 库里的重量仍然一律以千克存储，这一列只影响界面上的换算与展示。
+ALTER TABLE exercise ADD COLUMN weight_unit TEXT;

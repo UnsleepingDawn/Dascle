@@ -83,6 +83,7 @@ import com.fitplan.domain.interactor.UpcomingTrainingPlan
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.WorkoutSession
+import com.fitplan.domain.model.resolve
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.util.Tab
@@ -90,13 +91,14 @@ import com.fitplan.reminder.RestState
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogPrimaryButton
+import com.fitplan.ui.common.LocalWeightUnit
+import com.fitplan.ui.common.weightText
 import com.fitplan.ui.plan.calendar.DeleteSelectionDialog
 import com.fitplan.ui.plan.calendar.RoutinePickerDialog
 import com.fitplan.ui.plan.routine.RoutineEditScreen
 import com.fitplan.ui.plan.routine.targetText
 import com.fitplan.ui.workout.WorkoutLogScreen
 import com.fitplan.ui.workout.toClockText
-import com.fitplan.ui.workout.toWeightText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -1007,16 +1009,11 @@ private fun TodaySessionExercise.volumeText(): String {
     } else {
         stringResource(R.string.routine_edit_targets, completedSets, reps ?: 0)
     }
-    val weightText = weight
+    val unit = LocalWeightUnit.current.resolve(weightUnit)
+    val weightPart = weight
         ?.takeIf { showsWeight }
-        ?.let { value ->
-            if (weightIsAssistance) {
-                stringResource(R.string.weight_kg_assist, value.toWeightText())
-            } else {
-                stringResource(R.string.weight_kg, value.toWeightText())
-            }
-        }
-    return listOfNotNull(base, weightText).joinToString(" · ")
+        ?.let { value -> weightText(valueKg = value, unit = unit, assisted = weightIsAssistance) }
+    return listOfNotNull(base, weightPart).joinToString(" · ")
 }
 
 /**

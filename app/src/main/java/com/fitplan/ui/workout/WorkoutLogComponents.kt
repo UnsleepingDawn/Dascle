@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
@@ -80,12 +81,17 @@ import com.fitplan.app.R
 import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.MuscleGroup
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.reminder.RestState
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogDestructiveButton
 import com.fitplan.ui.common.DialogPrimaryButton
+import com.fitplan.ui.common.toKilogramsOrNull
+import com.fitplan.ui.common.toWeightText
+import com.fitplan.ui.common.unitLabel
+import com.fitplan.ui.common.weightText
 import com.fitplan.ui.exercise.label
 import com.fitplan.ui.exercise.muscleLabels
 import kotlinx.coroutines.launch
@@ -674,6 +680,7 @@ internal fun LogExerciseCard(
     onRemoveSet: () -> Unit,
     onToggleSkipped: () -> Unit,
     onToggleCollapsed: () -> Unit,
+    onEditWeightUnit: () -> Unit,
     modifier: Modifier = Modifier,
     /** true 表示这是动作组卡里的子卡：外边距由外层卡片提供，这里不再自己内缩。 */
     nested: Boolean = false,
@@ -801,6 +808,13 @@ internal fun LogExerciseCard(
                                 )
                             }
                         }
+                        // 重量单位挂在组行上方：训练中摸到实物刻度不对时，就地改这个动作的单位。
+                        if (exercise.showsWeight && !readOnly) {
+                            AssistChip(
+                                onClick = onEditWeightUnit,
+                                label = { Text(text = unitLabel(exercise.weightUnit)) },
+                            )
+                        }
                         TextButton(
                             onClick = onToggleCollapsed,
                             contentPadding = PaddingValues(horizontal = MaterialTheme.padding.small),
@@ -817,6 +831,7 @@ internal fun LogExerciseCard(
                             entry = entry,
                             timed = exercise.isTimed,
                             showsWeight = exercise.showsWeight,
+                            weightUnit = exercise.weightUnit,
                             readOnly = readOnly,
                             editableCompletedSets = editableCompletedSets,
                             startable = startable,
@@ -941,13 +956,19 @@ internal fun LowTargetRetryDialog(
     var targetReps by remember { mutableStateOf(exercise.repsBaseline.toString()) }
     var targetSeconds by remember { mutableStateOf(exercise.secondsBaseline?.toString().orEmpty()) }
     var targetWeight by remember {
-        mutableStateOf(if (exercise.showsWeight) exercise.weightBaseline.toWeightText() else "")
+        mutableStateOf(
+            if (exercise.showsWeight) {
+                exercise.weightBaseline.toWeightText(exercise.weightUnit)
+            } else {
+                ""
+            },
+        )
     }
     var restSeconds by remember { mutableStateOf(exercise.restSeconds.toString()) }
 
     val validTargetWeight = !exercise.showsWeight ||
         targetWeight.isBlank() ||
-        targetWeight.toDoubleOrNull()?.let { it > 0 } == true
+        targetWeight.toKilogramsOrNull(exercise.weightUnit)?.let { it > 0 } == true
     val validTargetSize = if (exercise.isTimed) {
         targetSeconds.toIntOrNull()?.let { it > 0 } == true
     } else {
@@ -1001,6 +1022,7 @@ internal fun LowTargetRetryDialog(
                             } else {
                                 R.string.field_target_weight
                             },
+                            unitLabel(exercise.weightUnit),
                         ),
                         allowDecimal = true,
                     )
@@ -1031,7 +1053,11 @@ internal fun LowTargetRetryDialog(
                                     } else {
                                         targetReps.toIntOrNull() ?: return@DialogPrimaryButton
                                     },
-                                    weight = if (exercise.showsWeight) targetWeight.toDoubleOrNull() else null,
+                                    weight = if (exercise.showsWeight) {
+                                        targetWeight.toKilogramsOrNull(exercise.weightUnit)
+                                    } else {
+                                        null
+                                    },
                                     seconds = if (exercise.isTimed) targetSeconds.toIntOrNull() else null,
                                     restSeconds = restSeconds.toIntOrNull() ?: exercise.restSeconds,
                                 ),
@@ -1079,6 +1105,7 @@ private fun SetEntryRow(
     entry: SetEntry,
     timed: Boolean,
     showsWeight: Boolean,
+    weightUnit: WeightUnit,
     readOnly: Boolean,
     editableCompletedSets: Boolean,
     startable: Boolean,
@@ -1109,7 +1136,7 @@ private fun SetEntryRow(
             OutlinedTextField(
                 value = entry.weight,
                 onValueChange = onWeightChange,
-                label = { Text(text = stringResource(R.string.unit_kg)) },
+                label = { Text(text = unitLabel(weightUnit)) },
                 enabled = editable,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -1615,8 +1642,7 @@ private fun LogExercise.targetHint(): String {
     }
     val weight = when {
         !showsWeight || targetWeight == null -> null
-        weightIsAssistance -> stringResource(R.string.weight_kg_assist, targetWeight.toWeightText())
-        else -> stringResource(R.string.weight_kg, targetWeight.toWeightText())
+        else -> weightText(valueKg = targetWeight, unit = weightUnit, assisted = weightIsAssistance)
     }
     return listOfNotNull(target, weight, stringResource(R.string.workout_target_rest, restSeconds))
         .joinToString(" · ")

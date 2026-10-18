@@ -124,7 +124,12 @@ class GetWorkoutStats(
                 .groupBy { it.date }
                 .map { (date, daySets) -> ProgressPoint(date, daySets.maxOf { it.set.weight ?: 0.0 }) }
                 .sortedBy { it.date }
-            ExerciseProgress(exerciseId = exerciseId, exerciseName = exercise.name, points = points)
+            ExerciseProgress(
+                exerciseId = exerciseId,
+                exerciseName = exercise.name,
+                points = points,
+                weightUnit = exercise.weightUnit,
+            )
         }
         .sortedByDescending { it.points.size }
         .take(MAX_PROGRESS_EXERCISES)

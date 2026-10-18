@@ -12,6 +12,7 @@ import com.fitplan.domain.interactor.ScheduledRoutine
 import com.fitplan.domain.interactor.UpcomingTrainingPlan
 import com.fitplan.domain.interactor.UseUpcomingTrainingPlanForToday
 import com.fitplan.domain.model.Routine
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.model.WorkoutSession
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
@@ -51,6 +52,11 @@ data class TodaySessionExercise(
     val isTimed: Boolean,
     val showsWeight: Boolean,
     val weightIsAssistance: Boolean,
+    /**
+     * 这个动作自己设的重量单位；null 表示跟随全局。这里存覆盖值而不是算好的生效单位，
+     * 界面用 `LocalWeightUnit.current.resolve(weightUnit)` 现算，设置里改完立刻生效。
+     */
+    val weightUnit: WeightUnit?,
     val reps: Int?,
     val weight: Double?,
     val seconds: Int?,
@@ -290,6 +296,7 @@ class TodayScreenModel(
                     isTimed = exercise.isTimed,
                     showsWeight = exercise.showsWeight,
                     weightIsAssistance = exercise.weightIsAssistance,
+                    weightUnit = exercise.weightUnit,
                     reps = representative.reps,
                     weight = representative.weight,
                     seconds = representative.durationSeconds,

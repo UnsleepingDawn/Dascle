@@ -12,15 +12,25 @@ import com.fitplan.domain.model.ExerciseProgressHint
 import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineItem
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.model.WorkoutSet
+import com.fitplan.domain.model.isWeightAtLeast
+import com.fitplan.domain.model.isWeightAtMost
+import com.fitplan.domain.model.isWeightGreaterThan
+import com.fitplan.domain.model.isWeightLessThan
 import com.fitplan.domain.model.pickedExerciseIds
+import com.fitplan.domain.model.resolve
+import com.fitplan.domain.model.sameWeight
 import com.fitplan.domain.repository.ExerciseLowReminderRepository
 import com.fitplan.domain.repository.ExerciseProgressHintRepository
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.WorkoutRepository
+import com.fitplan.presentation.unit.WeightUnitPreferences
 import com.fitplan.reminder.RestState
 import com.fitplan.reminder.RestTimer
+import com.fitplan.ui.common.toKilogramsOrNull
+import com.fitplan.ui.common.toWeightText
 import com.fitplan.ui.exercise.DEFAULT_REST_SECONDS
 import com.fitplan.ui.exercise.DEFAULT_TARGET_SETS
 import com.fitplan.ui.exercise.defaultTargets
@@ -108,6 +118,10 @@ data class LogExercise(
     val metric: ExerciseMetric = ExerciseMetric.DEFAULT,
     /** 负重方式（外部负重 / 自重 / 辅助），决定要不要填重量。 */
     val loadMode: ExerciseLoadMode = ExerciseLoadMode.DEFAULT,
+    /** 实际使用的重量单位：动作自己设了就用动作的，没设就跟随全局。录入与展示都按它换算。 */
+    val weightUnit: WeightUnit,
+    /** 这个动作自己设定的重量单位；null 表示跟随全局设置。 */
+    val weightUnitOverride: WeightUnit? = null,
     /** 这个动作涉及的全部部位（主部位在前）；用来在训练页给出练前热身提示。 */
     val muscleGroups: List<MuscleGroup> = emptyList(),
     val skipped: Boolean = false,
@@ -312,6 +326,8 @@ data class ProgressHint(
     val completedSets: Int,
     val metric: ExerciseMetric,
     val loadMode: ExerciseLoadMode,
+    /** 实际使用的重量单位；弹窗里的基准值与输入都按它换算，比较仍在千克空间。 */
+    val weightUnit: WeightUnit,
     /** 当前基准重量（kg）；辅助类动作是助力值。null 表示没有重量基准。 */
     val weightBaseline: Double?,
     /** 当前基准次数；只在 [ExerciseMetric.REPS] 下有意义。 */
@@ -353,7 +369,12 @@ fun ProgressHint.isHarderTarget(kind: ProgressKind, target: Double?): Boolean {
     return when (kind) {
         ProgressKind.WEIGHT -> {
             val baseline = weightBaseline ?: return false
-            if (loadMode == ExerciseLoadMode.ASSISTED) target < baseline else target > baseline
+            // 容差内算持平：磅换算成千克后是长小数，精确比较会把「刚填的同一个值」判成没变难。
+            if (loadMode == ExerciseLoadMode.ASSISTED) {
+                target.isWeightLessThan(baseline)
+            } else {
+                target.isWeightGreaterThan(baseline)
+            }
         }
 
         ProgressKind.REPS -> repsBaseline?.let { target.toInt() > it } ?: false
@@ -380,6 +401,7 @@ class WorkoutLogScreenModel(
     private val widgetManager: WidgetManager,
     private val restTimer: RestTimer,
     private val dataRevision: DataRevision,
+    private val weightUnitPreferences: WeightUnitPreferences,
 ) : ViewModel() {
 
     /**
@@ -389,6 +411,25 @@ class WorkoutLogScreenModel(
      * 相当于每次更新都给所有动作重新开放一次提醒。
      */
     private val versionCode = BuildConfig.VERSION_CODE.toLong()
+
+    /**
+     * 当前的全局默认训练重量单位。
+     *
+     * 构造时同步读一次，保证首帧铺出来的预填值就是对的；之后订阅偏好变化：
+     * 设置里改了全局单位，这里把界面上已经铺出来的重量文本整体换算一遍。
+     */
+    private var globalWeightUnit: WeightUnit = weightUnitPreferences.weightUnit.get()
+
+    init {
+        viewModelScope.launch {
+            weightUnitPreferences.weightUnit.changes().collect { unit ->
+                val previous = globalWeightUnit
+                if (previous == unit) return@collect
+                globalWeightUnit = unit
+                rebaseToGlobalUnit(previous = previous, next = unit)
+            }
+        }
+    }
 
     private val _phase = MutableStateFlow(WorkoutPhase.NOT_STARTED)
     val phase: StateFlow<WorkoutPhase> = _phase.asStateFlow()
@@ -543,7 +584,7 @@ class WorkoutLogScreenModel(
                 _sessionName.value = routineId?.let { routineRepository.getById(it)?.name }.orEmpty()
                 val items = routineId?.let { routineRepository.getItems(it) }.orEmpty()
                 _items.value = items.mapNotNull { it.toLogItem(pickedIds = emptySet()) }
-                _exercises.value = items.flatMap { it.exercises }.map { it.toLogExercise() }
+                _exercises.value = items.flatMap { it.exercises }.map { it.toLogExercise(globalWeightUnit) }
             }
         }
     }
@@ -587,6 +628,44 @@ class WorkoutLogScreenModel(
             )
         }
         persistEditedSet(exerciseId, index)
+    }
+
+    /**
+     * 改某个动作的重量单位；[unit] 为 null 表示跟随全局设置。
+     *
+     * 三类组行分别处理：
+     * - 已完成的组：库里的千克值不动，只把显示文本换算到新单位；
+     * - 未完成但用户手改过的组：保留输入框里的数字，按新单位重新解释——用户通常是在纠正
+     *   「刚才按错单位读了刻度」这件事；
+     * - 未完成且仍是预填值的组：按千克基准在新单位下重新预填。
+     */
+    fun updateWeightUnit(exerciseId: Long, unit: WeightUnit?) {
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
+        val oldUnit = exercise.weightUnit
+        val newUnit = globalWeightUnit.resolve(unit)
+        if (exercise.weightUnitOverride == unit && oldUnit == newUnit) return
+        val baseline = exercise.weightBaseline
+        mutate(exerciseId) { current ->
+            current.copy(
+                weightUnit = newUnit,
+                weightUnitOverride = unit,
+                sets = current.sets.map { entry ->
+                    when {
+                        entry.completed -> entry.weight.toKilogramsOrNull(oldUnit)
+                            ?.let { kilograms -> entry.copy(weight = kilograms.toWeightText(newUnit)) }
+                            ?: entry
+
+                        entry.weightEdited -> entry
+
+                        // 没有重量基准时预填值本来就是空（或由上一条带过来），原样保留。
+                        baseline == null -> entry
+
+                        else -> entry.copy(weight = baseline.toWeightText(newUnit))
+                    }
+                },
+            )
+        }
+        viewModelScope.launch { exerciseRepository.updateWeightUnit(exerciseId, unit) }
     }
 
     fun updateReps(exerciseId: Long, index: Int, value: String) {
@@ -754,7 +833,14 @@ class WorkoutLogScreenModel(
 
                 entry.id?.let { setId ->
                     workoutRepository.updateSet(
-                        entry.toWorkoutSet(setId, currentSessionId, exerciseId, index, completed = false),
+                        entry.toWorkoutSet(
+                            id = setId,
+                            sessionId = currentSessionId,
+                            exerciseId = exerciseId,
+                            index = index,
+                            completed = false,
+                            weightUnit = exercise.weightUnit,
+                        ),
                     )
                 }
                 mutateSet(exerciseId, index) { it.copy(completed = false) }
@@ -800,14 +886,21 @@ class WorkoutLogScreenModel(
             exerciseId = exerciseId,
             setIndex = index + 1,
             // 纯自重动作不给重量输入框，落库时也不要凭空写一个 0。
-            weight = if (exercise.showsWeight) entry.weight.toDoubleOrNull() else null,
+            weight = if (exercise.showsWeight) entry.weight.toKilogramsOrNull(exercise.weightUnit) else null,
             reps = if (exercise.isTimed) null else reps,
             durationSeconds = if (exercise.isTimed) seconds else null,
         )
 
         // addSet 写进去的是「未完成」的占位行，勾选状态得再更新一次才落库。
         workoutRepository.updateSet(
-            entry.toWorkoutSet(setId, currentSessionId, exerciseId, index, completed = true),
+            entry.toWorkoutSet(
+                id = setId,
+                sessionId = currentSessionId,
+                exerciseId = exerciseId,
+                index = index,
+                completed = true,
+                weightUnit = exercise.weightUnit,
+            ),
         )
 
         mutate(exerciseId) { current ->
@@ -868,10 +961,11 @@ class WorkoutLogScreenModel(
     private fun isBelowTarget(exercise: LogExercise, entry: SetEntry): Boolean {
         if (exercise.showsWeight) {
             val weightBaseline = exercise.weightBaseline ?: return false
-            val weight = entry.weight.toDoubleOrNull() ?: return true
+            val weight = entry.weight.toKilogramsOrNull(exercise.weightUnit) ?: return true
             return when (exercise.loadMode) {
-                ExerciseLoadMode.ASSISTED -> weight > weightBaseline
-                else -> weight < weightBaseline
+                // 容差内算持平：磅换算出的长小数不该被判成低于 / 高于目标。
+                ExerciseLoadMode.ASSISTED -> weight.isWeightGreaterThan(weightBaseline)
+                else -> weight.isWeightLessThan(weightBaseline)
             }
         }
         if (exercise.isTimed) {
@@ -923,7 +1017,11 @@ class WorkoutLogScreenModel(
         // 这一组的实际值按新目标覆盖；重量只在有重量框时写，次数 / 时长按计量方式二选一。
         mutateSet(retry.exerciseId, index) { entry ->
             entry.copy(
-                weight = if (exercise.showsWeight) targets.weight.toWeightText() else entry.weight,
+                weight = if (exercise.showsWeight) {
+                    targets.weight.toWeightText(exercise.weightUnit)
+                } else {
+                    entry.weight
+                },
                 reps = if (exercise.isTimed) entry.reps else targets.reps.toString(),
                 seconds = if (exercise.isTimed) targets.seconds?.toString() ?: entry.seconds else entry.seconds,
             )
@@ -955,8 +1053,10 @@ class WorkoutLogScreenModel(
         val previousSeconds = exercise.targetSeconds
 
         // 改了才写：重量用可空表达「没设」，清空输入框不写这一项；次数 / 时长按计量方式二选一。
-        val appliedWeight = targets.weight.takeIf {
-            exercise.showsWeight && it != null && it != previousWeight
+        // 重量比较带容差：磅换算成千克后是长小数，精确比较会把「同一个值」判成改过。
+        val appliedWeight = targets.weight.takeIf { new ->
+            exercise.showsWeight && new != null &&
+                (previousWeight == null || !sameWeight(previousWeight, new))
         }
         val appliedSeconds = targets.seconds.takeIf {
             exercise.isTimed && it != null && it != previousSeconds
@@ -987,7 +1087,7 @@ class WorkoutLogScreenModel(
                     } else {
                         entry.copy(
                             weight = if (appliedWeight != null) {
-                                rebasedWeight(entry, previousWeight, appliedWeight)
+                                rebasedWeight(entry, previousWeight, appliedWeight, current.weightUnit)
                             } else {
                                 entry.weight
                             },
@@ -1119,8 +1219,8 @@ class WorkoutLogScreenModel(
                         exercise.copy(
                             targetWeight = newWeight,
                             sets = exercise.sets.map { entry ->
-                                if (entry.isPrefilledWeight(baseline)) {
-                                    entry.copy(weight = newWeight.toWeightText())
+                                if (entry.isPrefilledWeight(baseline, exercise.weightUnit)) {
+                                    entry.copy(weight = newWeight.toWeightText(exercise.weightUnit))
                                 } else {
                                     entry
                                 }
@@ -1186,11 +1286,14 @@ class WorkoutLogScreenModel(
         if (completed.size < exercise.targetSets) return
 
         // 重量基准：计划 / 动作库都没标时，退回「本次每组都一样的那个重量」（单杠悬挂这类可选负重动作）。
+        // 比较一律回到千克空间并带容差，磅换算出的小数不会把同一个重量判成两个不同的值。
         val weightBaseline = if (exercise.showsWeight) {
             exercise.weightBaseline ?: completed
-                .mapNotNull { it.weight.toDoubleOrNull() }
-                .distinct()
-                .singleOrNull()
+                .mapNotNull { it.weight.toKilogramsOrNull(exercise.weightUnit) }
+                .let { weights ->
+                    val first = weights.firstOrNull()
+                    first?.takeIf { candidate -> weights.all { sameWeight(it, candidate) } }
+                }
         } else {
             null
         }
@@ -1199,14 +1302,13 @@ class WorkoutLogScreenModel(
         if (exercise.isTimed && secondsBaseline == null) return
 
         val qualified = completed.all { entry ->
+            val weight = entry.weight.toKilogramsOrNull(exercise.weightUnit)
             val weightOk = when (exercise.loadMode) {
                 ExerciseLoadMode.BODYWEIGHT -> true
                 ExerciseLoadMode.EXTERNAL ->
-                    weightBaseline == null ||
-                        (entry.weight.toDoubleOrNull()?.let { it >= weightBaseline } == true)
+                    weightBaseline == null || (weight?.isWeightAtLeast(weightBaseline) == true)
                 ExerciseLoadMode.ASSISTED ->
-                    weightBaseline == null ||
-                        (entry.weight.toDoubleOrNull()?.let { it <= weightBaseline } == true)
+                    weightBaseline == null || (weight?.isWeightAtMost(weightBaseline) == true)
             }
             if (!weightOk) return@all false
             if (exercise.isTimed) {
@@ -1223,6 +1325,7 @@ class WorkoutLogScreenModel(
             completedSets = completed.size,
             metric = exercise.metric,
             loadMode = exercise.loadMode,
+            weightUnit = exercise.weightUnit,
             weightBaseline = weightBaseline,
             repsBaseline = repsBaseline,
             secondsBaseline = secondsBaseline,
@@ -1289,6 +1392,8 @@ class WorkoutLogScreenModel(
                 isExtra = true,
                 metric = exercise.metric,
                 loadMode = exercise.loadMode,
+                weightUnit = globalWeightUnit.resolve(exercise.weightUnit),
+                weightUnitOverride = exercise.weightUnit,
                 muscleGroups = exercise.muscleGroups,
                 targetWeight = targets.weight,
                 targetSeconds = targets.seconds,
@@ -1379,6 +1484,10 @@ class WorkoutLogScreenModel(
             // 计量方式 / 负重方式一律以动作库为准；动作库查不到时退回计划编排上的值。
             val metric = libraryExercise?.metric ?: routineExercise?.metric ?: ExerciseMetric.DEFAULT
             val loadMode = libraryExercise?.loadMode ?: routineExercise?.loadMode ?: ExerciseLoadMode.DEFAULT
+            // 重量单位：动作库里的覆盖值优先，其次是计划编排上带出来的同一个值；
+            // 两者都为空表示跟随全局，这里先把全局值解析成「生效单位」。
+            val weightUnitOverride = libraryExercise?.weightUnit ?: routineExercise?.weightUnit
+            val weightUnit = globalWeightUnit.resolve(weightUnitOverride)
             val exercise = LogExercise(
                 exerciseId = exerciseId,
                 name = routineExercise?.exerciseName ?: libraryExercise?.name.orEmpty(),
@@ -1389,6 +1498,8 @@ class WorkoutLogScreenModel(
                 isExtra = routineExercise == null,
                 metric = metric,
                 loadMode = loadMode,
+                weightUnit = weightUnit,
+                weightUnitOverride = weightUnitOverride,
                 muscleGroups = libraryExercise?.muscleGroups ?: routineExercise?.muscleGroups.orEmpty(),
                 // 只有计划外动作取动作库默认值；计划内动作保留用户设置，包括未填写的目标。
                 targetWeight = if (routineExercise != null) routineExercise.targetWeight else libraryDefaults?.weight,
@@ -1412,7 +1523,7 @@ class WorkoutLogScreenModel(
                     .map { set ->
                         SetEntry(
                             id = set.id,
-                            weight = set.weight.toWeightText(),
+                            weight = set.weight.toWeightText(weightUnit),
                             reps = set.reps?.toString().orEmpty(),
                             seconds = set.durationSeconds?.toString().orEmpty(),
                             completed = set.completed,
@@ -1443,6 +1554,28 @@ class WorkoutLogScreenModel(
             _collapsedExerciseIds.value + _exercises.value.filter { it.isDone }.map { it.exerciseId }
     }
 
+    /**
+     * 全局单位变了：物理重量不变，只把每张卡上已经铺出来的重量文本按「旧单位 → 千克 → 新单位」换算一遍。
+     * 动作自己设了单位的不受影响。
+     */
+    private fun rebaseToGlobalUnit(previous: WeightUnit, next: WeightUnit) {
+        _exercises.value = _exercises.value.map outer@{ exercise ->
+            if (exercise.weightUnitOverride != null) return@outer exercise
+            exercise.copy(
+                weightUnit = next,
+                sets = exercise.sets.map { entry ->
+                    val kilograms = entry.weight.toKilogramsOrNull(previous) ?: return@map entry
+                    entry.copy(weight = kilograms.toWeightText(next))
+                },
+            )
+        }
+        // 渐进提示里还开着的话，基准值的显示单位也跟着换；这个动作自己设过单位时不动。
+        _progressHint.value = _progressHint.value?.let { hint ->
+            val override = _exercises.value.firstOrNull { it.exerciseId == hint.exerciseId }?.weightUnitOverride
+            if (override == null) hint.copy(weightUnit = next) else hint
+        }
+    }
+
     private fun mutate(exerciseId: Long, transform: (LogExercise) -> LogExercise) {
         _exercises.value = _exercises.value.map { if (it.exerciseId == exerciseId) transform(it) else it }
     }
@@ -1468,12 +1601,20 @@ class WorkoutLogScreenModel(
      */
     private fun persistEditedSet(exerciseId: Long, index: Int) {
         if (!editing) return
-        val entry = _exercises.value.firstOrNull { it.exerciseId == exerciseId }?.sets?.getOrNull(index) ?: return
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
+        val entry = exercise.sets.getOrNull(index) ?: return
         val setId = entry.id ?: return
         val currentSessionId = sessionId ?: return
         viewModelScope.launch {
             workoutRepository.updateSet(
-                entry.toWorkoutSet(setId, currentSessionId, exerciseId, index, completed = entry.completed),
+                entry.toWorkoutSet(
+                    id = setId,
+                    sessionId = currentSessionId,
+                    exerciseId = exerciseId,
+                    index = index,
+                    completed = entry.completed,
+                    weightUnit = exercise.weightUnit,
+                ),
             )
         }
     }
@@ -1487,7 +1628,13 @@ class WorkoutLogScreenModel(
     }
 }
 
-private fun RoutineExercise.toLogExercise(): LogExercise {
+/**
+ * 计划编排的一项转成记录页的动作卡；[globalUnit] 是没有单独设过单位时的兜底。
+ *
+ * [RoutineExercise.weightUnit] 是动作自己的覆盖值（可能为空），这里一并带上，
+ * 这样切换全局单位时能分清「跟随全局」和「显式设过」的动作。
+ */
+private fun RoutineExercise.toLogExercise(globalUnit: WeightUnit): LogExercise {
     val exercise = LogExercise(
         exerciseId = exerciseId,
         name = exerciseName,
@@ -1498,6 +1645,8 @@ private fun RoutineExercise.toLogExercise(): LogExercise {
         isExtra = false,
         metric = metric,
         loadMode = loadMode,
+        weightUnit = globalUnit.resolve(weightUnit),
+        weightUnitOverride = weightUnit,
         muscleGroups = muscleGroups,
         targetWeight = targetWeight,
         targetSeconds = targetSeconds,
@@ -1536,7 +1685,7 @@ private fun RoutineItem.toLogItem(pickedIds: Set<Long>, excludedIds: Set<Long> =
  * 纯自重动作不预填重量（连输入框都没有）。
  */
 private fun emptyEntry(exercise: LogExercise): SetEntry = SetEntry(
-    weight = if (exercise.showsWeight) exercise.targetWeight.toWeightText() else "",
+    weight = if (exercise.showsWeight) exercise.targetWeight.toWeightText(exercise.weightUnit) else "",
     reps = if (exercise.isTimed) "" else exercise.targetReps.toString(),
     seconds = if (exercise.isTimed) exercise.targetSeconds?.toString().orEmpty() else "",
 )
@@ -1555,11 +1704,13 @@ private fun LogExercise.appendedEntry(): SetEntry {
 /**
  * 这一行还是「按基准值预填、且没勾选」的状态：默认值一变，这些行要跟着一起换；
  * 已经完成的记录保留当时实际用的数值，用户手动改过的行也不动。
+ *
+ * [unit] 是这一行显示用的单位，比较时先换回千克并用容差判断，磅换算出的长小数不会误判。
  */
-private fun SetEntry.isPrefilledWeight(baseline: Double): Boolean {
+private fun SetEntry.isPrefilledWeight(baseline: Double, unit: WeightUnit): Boolean {
     if (completed) return false
-    val value = weight.toDoubleOrNull()
-    return value == null || value == baseline
+    val value = weight.toKilogramsOrNull(unit)
+    return value == null || sameWeight(value, baseline)
 }
 
 private fun SetEntry.isPrefilledReps(baseline: Int): Boolean {
@@ -1577,10 +1728,16 @@ private fun SetEntry.isPrefilledSeconds(baseline: Int): Boolean {
 /**
  * 目标值改动后，把这一行「按旧目标预填、还没勾选」的数值换成 [next]；
  * 已完成的记录与用户手改过的行保留原样。旧目标为空时无从判断，直接不动。
+ *
+ * [previous] 与 [next] 都是千克，[unit] 是这一行显示用的单位。
  */
-private fun rebasedWeight(entry: SetEntry, previous: Double?, next: Double): String {
+private fun rebasedWeight(entry: SetEntry, previous: Double?, next: Double, unit: WeightUnit): String {
     val baseline = previous ?: return entry.weight
-    return if (entry.isPrefilledWeight(baseline)) next.toWeightText() else entry.weight
+    return if (entry.isPrefilledWeight(baseline, unit)) {
+        next.toWeightText(unit)
+    } else {
+        entry.weight
+    }
 }
 
 private fun rebasedReps(entry: SetEntry, previous: Int, next: Int): String {
@@ -1614,20 +1771,14 @@ private fun SetEntry.toWorkoutSet(
     exerciseId: Long,
     index: Int,
     completed: Boolean,
+    weightUnit: WeightUnit,
 ): WorkoutSet = WorkoutSet(
     id = id,
     sessionId = sessionId,
     exerciseId = exerciseId,
     setIndex = index + 1,
-    weight = weight.toDoubleOrNull(),
+    weight = weight.toKilogramsOrNull(weightUnit),
     reps = reps.toIntOrNull(),
     durationSeconds = seconds.toIntOrNull(),
     completed = completed,
 )
-
-/** 重量转成输入框文本：整数不带小数点，null 显示为空（重量输入框、计划默认重量共用）。 */
-internal fun Double?.toWeightText(): String = when {
-    this == null -> ""
-    this == toLong().toDouble() -> toLong().toString()
-    else -> toString()
-}

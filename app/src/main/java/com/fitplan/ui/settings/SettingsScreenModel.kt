@@ -2,9 +2,11 @@ package com.fitplan.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.ui.model.AppDarkMode
 import com.fitplan.domain.ui.model.AppTheme
 import com.fitplan.presentation.theme.ThemePreferences
+import com.fitplan.presentation.unit.WeightUnitPreferences
 import com.fitplan.reminder.ReminderScheduler
 import com.fitplan.updater.UpdateChecker
 import dev.zacsweers.metro.AppScope
@@ -21,6 +23,7 @@ class SettingsScreenModel(
     private val reminderScheduler: ReminderScheduler,
     private val updateChecker: UpdateChecker,
     private val themePreferences: ThemePreferences,
+    private val weightUnitPreferences: WeightUnitPreferences,
 ) : ViewModel() {
 
     val reminderEnabled: StateFlow<Boolean> = reminderScheduler.enabled.stateIn(viewModelScope)
@@ -43,6 +46,9 @@ class SettingsScreenModel(
 
     /** 深色模式下是否使用纯黑背景。 */
     val amoled: StateFlow<Boolean> = themePreferences.amoled.stateIn(viewModelScope)
+
+    /** 训练重量的全局默认单位；单个动作可以覆盖。 */
+    val weightUnit: StateFlow<WeightUnit> = weightUnitPreferences.weightUnit.stateIn(viewModelScope)
 
     fun setReminderEnabled(enabled: Boolean) {
         reminderScheduler.enabled.set(enabled)
@@ -73,6 +79,10 @@ class SettingsScreenModel(
 
     fun setAmoled(enabled: Boolean) {
         themePreferences.amoled.set(enabled)
+    }
+
+    fun setWeightUnit(unit: WeightUnit) {
+        weightUnitPreferences.weightUnit.set(unit)
     }
 
     fun canPostNotifications(): Boolean = reminderScheduler.canPostNotifications()

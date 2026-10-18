@@ -33,6 +33,7 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import com.fitplan.app.R
 import com.fitplan.domain.model.BodyStats
 import com.fitplan.domain.model.WorkoutStats
+import com.fitplan.domain.model.resolve
 import com.fitplan.presentation.core.components.SectionCard
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.TabText
@@ -42,6 +43,8 @@ import com.fitplan.presentation.core.screens.LoadingScreen
 import com.fitplan.presentation.util.Tab
 import com.fitplan.presentation.widget.chart.ColumnChart
 import com.fitplan.presentation.widget.chart.LineChart
+import com.fitplan.ui.common.LocalWeightUnit
+import com.fitplan.ui.common.unitLabel
 import com.fitplan.ui.profile.BodyMetricField
 import com.fitplan.ui.workout.WorkoutLogScreen
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -211,7 +214,9 @@ private fun StatsContent(
         }
 
         item {
-            SectionCard(title = stringResource(R.string.stats_chart_progress)) {
+            // 这个动作自己的单位优先；没设过就跟随全局。图表数值与标题单位都用它。
+            val progressUnit = LocalWeightUnit.current.resolve(selectedProgress?.weightUnit)
+            SectionCard(title = stringResource(R.string.stats_chart_progress, unitLabel(progressUnit))) {
                 if (selectedProgress == null) {
                     Text(
                         text = stringResource(R.string.stats_chart_progress_empty),
@@ -219,8 +224,12 @@ private fun StatsContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    val axis = remember(selectedProgress, axisMode, stats.rangeStartDate) {
-                        selectedProgress.axis(mode = axisMode, startDate = stats.rangeStartDate)
+                    val axis = remember(selectedProgress, axisMode, stats.rangeStartDate, progressUnit) {
+                        selectedProgress.axis(
+                            mode = axisMode,
+                            startDate = stats.rangeStartDate,
+                            unit = progressUnit,
+                        )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
                         ProgressAxisSelector(mode = axisMode, onSelect = onSelectAxisMode)

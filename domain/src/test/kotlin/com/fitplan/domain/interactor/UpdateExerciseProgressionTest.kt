@@ -9,6 +9,7 @@ import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineItem
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.repository.ExerciseProgressHintRepository
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
@@ -276,6 +277,8 @@ private class FakeExerciseRepository(
     override suspend fun updateDefaultDuration(id: Long, seconds: Int) {
         defaultDurations[id] = seconds
     }
+
+    override suspend fun updateWeightUnit(id: Long, unit: WeightUnit?) = error("本测试不涉及重量单位")
 
     override suspend fun deleteById(id: Long) = error("本测试不涉及删除动作")
 }

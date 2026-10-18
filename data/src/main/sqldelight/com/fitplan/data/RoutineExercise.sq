@@ -30,7 +30,8 @@ SELECT
     exercise.muscle_group AS muscle_group,
     exercise.equipment AS equipment,
     exercise.metric AS metric,
-    exercise.load_mode AS load_mode
+    exercise.load_mode AS load_mode,
+    exercise.weight_unit AS weight_unit
 FROM routine_exercise
 JOIN exercise ON exercise.id = routine_exercise.exercise_id
 WHERE routine_exercise.routine_id = ?

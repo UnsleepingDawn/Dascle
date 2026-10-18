@@ -98,6 +98,7 @@ class ExerciseSeeder(
                         metric = metric.toDbValue(),
                         load_mode = loadMode.toDbValue(),
                         default_reps = null,
+                        weight_unit = null,
                     )
                     inserted++
                     database.utilQueries.lastInsertRowId().awaitAsOne()

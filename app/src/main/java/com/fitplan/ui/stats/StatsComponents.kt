@@ -19,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import com.fitplan.app.R
 import com.fitplan.domain.model.ExerciseProgress
 import com.fitplan.domain.model.StatsRange
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutStats
 import com.fitplan.presentation.core.components.material.padding
@@ -227,14 +228,20 @@ internal data class ProgressAxis(
  *
  * [ProgressAxisMode.INDEX] 只关心练了几次，横轴永远均匀；
  * [ProgressAxisMode.DATE] 把横轴换成「区间第几天」，没训练的日子会留出空档。
+ *
+ * 数据点仍然以千克保存，[unit] 只在这里换算成要显示的单位（磅的数值更大，纵轴刻度跟着变）。
  */
-internal fun ExerciseProgress.axis(mode: ProgressAxisMode, startDate: LocalDate): ProgressAxis {
+internal fun ExerciseProgress.axis(
+    mode: ProgressAxisMode,
+    startDate: LocalDate,
+    unit: WeightUnit,
+): ProgressAxis {
     val points = points.mapIndexed { index, point ->
         val x = when (mode) {
             ProgressAxisMode.INDEX -> index
             ProgressAxisMode.DATE -> startDate.daysUntil(point.date)
         }
-        LinePoint(x = x, value = point.weight)
+        LinePoint(x = x, value = unit.fromKilograms(point.weight))
     }
     val labelAt: (Int) -> String = when (mode) {
         // 等间距模式下每个坐标都有数据点，直接取那天的日期。

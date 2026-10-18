@@ -5,6 +5,7 @@ import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.ExerciseLoadMode
 import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.MuscleGroup
+import com.fitplan.domain.model.WeightUnit
 import kotlin.time.Instant
 
 interface ExerciseRepository {
@@ -47,6 +48,9 @@ interface ExerciseRepository {
 
     /** 调整动作库里的默认时长（秒），供「增加时间」的渐进提示使用。 */
     suspend fun updateDefaultDuration(id: Long, seconds: Int)
+
+    /** 设定这个动作录入 / 展示重量的单位；[unit] 为 null 表示跟随全局设置。 */
+    suspend fun updateWeightUnit(id: Long, unit: WeightUnit?)
 
     suspend fun deleteById(id: Long)
 }

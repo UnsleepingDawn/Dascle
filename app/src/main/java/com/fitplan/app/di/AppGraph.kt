@@ -12,6 +12,7 @@ import com.fitplan.app.ui.main.MainActivity
 import com.fitplan.core.metro.IsDebugBuild
 import com.fitplan.data.Database
 import com.fitplan.presentation.theme.ThemePreferences
+import com.fitplan.presentation.unit.WeightUnitPreferences
 import com.fitplan.reminder.ReminderScheduler
 import com.fitplan.reminder.RestNotifier
 import com.fitplan.widget.WidgetManager
@@ -50,6 +51,9 @@ interface AppGraph : ViewModelGraph {
 
     /** 主题与个性化偏好，供根组合的 [com.fitplan.presentation.theme.FitPlanTheme] 与设置页读写。 */
     val themePreferences: ThemePreferences
+
+    /** 训练重量的全局默认单位，供根组合的 `LocalWeightUnit` 与设置页读写。 */
+    val weightUnitPreferences: WeightUnitPreferences
 
     @DependencyGraph.Factory
     fun interface Factory {

@@ -22,6 +22,11 @@ data class RoutineExercise(
     val targetWeight: Double? = null,
     /** 默认时长（秒）；只在 [ExerciseMetric.DURATION] 下有意义。 */
     val targetSeconds: Int? = null,
+    /**
+     * 这个动作录入 / 展示重量时用的单位；null 表示跟随全局设置。
+     * 只影响显示，[targetWeight] 仍然以千克存储。
+     */
+    val weightUnit: WeightUnit? = null,
     /** 所属的动作组 id；为 null 表示这个动作在计划里单独排列，不参与组内挑选。 */
     val groupId: Long? = null,
     /**

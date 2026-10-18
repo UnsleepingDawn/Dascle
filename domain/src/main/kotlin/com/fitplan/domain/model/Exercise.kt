@@ -23,6 +23,11 @@ data class Exercise(
     val defaultDurationSeconds: Int? = null,
     /** 内置动作的默认次数；渐进提示写入的基准，null 表示还没标过。 */
     val defaultReps: Int? = null,
+    /**
+     * 这个动作录入 / 展示重量时用的单位；null 表示跟随全局设置。
+     * 只影响显示，[defaultWeight] 等重量字段仍然以千克存储。
+     */
+    val weightUnit: WeightUnit? = null,
 ) {
     /** 该动作涉及的全部部位，主部位在前、次部位去重在后。 */
     val muscleGroups: List<MuscleGroup>

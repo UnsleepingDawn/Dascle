@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.fitplan.app.R
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.ui.model.AppDarkMode
 import com.fitplan.domain.ui.model.AppTheme
 import com.fitplan.presentation.core.components.CheckboxItem
@@ -61,10 +62,11 @@ import com.fitplan.ui.common.DialogPrimaryButton
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
- * 设置页，分三组：
+ * 设置页，分四组：
  * 1. 通知：训练提醒（开关、时间、通知与精确闹钟权限的降级提示）；
- * 2. 主题与个性化：配色、深色模式、AMOLED 纯黑；
- * 3. 其他：版本更新的自动检查与镜像地址。
+ * 2. 训练：全局默认的训练重量单位（单个动作可在编排页 / 记录页覆盖）；
+ * 3. 主题与个性化：配色、深色模式、AMOLED 纯黑；
+ * 4. 其他：版本更新的自动检查与镜像地址。
  */
 object SettingsScreen : Screen() {
 
@@ -80,12 +82,18 @@ object SettingsScreen : Screen() {
         val appTheme by screenModel.appTheme.collectAsState()
         val darkMode by screenModel.darkMode.collectAsState()
         val amoled by screenModel.amoled.collectAsState()
+        val weightUnit by screenModel.weightUnit.collectAsState()
 
         // 下拉框的显示文案：下标与枚举 ordinal 一一对应，选中后按下标回写枚举。
         val themeColorOptions = arrayOf(
             stringResource(R.string.settings_theme_color_default),
             stringResource(R.string.settings_theme_color_green_apple),
             stringResource(R.string.settings_theme_color_monochrome),
+        )
+        // 下标与 WeightUnit.ordinal 一一对应：KG 在前、LB 在后。
+        val weightUnitOptions = arrayOf(
+            stringResource(R.string.settings_weight_unit_kg),
+            stringResource(R.string.settings_weight_unit_lb),
         )
         val darkModeOptions = arrayOf(
             stringResource(R.string.settings_dark_mode_follow_system),
@@ -195,7 +203,29 @@ object SettingsScreen : Screen() {
 
                 SettingsGroupGap()
 
-                // 2. 主题与个性化
+                // 2. 训练：全局默认重量单位（单个动作可覆盖）
+                HeadingItem(text = stringResource(R.string.settings_group_training))
+
+                SelectItem(
+                    label = stringResource(R.string.settings_weight_unit),
+                    options = weightUnitOptions,
+                    selectedIndex = weightUnit.ordinal,
+                    onSelect = { screenModel.setWeightUnit(WeightUnit.entries[it]) },
+                )
+                Text(
+                    text = stringResource(R.string.settings_weight_unit_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .padding(
+                            start = SettingsItemsPaddings.Horizontal,
+                            end = SettingsItemsPaddings.Horizontal,
+                        )
+                        .secondaryItemAlpha(),
+                )
+
+                SettingsGroupGap()
+
+                // 3. 主题与个性化
                 HeadingItem(text = stringResource(R.string.settings_group_appearance))
 
                 SelectItem(
@@ -228,7 +258,7 @@ object SettingsScreen : Screen() {
 
                 SettingsGroupGap()
 
-                // 3. 其他（版本更新）
+                // 4. 其他（版本更新）
                 HeadingItem(text = stringResource(R.string.settings_group_other))
 
                 CheckboxItem(

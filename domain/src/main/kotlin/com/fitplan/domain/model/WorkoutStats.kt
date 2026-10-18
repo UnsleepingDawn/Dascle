@@ -20,6 +20,8 @@ data class ExerciseProgress(
     val exerciseId: Long,
     val exerciseName: String,
     val points: List<ProgressPoint>,
+    /** 这个动作自己的重量单位；null 表示跟随全局。图上的数值仍是千克，由界面换算显示。 */
+    val weightUnit: WeightUnit? = null,
 )
 
 /** 统计页历史列表的一项，[completedSets] 来自该次训练的已完成组。 */

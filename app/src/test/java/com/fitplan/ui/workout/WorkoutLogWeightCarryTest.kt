@@ -1,5 +1,6 @@
 package com.fitplan.ui.workout
 
+import com.fitplan.core.common.preference.InMemoryPreferenceStore
 import com.fitplan.domain.model.Equipment
 import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.ExerciseLoadMode
@@ -12,6 +13,7 @@ import com.fitplan.domain.repository.ExerciseLowReminderRepository
 import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.domain.repository.WorkoutRepository
+import com.fitplan.presentation.unit.WeightUnitPreferences
 import com.fitplan.reminder.RestTimer
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -121,6 +123,7 @@ class WorkoutLogWeightCarryTest {
         widgetManager = mockk(relaxed = true),
         restTimer = restTimer,
         dataRevision = mockk(relaxed = true),
+        weightUnitPreferences = WeightUnitPreferences(InMemoryPreferenceStore()),
     )
 
     private val routineId = 1L

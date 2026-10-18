@@ -18,10 +18,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import com.fitplan.app.R
 import com.fitplan.domain.model.ExerciseLoadMode
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogPrimaryButton
+import com.fitplan.ui.common.toKilogramsOrNull
+import com.fitplan.ui.common.unitLabel
+import com.fitplan.ui.common.weightText
 
 /**
  * 渐进提示的第一步：这个动作已经按当前目标做满目标组了，要不要把目标提高一点。
@@ -83,7 +87,13 @@ internal fun ProgressTargetDialog(
     val hint = input.hint
     val kind = input.kind
     var text by remember(input) { mutableStateOf("") }
-    val target = text.toDoubleOrNull()
+    // 重量输入框里的数字是按这个动作的显示单位写的，确认时换算成千克再交给 ScreenModel；
+    // 次数 / 时长不受单位影响，直接按数字解析。
+    val target = if (kind == ProgressKind.WEIGHT) {
+        text.toKilogramsOrNull(hint.weightUnit)
+    } else {
+        text.toDoubleOrNull()
+    }
     val harder = hint.isHarderTarget(kind, target)
     val allowDecimal = kind == ProgressKind.WEIGHT
     val assisted = kind == ProgressKind.WEIGHT && hint.loadMode == ExerciseLoadMode.ASSISTED
@@ -123,7 +133,7 @@ internal fun ProgressTargetDialog(
                                 } else {
                                     R.string.workout_progress_target_label
                                 },
-                                unitLabel(kind),
+                                kindUnitLabel(kind = kind, weightUnit = hint.weightUnit),
                             ),
                         )
                     },
@@ -230,35 +240,33 @@ private fun increaseLabel(hint: ProgressHint, kind: ProgressKind): String = stri
 )
 
 @Composable
-private fun unitLabel(kind: ProgressKind): String = stringResource(
-    when (kind) {
-        ProgressKind.WEIGHT -> R.string.unit_kg
-        ProgressKind.REPS -> R.string.unit_reps
-        ProgressKind.SECONDS -> R.string.unit_seconds
-    },
-)
+private fun kindUnitLabel(kind: ProgressKind, weightUnit: WeightUnit): String = when (kind) {
+    ProgressKind.WEIGHT -> unitLabel(weightUnit)
+    ProgressKind.REPS -> stringResource(R.string.unit_reps)
+    ProgressKind.SECONDS -> stringResource(R.string.unit_seconds)
+}
 
 /** 当前基准值（带单位）；辅助类动作的重量写成「辅助 40 kg」。 */
 @Composable
 private fun baselineText(hint: ProgressHint, kind: ProgressKind): String = when (kind) {
-    ProgressKind.WEIGHT -> if (hint.loadMode == ExerciseLoadMode.ASSISTED) {
-        stringResource(R.string.weight_kg_assist, hint.weightBaseline.toWeightText())
-    } else {
-        stringResource(R.string.weight_kg, hint.weightBaseline.toWeightText())
-    }
+    ProgressKind.WEIGHT -> weightText(
+        valueKg = hint.weightBaseline,
+        unit = hint.weightUnit,
+        assisted = hint.loadMode == ExerciseLoadMode.ASSISTED,
+    )
 
     ProgressKind.REPS -> "${hint.repsBaseline} ${stringResource(R.string.unit_reps)}"
     ProgressKind.SECONDS -> "${hint.secondsBaseline} ${stringResource(R.string.unit_seconds)}"
 }
 
-/** [target] 这个新目标（带单位）：辅助类动作的重量写成「辅助 40 kg」。 */
+/** [target] 这个新目标（带单位，千克）；辅助类动作的重量写成「辅助 40 kg」。 */
 @Composable
 private fun targetText(hint: ProgressHint, kind: ProgressKind, target: Double): String = when (kind) {
-    ProgressKind.WEIGHT -> if (hint.loadMode == ExerciseLoadMode.ASSISTED) {
-        stringResource(R.string.weight_kg_assist, target.coerceAtLeast(0.0).toWeightText())
-    } else {
-        stringResource(R.string.weight_kg, target.toWeightText())
-    }
+    ProgressKind.WEIGHT -> weightText(
+        valueKg = target.coerceAtLeast(0.0),
+        unit = hint.weightUnit,
+        assisted = hint.loadMode == ExerciseLoadMode.ASSISTED,
+    )
 
     ProgressKind.REPS -> "${target.toInt()} ${stringResource(R.string.unit_reps)}"
     ProgressKind.SECONDS -> "${target.toInt()} ${stringResource(R.string.unit_seconds)}"

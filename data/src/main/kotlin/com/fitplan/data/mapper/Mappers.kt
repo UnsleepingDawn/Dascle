@@ -12,6 +12,7 @@ import com.fitplan.domain.model.Routine
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineGroup
 import com.fitplan.domain.model.ScheduleEntry
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.model.WorkoutExerciseState
 import com.fitplan.domain.model.WorkoutHistoryItem
 import com.fitplan.domain.model.WorkoutSession
@@ -64,6 +65,11 @@ internal fun ExerciseLoadMode.toDbValue(): String = name
 /** 老数据 / 自建动作这一列为空，按 [ExerciseLoadMode.DEFAULT] 兜底。 */
 internal fun String?.toExerciseLoadMode(): ExerciseLoadMode = ExerciseLoadMode.fromValue(this)
 
+internal fun WeightUnit.toDbValue(): String = name
+
+/** 为空表示跟随全局设置；取值认不出来时也按跟随全局兜底，别让老数据卡住整个动作库。 */
+internal fun String?.toWeightUnitOrNull(): WeightUnit? = WeightUnit.fromValue(this)
+
 internal fun String.toMuscleGroup(): MuscleGroup =
     requireNotNull(MuscleGroup.fromValue(this)) { "未知的肌群取值: $this" }
 
@@ -85,6 +91,7 @@ internal fun ExerciseRow.toDomain(): Exercise = Exercise(
     defaultWeight = default_weight,
     defaultDurationSeconds = default_duration_seconds?.toInt(),
     defaultReps = default_reps?.toInt(),
+    weightUnit = weight_unit.toWeightUnitOrNull(),
 )
 
 /** `exercise_secondary_muscle` 的一行转成次部位；取值非法时抛异常，与主部位一致。 */
@@ -118,6 +125,7 @@ internal fun RoutineExerciseRow.toDomain(): RoutineExercise = RoutineExercise(
     loadMode = load_mode.toExerciseLoadMode(),
     targetWeight = target_weight,
     targetSeconds = target_seconds?.toInt(),
+    weightUnit = weight_unit.toWeightUnitOrNull(),
     groupId = group_id,
 )
 

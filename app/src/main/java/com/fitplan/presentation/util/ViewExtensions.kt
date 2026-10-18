@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import com.fitplan.app.di.appGraph
 import com.fitplan.presentation.core.util.collectAsState
 import com.fitplan.presentation.theme.FitPlanTheme
+import com.fitplan.ui.common.LocalWeightUnit
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 
 inline fun ComponentActivity.setComposeContent(
@@ -26,10 +27,13 @@ inline fun ComponentActivity.setComposeContent(
         val appTheme by themePreferences.appTheme.collectAsState()
         val darkMode by themePreferences.darkMode.collectAsState()
         val amoled by themePreferences.amoled.collectAsState()
+        // 训练重量的全局单位同样订阅偏好：设置里改完，所有跟随全局的动作立刻按新单位显示。
+        val weightUnit by appGraph.weightUnitPreferences.weightUnit.collectAsState()
         FitPlanTheme(appTheme = appTheme, darkMode = darkMode, isAmoled = amoled) {
             CompositionLocalProvider(
                 LocalTextStyle provides MaterialTheme.typography.bodySmall,
                 LocalContentColor provides MaterialTheme.colorScheme.onBackground,
+                LocalWeightUnit provides weightUnit,
                 LocalMetroViewModelFactory provides appGraph.viewModelFactory,
             ) {
                 content()

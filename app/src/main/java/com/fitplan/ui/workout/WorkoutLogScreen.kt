@@ -45,6 +45,8 @@ import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
 import com.fitplan.presentation.util.Screen
+import com.fitplan.ui.common.LocalWeightUnit
+import com.fitplan.ui.common.WeightUnitPickerDialog
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /** 训练记录页：逐组录入重量/次数，勾选一组立刻落库并开始组间休息。 */
@@ -130,6 +132,11 @@ class WorkoutLogScreen(
         // 非空表示正在给某一组计时：计时弹窗只活在前台，不进 ScreenModel。
         var timerTarget by remember { mutableStateOf<TimerTarget?>(null) }
 
+        // 非空表示正在给某个动作选重量单位（kg / lb / 跟随全局）。
+        var weightUnitTarget by remember { mutableStateOf<Long?>(null) }
+
+        val globalWeightUnit = LocalWeightUnit.current
+
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
 
         // 一张动作卡：单独排的动作直接用它，动作组里挑中的动作作为子卡（nested）用它。
@@ -177,6 +184,7 @@ class WorkoutLogScreen(
                         }
                     },
                     onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
+                    onEditWeightUnit = { weightUnitTarget = exercise.exerciseId },
                     onToggleCollapsed = { screenModel.toggleExerciseCollapsed(exercise.exerciseId) },
                 )
             }
@@ -543,6 +551,21 @@ class WorkoutLogScreen(
                     exercise = exercise,
                     onConfirm = screenModel::applyLowTargetRetry,
                     onDismiss = screenModel::dismissLowTargetRetry,
+                )
+            }
+        }
+
+        // 重量单位：训练中发现器械刻度其实是磅时，就地改这个动作的单位。
+        weightUnitTarget?.let { exerciseId ->
+            exercisesById[exerciseId]?.let { exercise ->
+                WeightUnitPickerDialog(
+                    override = exercise.weightUnitOverride,
+                    globalUnit = globalWeightUnit,
+                    onSelect = { unit ->
+                        screenModel.updateWeightUnit(exerciseId, unit)
+                        weightUnitTarget = null
+                    },
+                    onDismiss = { weightUnitTarget = null },
                 )
             }
         }

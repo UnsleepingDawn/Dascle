@@ -7,6 +7,8 @@ import com.fitplan.core.common.preference.PreferenceStore
 import com.fitplan.domain.interactor.UpdateExerciseProgression
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineItem
+import com.fitplan.domain.model.WeightUnit
+import com.fitplan.domain.repository.ExerciseRepository
 import com.fitplan.domain.repository.RoutineRepository
 import com.fitplan.widget.WidgetManager
 import dev.zacsweers.metro.AppScope
@@ -24,6 +26,7 @@ import kotlinx.coroutines.launch
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class RoutineEditScreenModel(
     private val routineRepository: RoutineRepository,
+    private val exerciseRepository: ExerciseRepository,
     private val updateProgress: UpdateExerciseProgression,
     private val widgetManager: WidgetManager,
     preferenceStore: PreferenceStore,
@@ -115,6 +118,7 @@ class RoutineEditScreenModel(
         restSeconds: Int,
         targetWeight: Double?,
         targetSeconds: Int?,
+        weightUnit: WeightUnit?,
     ) {
         viewModelScope.launch {
             val previous = findExercise(id)
@@ -126,6 +130,10 @@ class RoutineEditScreenModel(
                 targetWeight = targetWeight,
                 targetSeconds = targetSeconds,
             )
+            // 单位是动作级设置，存在动作库里；只在真的改了的时候写，避免每次保存都碰一次。
+            previous?.takeIf { it.weightUnit != weightUnit }?.let {
+                exerciseRepository.updateWeightUnit(it.exerciseId, weightUnit)
+            }
             // 用户主动把目标改得更难时，解除这个动作渐进提示的暂缓 / 休眠
             // （辅助类动作是调低辅助重量才更难）。
             previous?.let {

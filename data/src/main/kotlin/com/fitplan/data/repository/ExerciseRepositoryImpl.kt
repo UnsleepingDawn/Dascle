@@ -12,6 +12,7 @@ import com.fitplan.domain.model.Exercise
 import com.fitplan.domain.model.ExerciseLoadMode
 import com.fitplan.domain.model.ExerciseMetric
 import com.fitplan.domain.model.MuscleGroup
+import com.fitplan.domain.model.WeightUnit
 import com.fitplan.domain.repository.ExerciseRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -75,6 +76,7 @@ class ExerciseRepositoryImpl(
             metric = metric.toDbValue(),
             load_mode = loadMode.toDbValue(),
             default_reps = null,
+            weight_unit = null,
         )
         val id = utilQueries.lastInsertRowId().awaitAsOne()
         writeSecondary(id, muscleGroup, secondaryMuscleGroups)
@@ -110,6 +112,10 @@ class ExerciseRepositoryImpl(
 
     override suspend fun updateDefaultDuration(id: Long, seconds: Int) {
         queries.updateDefaultDuration(default_duration_seconds = seconds.toLong(), id = id)
+    }
+
+    override suspend fun updateWeightUnit(id: Long, unit: WeightUnit?) {
+        queries.updateWeightUnit(weight_unit = unit?.toDbValue(), id = id)
     }
 
     /** 写入次部位，跳过与主部位重复的项。 */

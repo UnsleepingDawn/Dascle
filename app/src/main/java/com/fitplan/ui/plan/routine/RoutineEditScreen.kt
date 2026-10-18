@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -54,6 +55,8 @@ import com.fitplan.domain.model.MuscleGroup
 import com.fitplan.domain.model.RoutineExercise
 import com.fitplan.domain.model.RoutineGroup
 import com.fitplan.domain.model.RoutineItem
+import com.fitplan.domain.model.WeightUnit
+import com.fitplan.domain.model.resolve
 import com.fitplan.presentation.core.components.material.Scaffold
 import com.fitplan.presentation.core.components.material.padding
 import com.fitplan.presentation.core.screens.EmptyScreen
@@ -61,8 +64,13 @@ import com.fitplan.presentation.util.Screen
 import com.fitplan.ui.common.DialogButtonColumn
 import com.fitplan.ui.common.DialogCancelButton
 import com.fitplan.ui.common.DialogPrimaryButton
+import com.fitplan.ui.common.LocalWeightUnit
+import com.fitplan.ui.common.WeightUnitPickerDialog
+import com.fitplan.ui.common.toKilogramsOrNull
+import com.fitplan.ui.common.toWeightText
+import com.fitplan.ui.common.unitLabel
+import com.fitplan.ui.common.weightText
 import com.fitplan.ui.exercise.ExercisePickerScreen
-import com.fitplan.ui.workout.toWeightText
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
@@ -177,8 +185,8 @@ class RoutineEditScreen(
             TargetsDialog(
                 exercise = exercise,
                 onDismiss = { editTarget = null },
-                onConfirm = { sets, reps, rest, weight, seconds ->
-                    screenModel.updateTargets(exercise.id, sets, reps, rest, weight, seconds)
+                onConfirm = { sets, reps, rest, weight, seconds, weightUnit ->
+                    screenModel.updateTargets(exercise.id, sets, reps, rest, weight, seconds, weightUnit)
                     editTarget = null
                 },
             )
@@ -744,6 +752,9 @@ private fun GroupExerciseRow(
 /**
  * 动作目标文案：计时是「3 组 × 60 秒」，计数是「3 组 × 10 次」，
  * 需要记录重量的动作设了目标重量时再追加「· 20 kg」（辅助类写成「辅助 40 kg」）。
+ *
+ * 重量单位按动作自己的覆盖值走，没设过就跟随全局；这里读 [LocalWeightUnit]，
+ * 所以设置里切了单位，编排页会立刻按新单位显示，不需要重新加载。
  */
 @Composable
 internal fun RoutineExercise.targetText(): String {
@@ -754,8 +765,11 @@ internal fun RoutineExercise.targetText(): String {
     }
     val weight = when {
         !showsWeight || targetWeight == null -> null
-        weightIsAssistance -> stringResource(R.string.weight_kg_assist, targetWeight.toWeightText())
-        else -> stringResource(R.string.weight_kg, targetWeight.toWeightText())
+        else -> weightText(
+            valueKg = targetWeight,
+            unit = LocalWeightUnit.current.resolve(weightUnit),
+            assisted = weightIsAssistance,
+        )
     }
     return listOfNotNull(base, weight).joinToString(" · ")
 }
@@ -764,13 +778,34 @@ internal fun RoutineExercise.targetText(): String {
 private fun TargetsDialog(
     exercise: RoutineExercise,
     onDismiss: () -> Unit,
-    onConfirm: (sets: Int, reps: Int, restSeconds: Int, targetWeight: Double?, targetSeconds: Int?) -> Unit,
+    onConfirm: (
+        sets: Int,
+        reps: Int,
+        restSeconds: Int,
+        targetWeight: Double?,
+        targetSeconds: Int?,
+        weightUnit: WeightUnit?,
+    ) -> Unit,
 ) {
-    var sets by remember { mutableStateOf(exercise.targetSets.toString()) }
-    var reps by remember { mutableStateOf(exercise.targetReps.toString()) }
-    var weight by remember { mutableStateOf(exercise.targetWeight.toWeightText()) }
-    var seconds by remember { mutableStateOf(exercise.targetSeconds?.toString().orEmpty()) }
-    var rest by remember { mutableStateOf(exercise.restSeconds.toString()) }
+    var sets by remember(exercise.id) { mutableStateOf(exercise.targetSets.toString()) }
+    var reps by remember(exercise.id) { mutableStateOf(exercise.targetReps.toString()) }
+    var seconds by remember(exercise.id) { mutableStateOf(exercise.targetSeconds?.toString().orEmpty()) }
+    var rest by remember(exercise.id) { mutableStateOf(exercise.restSeconds.toString()) }
+    val globalUnit = LocalWeightUnit.current
+    // 动作级单位（null = 跟随全局）；切换时保留输入框里的数字，按新单位重新解释。
+    var weightUnit by remember(exercise.id) { mutableStateOf(exercise.weightUnit) }
+    var showUnitPicker by remember(exercise.id) { mutableStateOf(false) }
+    // 预填值只按打开弹窗时的生效单位算一次：之后切单位只换标签，不重算数字。
+    var weight by remember(exercise.id) {
+        mutableStateOf(
+            if (exercise.showsWeight) {
+                exercise.targetWeight.toWeightText(globalUnit.resolve(exercise.weightUnit))
+            } else {
+                ""
+            },
+        )
+    }
+    val effectiveUnit = globalUnit.resolve(weightUnit)
 
     // 计数 / 计时与是否需要重量都由动作库决定，这里只按类型展示对应的输入框，不给切换入口。
     val timed = exercise.isTimed
@@ -779,7 +814,7 @@ private fun TargetsDialog(
     val setsValue = sets.toIntOrNull()
     val repsValue = reps.toIntOrNull()
     val restValue = rest.toIntOrNull()
-    val weightValue = if (weight.isBlank()) null else weight.toDoubleOrNull()
+    val weightValue = if (weight.isBlank()) null else weight.toKilogramsOrNull(effectiveUnit)
     val secondsValue = seconds.toIntOrNull()
     val valid = setsValue?.let { it > 0 } == true &&
         restValue?.let { it >= 0 } == true &&
@@ -820,9 +855,22 @@ private fun TargetsDialog(
                             } else {
                                 R.string.field_target_weight
                             },
+                            unitLabel(effectiveUnit),
                         ),
                         allowDecimal = true,
                     )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AssistChip(
+                            onClick = { showUnitPicker = true },
+                            label = { Text(text = unitLabel(effectiveUnit)) },
+                        )
+                        Text(
+                            text = stringResource(R.string.routine_target_unit_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                        )
+                    }
                 }
                 NumberField(
                     value = rest,
@@ -843,6 +891,7 @@ private fun TargetsDialog(
                                 parsedRest,
                                 if (showsWeight) weightValue else null,
                                 if (timed) secondsValue else null,
+                                weightUnit,
                             )
                         },
                     )
@@ -852,6 +901,18 @@ private fun TargetsDialog(
         },
         confirmButton = {},
     )
+
+    if (showUnitPicker) {
+        WeightUnitPickerDialog(
+            override = weightUnit,
+            globalUnit = globalUnit,
+            onSelect = { unit ->
+                weightUnit = unit
+                showUnitPicker = false
+            },
+            onDismiss = { showUnitPicker = false },
+        )
+    }
 }
 
 @Composable
