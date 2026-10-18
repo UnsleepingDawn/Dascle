@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "exercises": [
     { "name": "平板杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "仰卧平板凳，握距略宽于肩，下放至胸部中段后推起", "defaultWeightKg": 40 },
     { "name": "上斜杠铃卧推", "muscleGroup": "CHEST", "secondaryMuscleGroups": ["TRICEPS"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "上斜凳约 30-45 度，重点刺激胸大肌上部", "defaultWeightKg": 30 },
@@ -35,6 +35,7 @@
     { "name": "箭步蹲", "muscleGroup": "LEG", "secondaryMuscleGroups": ["GLUTE"], "equipment": "DUMBBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "向前跨步下蹲至双膝约 90 度，交替进行", "defaultWeightKg": 10 },
     { "name": "腿屈伸", "muscleGroup": "LEG", "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "坐姿小腿抵住护垫，股四头肌发力伸直膝盖", "defaultWeightKg": 25 },
     { "name": "腿弯举", "muscleGroup": "LEG", "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "俯卧或坐姿，腘绳肌发力屈膝", "defaultWeightKg": 25 },
+    { "name": "髋内收", "muscleGroup": "LEG", "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "坐姿双腿向内夹拢，大腿内侧内收肌主导", "defaultWeightKg": 25 },
     { "name": "硬拉", "muscleGroup": "LEG", "secondaryMuscleGroups": ["BACK", "GLUTE"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "髋部铰链，背部中立，杠铃贴腿拉起至站直", "defaultWeightKg": 50 },
     { "name": "罗马尼亚硬拉", "muscleGroup": "LEG", "secondaryMuscleGroups": ["GLUTE"], "equipment": "BARBELL", "metric": "REPS", "loadMode": "EXTERNAL", "description": "膝盖微屈，臀部后推下放，重点拉伸腘绳肌", "defaultWeightKg": 40 },
     { "name": "站姿提踵", "muscleGroup": "LEG", "equipment": "MACHINE", "metric": "REPS", "loadMode": "EXTERNAL", "description": "前脚掌踩台阶边缘，脚跟充分下沉后踮起到最高点", "defaultWeightKg": 40 },

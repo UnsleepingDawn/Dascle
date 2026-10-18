@@ -1,0 +1,17 @@
+-- 移除 ARM_OTHER 兜底分组：schema 5→6 把无法判定归属的手臂动作归到了「其他手臂」，
+-- 现在 MuscleGroup 里不再有这个取值，库里若残留，Mappers.kt 的 toMuscleGroup()
+-- 会在 requireNotNull 处直接抛异常。统一改写为 BICEPS，必须在 DB 打开时执行完。
+
+UPDATE exercise
+SET muscle_group = 'BICEPS'
+WHERE muscle_group = 'ARM_OTHER';
+
+-- 后两张表以 (id, muscle_group) 作联合主键，直接改写可能与已存在的 BICEPS 行撞键，
+-- 用 OR REPLACE 让改写后的那行胜出。
+UPDATE OR REPLACE exercise_secondary_muscle
+SET muscle_group = 'BICEPS'
+WHERE muscle_group = 'ARM_OTHER';
+
+UPDATE OR REPLACE workout_warmup_dismissed
+SET muscle_group = 'BICEPS'
+WHERE muscle_group = 'ARM_OTHER';

@@ -295,7 +295,6 @@ internal fun MuscleGroup.label(): String = stringResource(
         MuscleGroup.LEG -> R.string.muscle_leg
         MuscleGroup.GLUTE -> R.string.muscle_glute
         MuscleGroup.CARDIO -> R.string.muscle_cardio
-        MuscleGroup.ARM_OTHER -> R.string.muscle_arm_other
     },
 )
 

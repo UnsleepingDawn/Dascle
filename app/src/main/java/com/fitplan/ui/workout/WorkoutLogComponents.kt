@@ -264,7 +264,6 @@ private fun MuscleGroup.warmupHint(): String = stringResource(
         MuscleGroup.LEG -> R.string.workout_warmup_leg
         MuscleGroup.GLUTE -> R.string.workout_warmup_glute
         MuscleGroup.CARDIO -> R.string.workout_warmup_cardio
-        MuscleGroup.ARM_OTHER -> R.string.workout_warmup_arm_other
     },
 )
 

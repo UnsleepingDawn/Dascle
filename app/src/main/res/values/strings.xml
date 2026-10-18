@@ -249,7 +249,6 @@
     <string name="workout_warmup_leg">高抬腿或开合跳 1 分钟，徒手深蹲 15 次 × 2 组，再用空杆深蹲 1 组 × 12 次，膝盖方向跟着脚尖</string>
     <string name="workout_warmup_glute">原地后踢腿各 15 次，臀桥 20 次，侧向跨步各 10 步，先激活臀中肌再上重量</string>
     <string name="workout_warmup_cardio">先快走或慢跑 5 分钟把心率带起来，再做几组动态拉伸，然后进入正式强度</string>
-    <string name="workout_warmup_arm_other">手腕与肩绕环各 20 次，空手弯举与臂屈伸各 15 次，把肘、腕关节先热开</string>
     <string name="workout_add_extra">计划外动作</string>
     <string name="workout_extra">计划外</string>
     <string name="workout_extra_present">今天的计划里有</string>
@@ -519,7 +518,6 @@
     <string name="muscle_leg">腿</string>
     <string name="muscle_glute">臀</string>
     <string name="muscle_cardio">有氧</string>
-    <string name="muscle_arm_other">其他手臂</string>
 
     <!-- 器械 -->
     <string name="equipment_barbell">杠铃</string>
