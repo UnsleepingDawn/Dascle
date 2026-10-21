@@ -170,6 +170,31 @@ class ScheduleRepositoryImpl(
         }
     }
 
+    override suspend fun swapPlansOn(first: LocalDate, second: LocalDate) {
+        if (first == second) return
+        database.transactionWithResult {
+            // 先各自读出那一天唯一的一条排期，再清空两天、交叉写回，避免撞上 specific_date 的唯一索引。
+            val firstEntries = queries.selectOnceOnDate(specific_date = first.toDbValue()).awaitAsList()
+            val secondEntries = queries.selectOnceOnDate(specific_date = second.toDbValue()).awaitAsList()
+            queries.deleteOnceOnDate(specific_date = first.toDbValue())
+            queries.deleteOnceOnDate(specific_date = second.toDbValue())
+            secondEntries.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = first.toDbValue(),
+                    enabled = entry.enabled,
+                )
+            }
+            firstEntries.forEach { entry ->
+                queries.insertOnceWithEnabled(
+                    routine_id = entry.routine_id,
+                    specific_date = second.toDbValue(),
+                    enabled = entry.enabled,
+                )
+            }
+        }
+    }
+
     override suspend fun insertRestDaysBefore(date: LocalDate, count: Int) {
         if (count <= 0) return
         database.transactionWithResult {

@@ -203,6 +203,47 @@ fun InsertDialog(
     }
 }
 
+/**
+ * 编辑模式恰好选中两天时的「交换」确认：把两天各自排的计划对调。
+ *
+ * [firstPlan] / [secondPlan] 是那两天计划名拼起来的文本（没有计划时调用方传「休息」）；
+ * [showSessionNote] 为 true 表示这两天里已经练过，正文要补一句「训练记录不跟着移动」——
+ * 交换的只是排期，`workout_session` 仍挂在原来的日期上。
+ */
+@Composable
+fun SwapPlansDialog(
+    firstDate: String,
+    secondDate: String,
+    firstPlan: String,
+    secondPlan: String,
+    showSessionNote: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    CompactDialog(
+        onDismissRequest = onDismiss,
+        title = stringResource(R.string.calendar_swap_dialog_title),
+    ) {
+        Text(text = stringResource(R.string.calendar_swap_dialog_message))
+        Text(
+            text = stringResource(R.string.calendar_swap_dialog_line, firstDate, firstPlan),
+        )
+        Text(
+            text = stringResource(R.string.calendar_swap_dialog_line, secondDate, secondPlan),
+        )
+        if (showSessionNote) {
+            Text(text = stringResource(R.string.calendar_swap_dialog_session_note))
+        }
+        DialogButtonColumn {
+            DialogPrimaryButton(
+                text = stringResource(R.string.calendar_swap_dialog_confirm),
+                onClick = onConfirm,
+            )
+            DialogCancelButton(onClick = onDismiss)
+        }
+    }
+}
+
 /** 插入休息的天数，默认一天，至少要有一天。 */
 @Composable
 fun InsertRestDialog(

@@ -72,6 +72,14 @@ interface ScheduleRepository {
     suspend fun deletePlansAndShiftBack(dates: Collection<LocalDate>)
 
     /**
+     * 交换 [first] 与 [second] 两天各自排的训练计划，其余日子的排期不动。
+     *
+     * 某一天没有排期时，相当于把另一天的计划挪过去（那天随即成为休息日）；两天都没有排期则无事发生。
+     * 已经记录下来的训练不跟着计划走，仍留在原来的日期上。整批放在一个事务里。
+     */
+    suspend fun swapPlansOn(first: LocalDate, second: LocalDate)
+
+    /**
      * 在 [date] 之前插入 [count] 天休息：[date] 及以后的排期整体后移 [count] 天，
      * 腾出来的 `[date, date + count)` 就是休息日。整批放在一个事务里。
      */

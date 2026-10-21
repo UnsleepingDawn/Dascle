@@ -197,6 +197,13 @@
     <string name="calendar_edit_clear_all">取消全部</string>
     <string name="calendar_edit_delete">删除</string>
     <string name="calendar_edit_insert">插入</string>
+    <!-- 恰好选中两天时，第一个按钮改成交换两天的训练计划 -->
+    <string name="calendar_edit_swap">交换</string>
+    <string name="calendar_swap_dialog_title">交换这两天的计划？</string>
+    <string name="calendar_swap_dialog_message">两天各自的训练计划会对调；其中一天没排计划时，相当于把计划挪到那一天。</string>
+    <string name="calendar_swap_dialog_line">%1$s：%2$s</string>
+    <string name="calendar_swap_dialog_session_note">已经记录的训练留在原来的日期，不会跟着计划移动。</string>
+    <string name="calendar_swap_dialog_confirm">确认交换</string>
     <string name="calendar_edit_plan_title">为休息日排入计划</string>
     <string name="calendar_delete_dialog_title_one">删除这天的计划？</string>
     <string name="calendar_delete_dialog_title_many">删除这几天的计划？</string>

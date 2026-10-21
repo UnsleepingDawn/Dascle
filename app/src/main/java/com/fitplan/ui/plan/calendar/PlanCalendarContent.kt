@@ -107,10 +107,16 @@ internal fun PlanCalendarContent(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showInsertDialog by remember { mutableStateOf(false) }
     var showInsertRestDialog by remember { mutableStateOf(false) }
+    var showSwapDialog by remember { mutableStateOf(false) }
     var routinePickerTarget by remember { mutableStateOf<RoutinePickerTarget?>(null) }
 
     val singleSelected = selection.keys.singleOrNull()
     val trainingSelectedCount = selection.values.count { it.isTrainingDay }
+    // 恰好两天时底栏第一个按钮换成「交换」；跨月勾选也算，所以按日期排序拿这两天。
+    val swapDates = remember(selection) { selection.keys.sorted() }
+    val swapMode = swapDates.size == 2
+    // 两天都没排计划时交换没有意义，按钮置灰；只要有一天有排期就能把计划挪到另一天去。
+    val swapEnabled = swapMode && selection.values.any { it.hasPlan }
     // 今天虽然也能编辑，但批量「插入 / 计划」都会重排时间线，今天这种已经开跑的日子只给删除。
     // 判断从勾选值里取，不看当前月份的 days——切到别的月份后 days 里就没有今天了。
     val singleSelection = singleSelected?.let { selection[it] }
@@ -179,7 +185,10 @@ internal fun PlanCalendarContent(
                     !singleSelection.isTrainingDay,
                 // 选中的全是休息日也能删：那种情况下删除会把后续排期整体提前。
                 deleteEnabled = selection.isNotEmpty(),
+                swapMode = swapMode,
+                swapEnabled = swapEnabled,
                 onInsert = { showInsertDialog = true },
+                onSwap = { showSwapDialog = true },
                 onPlan = { routinePickerTarget = RoutinePickerTarget.ADD_PLAN },
                 onDelete = { showDeleteDialog = true },
             )
@@ -260,6 +269,27 @@ internal fun PlanCalendarContent(
                 onSelectionChange(emptyMap())
             },
             onDismiss = { showInsertRestDialog = false },
+        )
+    }
+
+    if (showSwapDialog && swapDates.size == 2) {
+        val first = swapDates[0]
+        val second = swapDates[1]
+        val firstSelection = selection.getValue(first)
+        val secondSelection = selection.getValue(second)
+        val restLabel = stringResource(R.string.calendar_rest_day)
+        SwapPlansDialog(
+            firstDate = stringResource(R.string.date_month_day, first.month.ordinal + 1, first.day),
+            secondDate = stringResource(R.string.date_month_day, second.month.ordinal + 1, second.day),
+            firstPlan = firstSelection.planNames.joinToString("、").ifEmpty { restLabel },
+            secondPlan = secondSelection.planNames.joinToString("、").ifEmpty { restLabel },
+            showSessionNote = firstSelection.hasSessions || secondSelection.hasSessions,
+            onConfirm = {
+                screenModel.swapPlans(first, second)
+                showSwapDialog = false
+                onSelectionChange(emptyMap())
+            },
+            onDismiss = { showSwapDialog = false },
         )
     }
 
@@ -889,13 +919,16 @@ private fun DayActionsRow(
     }
 }
 
-/** 日历编辑模式底部的三个动作：插入（单一日子）、计划（单一休息日）、删除（至少一天有排期）。 */
+/** 日历编辑模式底部的三个动作：插入 / 交换（恰好两天）、计划（单一休息日）、删除（至少一天有排期）。 */
 @Composable
 private fun EditActionBar(
     insertEnabled: Boolean,
     planEnabled: Boolean,
     deleteEnabled: Boolean,
+    swapMode: Boolean,
+    swapEnabled: Boolean,
     onInsert: () -> Unit,
+    onSwap: () -> Unit,
     onPlan: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -906,12 +939,24 @@ private fun EditActionBar(
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Button(
-            onClick = onInsert,
-            enabled = insertEnabled,
-            modifier = Modifier.weight(1f),
-        ) {
-            Text(text = stringResource(R.string.calendar_edit_insert))
+        // 恰好选中两天时，第一个按钮换成「交换」：插入只能针对一天，两天永远用不上。
+        if (swapMode) {
+            Button(
+                onClick = onSwap,
+                // 两天都没排计划时换了也没变化，直接置灰。
+                enabled = swapEnabled,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(text = stringResource(R.string.calendar_edit_swap))
+            }
+        } else {
+            Button(
+                onClick = onInsert,
+                enabled = insertEnabled,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(text = stringResource(R.string.calendar_edit_insert))
+            }
         }
         Button(
             onClick = onPlan,
@@ -948,12 +993,18 @@ internal data class DaySelection(
     val isTrainingDay: Boolean,
     val hasSessions: Boolean,
     val isToday: Boolean,
+    /** 这一天有没有排在未来的计划；两日交换据此判断按钮是否可点。 */
+    val hasPlan: Boolean = false,
+    /** 这一天排的计划名（一天只有一条排期）；交换确认弹窗里列出来。 */
+    val planNames: List<String> = emptyList(),
 )
 
 internal fun CalendarDay.toSelection(): DaySelection = DaySelection(
     isTrainingDay = isTrainingDay,
     hasSessions = actualSessions.isNotEmpty(),
     isToday = isToday,
+    hasPlan = planned.isNotEmpty(),
+    planNames = planned.map { it.routineName },
 )
 
 /** 「计划 / 插入 → 训练计划」共用一个计划选择弹窗，用它区分选中之后干什么。 */

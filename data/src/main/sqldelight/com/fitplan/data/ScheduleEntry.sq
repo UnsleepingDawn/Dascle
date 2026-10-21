@@ -74,6 +74,12 @@ insertOnceWithEnabled:
 INSERT OR IGNORE INTO schedule_entry(routine_id, specific_date, enabled)
 VALUES (?, ?, ?);
 
+-- 交换两天的计划时先读出各自那一条：一天只有一条排期，所以最多一行。
+selectOnceOnDate:
+SELECT *
+FROM schedule_entry
+WHERE specific_date = ?;
+
 -- 跳过 / 顺延 / 替换该日计划：清掉某一天的排期。
 deleteOnceOnDate:
 DELETE FROM schedule_entry

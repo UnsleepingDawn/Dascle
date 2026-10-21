@@ -196,6 +196,19 @@ class PlanCalendarScreenModel(
         }
     }
 
+    /**
+     * 交换 [first] 与 [second] 两天各自排的计划。
+     *
+     * 某一天原本没排计划时，另一天的计划会挪过去；已经记录的训练不跟着移动，仍留在原来的日期上
+     * （界面在确认弹窗里事先说明这一点）。
+     */
+    fun swapPlans(first: LocalDate, second: LocalDate) {
+        viewModelScope.launch {
+            scheduleRepository.swapPlansOn(first, second)
+            afterScheduleChange()
+        }
+    }
+
     /** 在 [date] 之前插入一个训练日：[date] 及以后的排期整体后移一天，[routineId] 落在 [date]。 */
     fun insertPlanBefore(routineId: Long, date: LocalDate) {
         viewModelScope.launch {
