@@ -40,13 +40,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -681,6 +684,7 @@ internal fun LogExerciseCard(
     onToggleSkipped: () -> Unit,
     onToggleCollapsed: () -> Unit,
     onEditWeightUnit: () -> Unit,
+    onEditDefaults: () -> Unit,
     modifier: Modifier = Modifier,
     /** true 表示这是动作组卡里的子卡：外边距由外层卡片提供，这里不再自己内缩。 */
     nested: Boolean = false,
@@ -778,6 +782,15 @@ internal fun LogExerciseCard(
                         )
                     }
                 }
+                // 单位切换与默认设置一起收进三点菜单：训练中摸到器械刻度不对、或想重设这个动作的目标，
+                // 都从标题右侧这一个入口进去，不再让「kg」芯片占着组行上方那一行。
+                if (!readOnly) {
+                    ExerciseCardMenu(
+                        showsWeight = exercise.showsWeight,
+                        onEditWeightUnit = onEditWeightUnit,
+                        onEditDefaults = onEditDefaults,
+                    )
+                }
             }
 
             // 说明、目标、组行与增删组按钮一起折叠：手动「收起」与「跳过动作」共用这段过渡。
@@ -808,13 +821,7 @@ internal fun LogExerciseCard(
                                 )
                             }
                         }
-                        // 重量单位挂在组行上方：训练中摸到实物刻度不对时，就地改这个动作的单位。
-                        if (exercise.showsWeight && !readOnly) {
-                            AssistChip(
-                                onClick = onEditWeightUnit,
-                                label = { Text(text = unitLabel(exercise.weightUnit)) },
-                            )
-                        }
+                        // 重量单位收进标题右侧的三点菜单，这里不再单独挂「kg」芯片。
                         TextButton(
                             onClick = onToggleCollapsed,
                             contentPadding = PaddingValues(horizontal = MaterialTheme.padding.small),
@@ -868,6 +875,209 @@ internal fun LogExerciseCard(
             }
         }
     }
+}
+
+/** 动作卡标题右侧的三点菜单：单位切换与默认设置都从这里进。 */
+@Composable
+private fun ExerciseCardMenu(
+    showsWeight: Boolean,
+    onEditWeightUnit: () -> Unit,
+    onEditDefaults: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.workout_more_actions),
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            // 纯自重动作没有重量可填，也就没有单位可切。
+            if (showsWeight) {
+                DropdownMenuItem(
+                    text = { Text(text = stringResource(R.string.workout_menu_unit)) },
+                    onClick = {
+                        expanded = false
+                        onEditWeightUnit()
+                    },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.workout_menu_defaults)) },
+                onClick = {
+                    expanded = false
+                    onEditDefaults()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * 动作卡「默认设置」：重设这个动作的目标组数、次数 / 时长、重量与组间休息。
+ *
+ * 保存会写进动作库默认值与所有计划（与编排页改目标同一套口径）；计划外动作在库里有默认重量 /
+ * 次数 / 时长，但没有「目标组数 / 组间休息」这两列，所以这两行整段隐藏。
+ *
+ * 保存之后由 ScreenModel 再问一次要不要把新目标用到这次训练剩下的组，这里不直接改组行。
+ */
+@Composable
+internal fun ExerciseDefaultsDialog(
+    exercise: LogExercise,
+    onConfirm: (targets: ExerciseTargetDraft) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val planEditable = exercise.routineExerciseId != null
+
+    var targetSets by remember(exercise.exerciseId) { mutableStateOf(exercise.targetSets.toString()) }
+    var targetReps by remember(exercise.exerciseId) { mutableStateOf(exercise.repsBaseline.toString()) }
+    var targetSeconds by remember(exercise.exerciseId) {
+        mutableStateOf(exercise.secondsBaseline?.toString().orEmpty())
+    }
+    var targetWeight by remember(exercise.exerciseId) {
+        mutableStateOf(
+            if (exercise.showsWeight) {
+                exercise.weightBaseline.toWeightText(exercise.weightUnit)
+            } else {
+                ""
+            },
+        )
+    }
+    var restSeconds by remember(exercise.exerciseId) { mutableStateOf(exercise.restSeconds.toString()) }
+
+    val validTargetWeight = !exercise.showsWeight ||
+        targetWeight.isBlank() ||
+        targetWeight.toKilogramsOrNull(exercise.weightUnit)?.let { it > 0 } == true
+    val validSize = if (exercise.isTimed) {
+        targetSeconds.toIntOrNull()?.let { it > 0 } == true
+    } else {
+        targetReps.toIntOrNull()?.let { it > 0 } == true
+    }
+    val validPlan = !planEditable || (
+        targetSets.toIntOrNull()?.let { it > 0 } == true &&
+            restSeconds.toIntOrNull()?.let { it >= 0 } == true
+        )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.workout_defaults_title, exercise.name)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                if (planEditable) {
+                    LowTargetField(
+                        value = targetSets,
+                        onValueChange = { targetSets = it },
+                        label = stringResource(R.string.field_target_sets),
+                    )
+                }
+                if (exercise.isTimed) {
+                    LowTargetField(
+                        value = targetSeconds,
+                        onValueChange = { targetSeconds = it },
+                        label = stringResource(R.string.field_target_seconds),
+                    )
+                } else {
+                    LowTargetField(
+                        value = targetReps,
+                        onValueChange = { targetReps = it },
+                        label = stringResource(R.string.field_target_reps),
+                    )
+                }
+                if (exercise.showsWeight) {
+                    LowTargetField(
+                        value = targetWeight,
+                        onValueChange = { targetWeight = it },
+                        label = stringResource(
+                            if (exercise.weightIsAssistance) {
+                                R.string.field_target_weight_assist
+                            } else {
+                                R.string.field_target_weight
+                            },
+                            unitLabel(exercise.weightUnit),
+                        ),
+                        allowDecimal = true,
+                    )
+                }
+                if (planEditable) {
+                    LowTargetField(
+                        value = restSeconds,
+                        onValueChange = { restSeconds = it },
+                        label = stringResource(R.string.field_rest_seconds),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.workout_defaults_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.action_save),
+                        enabled = validSize && validTargetWeight && validPlan,
+                        onClick = {
+                            onConfirm(
+                                ExerciseTargetDraft(
+                                    sets = targetSets.toIntOrNull() ?: exercise.targetSets,
+                                    // 计时类动作不需要次数目标，沿用计划里的旧值即可。
+                                    reps = if (exercise.isTimed) {
+                                        exercise.repsBaseline
+                                    } else {
+                                        targetReps.toIntOrNull() ?: return@DialogPrimaryButton
+                                    },
+                                    weight = if (exercise.showsWeight) {
+                                        targetWeight.toKilogramsOrNull(exercise.weightUnit)
+                                    } else {
+                                        null
+                                    },
+                                    seconds = if (exercise.isTimed) targetSeconds.toIntOrNull() else null,
+                                    restSeconds = restSeconds.toIntOrNull() ?: exercise.restSeconds,
+                                ),
+                            )
+                        },
+                    )
+                    DialogCancelButton(onClick = onDismiss)
+                }
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+/**
+ * 「默认设置」保存后的追问：要不要把新目标也用到这次训练还没做的组上。
+ *
+ * 选「只改默认」就保留这次训练的原样，下次开练才按新目标铺行。
+ */
+@Composable
+internal fun DefaultsApplyDialog(
+    exerciseName: String,
+    onApply: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onSkip,
+        title = { Text(text = stringResource(R.string.workout_defaults_apply_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Text(text = stringResource(R.string.workout_defaults_apply_message, exerciseName))
+                DialogButtonColumn {
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.workout_defaults_apply_confirm),
+                        onClick = onApply,
+                    )
+                    DialogPrimaryButton(
+                        text = stringResource(R.string.workout_defaults_apply_skip),
+                        onClick = onSkip,
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+    )
 }
 
 /**

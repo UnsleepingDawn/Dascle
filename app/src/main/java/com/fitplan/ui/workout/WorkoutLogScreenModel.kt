@@ -87,6 +87,17 @@ data class LowTargetRetry(
 )
 
 /**
+ * 动作卡「默认设置」保存完、正在问要不要把新目标用到这次训练剩下的组。
+ *
+ * [previous] 是保存前的目标值：还没勾选的组行靠它判断「仍是按旧目标预填的」，只有这种行才跟着换；
+ * 已经完成的组与用户手改过的数值一律保留。
+ */
+data class DefaultsApply(
+    val exerciseId: Long,
+    val previous: ExerciseTargetDraft,
+)
+
+/**
  * 重填表单里「计划目标」这一块提交上来的值。
  *
  * 与 [LogExercise] 不同，重量 / 时长用可空表达「没设」：清空重量输入框表示不写这一项。
@@ -509,6 +520,10 @@ class WorkoutLogScreenModel(
     private val _extraNotice = MutableStateFlow<ExtraExerciseNotice?>(null)
     val extraNotice: StateFlow<ExtraExerciseNotice?> = _extraNotice.asStateFlow()
 
+    /** 非空表示动作卡的「默认设置」已经保存，正在问要不要把新目标用到这次训练剩下的组。 */
+    private val _defaultsApply = MutableStateFlow<DefaultsApply?>(null)
+    val defaultsApply: StateFlow<DefaultsApply?> = _defaultsApply.asStateFlow()
+
     /**
      * 这一场里已经处理过（点过任意一个按钮、或者点掉遮罩）的动作，处理过就不再重复弹；
      * 只活在内存里，重新打开这次训练会重新开始判定。
@@ -565,6 +580,7 @@ class WorkoutLogScreenModel(
         _lowTargetReminder.value = null
         _lowTargetRetry.value = null
         _extraNotice.value = null
+        _defaultsApply.value = null
         starting = false
         viewModelScope.launch {
             if (sessionId != null) {
@@ -1036,20 +1052,113 @@ class WorkoutLogScreenModel(
     }
 
     /**
-     * 把重填表单里的计划目标写下去，并同步内存里的动作卡。
+     * 把动作卡「默认设置」里的新目标写进动作库默认值与所有计划，并同步卡片上的目标字段；
+     * 保存后弹窗问一次要不要把新目标用到这次训练剩下的组（[applyDefaultsToCurrentWorkout]）。
      *
-     * 重量 / 次数 / 时长的写入范围与渐进提示一致（动作库默认值 + 所有计划）；
-     * 目标组数与组间休息在 `exercise` 表里没有对应列，只写所有计划。
-     * 其余「按旧目标预填、还没勾选」的组行一起换成新值，已完成或手改过的行不动。
+     * 组行先不动：「只改默认」是让这次训练保持原样，用户明确选「应用」才换算。
+     */
+    fun saveExerciseDefaults(exerciseId: Long, targets: ExerciseTargetDraft) {
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
+        val previous = exercise.toTargetDraft()
+        viewModelScope.launch {
+            persistTargets(exercise, targets)
+            _defaultsApply.value = DefaultsApply(exerciseId, previous)
+        }
+    }
+
+    /** 「默认设置」保存后选「只改默认」：这次训练里的组行保持原样。 */
+    fun dismissDefaultsApply() {
+        _defaultsApply.value = null
+    }
+
+    /**
+     * 「默认设置」保存后选「应用到剩下的组」：把还没勾选、仍是按旧目标预填的数值换成新目标，
+     * 并把组行数补 / 缩到新目标组数。
+     *
+     * 已完成的组与用户手改过的数值一律保留；缩行只在训练进行中、且只收掉还没落库的尾部行，
+     * 编辑已结束的训练时组行都已经在库里，只做数值换算不做增删。
+     */
+    fun applyDefaultsToCurrentWorkout() {
+        val prompt = _defaultsApply.value ?: return
+        _defaultsApply.value = null
+        val exerciseId = prompt.exerciseId
+        val previous = prompt.previous
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
+        // 编辑已结束的训练时组行都已经落库，缩行会留下对不上的记录，所以只做数值换算。
+        val resizable = !editing
+        mutate(exerciseId) { current ->
+            val rebased = current.sets.map { entry ->
+                entry.copy(
+                    weight = current.targetWeight
+                        ?.let { rebasedWeight(entry, previous.weight, it, current.weightUnit) }
+                        ?: entry.weight,
+                    reps = if (current.isTimed) {
+                        entry.reps
+                    } else {
+                        rebasedReps(entry, previous.reps, current.targetReps)
+                    },
+                    seconds = if (current.isTimed) {
+                        rebasedSeconds(entry, previous.seconds, current.targetSeconds ?: exercise.targetSeconds ?: 0)
+                    } else {
+                        entry.seconds
+                    },
+                )
+            }
+            current.copy(sets = resizedToTarget(rebased, current, resizable))
+        }
+        persistSetCount(exerciseId)
+        // 编辑已结束的训练时，数值已经在库里，改过就写回；进行中的新组等勾选时再落库。
+        if (editing) persistRebasedSets(exerciseId)
+    }
+
+    /**
+     * 把重填表单里的计划目标写下去，并同步内存里的动作卡及其余组行。
+     *
+     * [index] 那一行是表单已经直接覆盖过的，不参与换算；其余「按旧目标预填、还没勾选」的组行换成新值。
      */
     private suspend fun applyPlanTargets(
         exercise: LogExercise,
         index: Int,
         targets: ExerciseTargetDraft,
     ) {
+        val change = persistTargets(exercise, targets) ?: return
         val exerciseId = exercise.exerciseId
         val previousWeight = exercise.targetWeight
         val previousReps = exercise.targetReps
+        val previousSeconds = exercise.targetSeconds
+        mutate(exerciseId) { current ->
+            current.copy(
+                sets = current.sets.mapIndexed { i, entry ->
+                    if (i == index) {
+                        entry
+                    } else {
+                        entry.copy(
+                            weight = change.weight
+                                ?.let { rebasedWeight(entry, previousWeight, it, current.weightUnit) }
+                                ?: entry.weight,
+                            reps = change.reps?.let { rebasedReps(entry, previousReps, it) } ?: entry.reps,
+                            seconds = change.seconds
+                                ?.let { rebasedSeconds(entry, previousSeconds, it) }
+                                ?: entry.seconds,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    /**
+     * 把表单里的目标值写下去，并同步内存里动作卡的目标字段（**不动**组行）。
+     *
+     * 重量 / 次数 / 时长的写入范围与渐进提示一致（动作库默认值 + 所有计划）；
+     * 目标组数与组间休息在 `exercise` 表里没有对应列，只写所有计划。返回真正改动过的字段。
+     */
+    private suspend fun persistTargets(
+        exercise: LogExercise,
+        targets: ExerciseTargetDraft,
+    ): TargetChange? {
+        val exerciseId = exercise.exerciseId
+        val previousWeight = exercise.targetWeight
         val previousSeconds = exercise.targetSeconds
 
         // 改了才写：重量用可空表达「没设」，清空输入框不写这一项；次数 / 时长按计量方式二选一。
@@ -1061,51 +1170,37 @@ class WorkoutLogScreenModel(
         val appliedSeconds = targets.seconds.takeIf {
             exercise.isTimed && it != null && it != previousSeconds
         }
-        val repsChanged = !exercise.isTimed && targets.reps != previousReps
-        val setsChanged = targets.sets != exercise.targetSets
-        val restChanged = targets.restSeconds != exercise.restSeconds
-        if (appliedWeight == null && appliedSeconds == null && !repsChanged && !setsChanged && !restChanged) {
-            return
+        val appliedReps = targets.reps.takeIf { !exercise.isTimed && it != exercise.targetReps }
+        val appliedSets = targets.sets.takeIf { it != exercise.targetSets }
+        val appliedRest = targets.restSeconds.takeIf { it != exercise.restSeconds }
+        if (appliedWeight == null && appliedSeconds == null && appliedReps == null &&
+            appliedSets == null && appliedRest == null
+        ) {
+            return null
         }
 
         appliedWeight?.let { updateProgress.applyWeight(exerciseId, it) }
-        if (repsChanged) updateProgress.applyReps(exerciseId, targets.reps)
+        appliedReps?.let { updateProgress.applyReps(exerciseId, it) }
         appliedSeconds?.let { updateProgress.applySeconds(exerciseId, it) }
-        if (setsChanged) updateProgress.applySets(exerciseId, targets.sets)
-        if (restChanged) updateProgress.applyRest(exerciseId, targets.restSeconds)
+        appliedSets?.let { updateProgress.applySets(exerciseId, it) }
+        appliedRest?.let { updateProgress.applyRest(exerciseId, it) }
 
         mutate(exerciseId) { current ->
             current.copy(
-                targetSets = if (setsChanged) targets.sets else current.targetSets,
-                targetReps = if (repsChanged) targets.reps else current.targetReps,
+                targetSets = appliedSets ?: current.targetSets,
+                targetReps = appliedReps ?: current.targetReps,
                 targetSeconds = appliedSeconds ?: current.targetSeconds,
                 targetWeight = appliedWeight ?: current.targetWeight,
-                restSeconds = if (restChanged) targets.restSeconds else current.restSeconds,
-                sets = current.sets.mapIndexed { i, entry ->
-                    if (i == index) {
-                        entry
-                    } else {
-                        entry.copy(
-                            weight = if (appliedWeight != null) {
-                                rebasedWeight(entry, previousWeight, appliedWeight, current.weightUnit)
-                            } else {
-                                entry.weight
-                            },
-                            reps = if (repsChanged) {
-                                rebasedReps(entry, previousReps, targets.reps)
-                            } else {
-                                entry.reps
-                            },
-                            seconds = if (appliedSeconds != null) {
-                                rebasedSeconds(entry, previousSeconds, appliedSeconds)
-                            } else {
-                                entry.seconds
-                            },
-                        )
-                    }
-                },
+                restSeconds = appliedRest ?: current.restSeconds,
             )
         }
+        return TargetChange(
+            weight = appliedWeight,
+            reps = appliedReps,
+            seconds = appliedSeconds,
+            sets = appliedSets,
+            rest = appliedRest,
+        )
     }
 
     /** 低量提醒点「就这样」：记下已提醒过，关掉弹窗，照原样把这一组记录上。 */
@@ -1619,6 +1714,29 @@ class WorkoutLogScreenModel(
         }
     }
 
+    /**
+     * 「默认设置」应用到已结束的训练：每行都有 `workout_set` 记录，换算完逐行写回，退出后也是新数值。
+     */
+    private fun persistRebasedSets(exerciseId: Long) {
+        val exercise = _exercises.value.firstOrNull { it.exerciseId == exerciseId } ?: return
+        val currentSessionId = sessionId ?: return
+        exercise.sets.forEachIndexed { index, entry ->
+            val setId = entry.id ?: return@forEachIndexed
+            viewModelScope.launch {
+                workoutRepository.updateSet(
+                    entry.toWorkoutSet(
+                        id = setId,
+                        sessionId = currentSessionId,
+                        exerciseId = exerciseId,
+                        index = index,
+                        completed = entry.completed,
+                        weightUnit = exercise.weightUnit,
+                    ),
+                )
+            }
+        }
+    }
+
     private fun mutateSet(exerciseId: Long, index: Int, transform: (SetEntry) -> SetEntry) {
         mutate(exerciseId) { exercise ->
             exercise.copy(
@@ -1626,6 +1744,48 @@ class WorkoutLogScreenModel(
             )
         }
     }
+}
+
+/**
+ * 一次目标值写入里真正变了的字段；null 表示这一项没动。
+ *
+ * 用来把「写库 + 同步卡片目标」与「其余组行要不要跟着换算」拆开：
+ * 默认设置只做前者，用户选「应用到这次训练」时才做后者。
+ */
+private class TargetChange(
+    val weight: Double?,
+    val reps: Int?,
+    val seconds: Int?,
+    val sets: Int?,
+    val rest: Int?,
+)
+
+/** 动作卡当前的目标值，作为「默认设置」保存前的快照。 */
+private fun LogExercise.toTargetDraft(): ExerciseTargetDraft = ExerciseTargetDraft(
+    sets = targetSets,
+    reps = targetReps,
+    weight = targetWeight,
+    seconds = targetSeconds,
+    restSeconds = restSeconds,
+)
+
+/**
+ * 按新目标组数调整组行：不够就补空行；多出来的只在可缩时从尾部收掉，
+ * 而且只收还没落库的行（已落库的行删了会与库里的记录对不上）。已完成的组永远保留。
+ */
+private fun resizedToTarget(
+    rows: List<SetEntry>,
+    exercise: LogExercise,
+    resizable: Boolean,
+): List<SetEntry> {
+    if (!resizable) return rows
+    val wanted = maxOf(exercise.targetSets, rows.count { it.completed })
+    if (rows.size >= wanted) {
+        var end = rows.size
+        while (end > wanted && rows[end - 1].id == null) end -= 1
+        return rows.take(end)
+    }
+    return rows + List(wanted - rows.size) { exercise.appendedEntry() }
 }
 
 /**

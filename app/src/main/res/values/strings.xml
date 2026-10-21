@@ -342,6 +342,16 @@
     <string name="workout_low_target_keep">就这样</string>
     <string name="workout_low_target_plan_section">计划目标</string>
     <string name="workout_low_target_retry_hint">保存后这一组实际做的数值会按上面的目标覆盖，还需要你自己点「做完了」才会记录。</string>
+    <!-- 训练动作卡标题右侧的三点菜单：单位切换与默认设置 -->
+    <string name="workout_more_actions">更多操作</string>
+    <string name="workout_menu_unit">单位切换</string>
+    <string name="workout_menu_defaults">默认设置</string>
+    <string name="workout_defaults_title">默认设置 · %1$s</string>
+    <string name="workout_defaults_hint">保存后，今天和以后练这个动作都会按新的目标；这次训练已经完成的组不受影响。</string>
+    <string name="workout_defaults_apply_title">应用到这次训练？</string>
+    <string name="workout_defaults_apply_message">「%1$s」的新目标已经保存。要把这次训练还没做的组也改成新目标吗？</string>
+    <string name="workout_defaults_apply_confirm">应用到剩下的组</string>
+    <string name="workout_defaults_apply_skip">只改默认</string>
     <string name="unit_kg">kg</string>
     <string name="unit_lb">lb</string>
     <string name="unit_reps">次</string>

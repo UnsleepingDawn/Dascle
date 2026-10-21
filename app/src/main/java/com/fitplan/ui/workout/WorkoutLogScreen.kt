@@ -77,6 +77,7 @@ class WorkoutLogScreen(
         val lowTargetReminder by screenModel.lowTargetReminder.collectAsState()
         val lowTargetRetry by screenModel.lowTargetRetry.collectAsState()
         val extraNotice by screenModel.extraNotice.collectAsState()
+        val defaultsApply by screenModel.defaultsApply.collectAsState()
         val collapsedIds by screenModel.collapsedExerciseIds.collectAsState()
         val celebrateTick by screenModel.celebrateTick.collectAsState()
 
@@ -135,6 +136,9 @@ class WorkoutLogScreen(
         // 非空表示正在给某个动作选重量单位（kg / lb / 跟随全局）。
         var weightUnitTarget by remember { mutableStateOf<Long?>(null) }
 
+        // 非空表示正在改某个动作的「默认设置」（目标组数 / 次数 / 重量 / 休息）。
+        var defaultsTarget by remember { mutableStateOf<Long?>(null) }
+
         val globalWeightUnit = LocalWeightUnit.current
 
         val readOnly = phase == WorkoutPhase.FINISHED && !editing
@@ -185,6 +189,7 @@ class WorkoutLogScreen(
                     },
                     onToggleSkipped = { screenModel.toggleSkipped(exercise.exerciseId) },
                     onEditWeightUnit = { weightUnitTarget = exercise.exerciseId },
+                    onEditDefaults = { defaultsTarget = exercise.exerciseId },
                     onToggleCollapsed = { screenModel.toggleExerciseCollapsed(exercise.exerciseId) },
                 )
             }
@@ -566,6 +571,30 @@ class WorkoutLogScreen(
                         weightUnitTarget = null
                     },
                     onDismiss = { weightUnitTarget = null },
+                )
+            }
+        }
+
+        // 默认设置：改这个动作的目标组数 / 次数 / 重量 / 休息，保存后追问要不要用到这次训练。
+        defaultsTarget?.let { exerciseId ->
+            exercisesById[exerciseId]?.let { exercise ->
+                ExerciseDefaultsDialog(
+                    exercise = exercise,
+                    onConfirm = { targets ->
+                        screenModel.saveExerciseDefaults(exerciseId, targets)
+                        defaultsTarget = null
+                    },
+                    onDismiss = { defaultsTarget = null },
+                )
+            }
+        }
+
+        defaultsApply?.let { prompt ->
+            exercisesById[prompt.exerciseId]?.let { exercise ->
+                DefaultsApplyDialog(
+                    exerciseName = exercise.name,
+                    onApply = screenModel::applyDefaultsToCurrentWorkout,
+                    onSkip = screenModel::dismissDefaultsApply,
                 )
             }
         }
