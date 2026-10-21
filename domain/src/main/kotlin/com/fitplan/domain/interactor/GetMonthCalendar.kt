@@ -25,12 +25,13 @@ data class CalendarPlan(
     val muscleGroups: List<MuscleGroup>,
 )
 
-/** 日历某天实际完成的一次训练；[completedSets] 是这次训练记录的已完成组数。 */
+/** 日历某天实际完成的一次训练；[completedSets] 是这次训练记录的已完成组数，[isFinished] 表示已经「结束训练」。 */
 data class CalendarSession(
     val sessionId: Long,
     val routineId: Long?,
     val name: String,
     val completedSets: Int,
+    val isFinished: Boolean,
 )
 
 /**
@@ -145,6 +146,7 @@ class GetMonthCalendar(
                     routineId = session.routineId,
                     name = session.name.ifBlank { session.routineId?.let { routines[it]?.name }.orEmpty() },
                     completedSets = setsBySession[session.id].orEmpty().size,
+                    isFinished = session.isFinished,
                 )
             }
             val actualMuscleGroups = daySessions

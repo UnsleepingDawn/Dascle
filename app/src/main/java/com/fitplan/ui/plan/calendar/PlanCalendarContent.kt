@@ -474,22 +474,33 @@ private fun DayCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        // 训练日的日期用蓝色（过去压淡一档 primaryContainer，今天及以后用饱和的 primary，
-        // 一眼分出「历史」和「待办」）；休息日改用中性底色，让训练日更醒目。
-        val (dayNumberBackground, dayNumberColor) = if (day.isTrainingDay) {
-            if (day.isPast) {
+        // 今天统一用红色底色标出来（不再描蓝边）：一眼就能在整月里找到今天。
+        // 训练日的日期用蓝色（过去压淡一档 primaryContainer，今天及以后用饱和的 primary）；
+        // 休息日改用中性底色，让训练日更醒目。
+        val (dayNumberBackground, dayNumberColor) = when {
+            day.isToday -> MaterialTheme.colorScheme.error to MaterialTheme.colorScheme.onError
+            day.isTrainingDay && day.isPast ->
                 MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-            }
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+            day.isTrainingDay -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+            else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
         }
+        // 今天已经练完（这一天的训练都点了「结束训练」）：肌群标签转灰，和过去的日子一样表示收尾了；
+        // 还没结束的那次训练仍用深色反色底，提醒这一场还没练完。
+        val todayFinished = day.isToday && day.actualSessions.isNotEmpty() &&
+            day.actualSessions.all { it.isFinished }
         // 肌群标签：过去的用浅底，今天及以后用反色深底。过去的休息日沿用这一套灰。
         val muscleBackground =
-            if (day.isPast) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.inverseSurface
+            if (day.isPast || todayFinished) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.inverseSurface
+            }
         val muscleColor =
-            if (day.isPast) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.inverseOnSurface
+            if (day.isPast || todayFinished) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.inverseOnSurface
+            }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -497,23 +508,18 @@ private fun DayCell(
                 .background(dayNumberBackground)
                 .then(
                     when {
-                        // 选中比「今天」的描边更醒目，两者同时出现时以选中为准。
-                        // 训练日的日期底色本就是蓝色，描边必须换成深黑（与肌群标签同色）才看得见；
-                        // 休息日底色是中性的，保留蓝色描边即可。
+                        // 选中比其它标记更醒目；训练日与今天的日期底色都是深色实底，
+                        // 描边必须换成深黑（与肌群标签同色）才看得见；休息日底色是中性的，保留蓝色描边即可。
                         selected -> Modifier.border(
                             width = 2.dp,
-                            color = if (day.isTrainingDay) {
+                            color = if (day.isTrainingDay || day.isToday) {
                                 MaterialTheme.colorScheme.inverseSurface
                             } else {
                                 MaterialTheme.colorScheme.primary
                             },
                             shape = MaterialTheme.shapes.extraSmall,
                         )
-                        day.isToday -> Modifier.border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = MaterialTheme.shapes.extraSmall,
-                        )
+                        // 今天不再描边：红色底色本身就是标记。
                         else -> Modifier
                     },
                 )
