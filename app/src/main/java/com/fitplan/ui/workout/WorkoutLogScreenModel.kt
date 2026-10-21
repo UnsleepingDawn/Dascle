@@ -599,7 +599,12 @@ class WorkoutLogScreenModel(
                 _summary.value = null
                 _sessionName.value = routineId?.let { routineRepository.getById(it)?.name }.orEmpty()
                 val items = routineId?.let { routineRepository.getItems(it) }.orEmpty()
-                _items.value = items.mapNotNull { it.toLogItem(pickedIds = emptySet()) }
+                // 还没开始就先按「上次最后练到的组内动作」替用户排好：置顶并默认选中，
+                // 开始训练后 loadSession 会再算一次，结果一致。
+                val autoPicks = defaultPicksByGroup(items, excludeSessionId = null)
+                _items.value = items.mapNotNull { item ->
+                    item.toLogItem(pickedIds = emptySet(), autoPickId = item.groupIdOrNull()?.let(autoPicks::get))
+                }
                 _exercises.value = items.flatMap { it.exercises }.map { it.toLogExercise(globalWeightUnit) }
             }
         }
@@ -1569,7 +1574,24 @@ class WorkoutLogScreenModel(
         val pickedIds = pickedExerciseIds(recordedExerciseIds, states.values.filterNot { it.excluded })
         // 记录里出现、但计划编排里已经找不到的动作（计划外动作，或计划改过之后被移除的动作）。
         val extraItems = recordedExerciseIds.filterNot { it in plannedExerciseIds }.map { LogItem.Exercise(it) }
-        _items.value = items.mapNotNull { it.toLogItem(pickedIds = pickedIds, excludedIds = excludedIds) } + extraItems
+        // 从没碰过的动作组才替用户挑「上次最后练到的成员」：已经挑过、已有记录或留下状态行的组，
+        // 一律按用户自己的选择来，免得重进一次训练就把手动取消的挑选又补回去。
+        val untouchedGroupIds = items.filterIsInstance<RoutineItem.Group>()
+            .map { it.value }
+            .filter { group ->
+                val memberIds = group.exercises.map { it.exerciseId }
+                memberIds.none { it in recordedExerciseIds } && memberIds.none { it in states }
+            }
+            .map { it.id }
+            .toSet()
+        val autoPicks = defaultPicksByGroup(items, excludeSessionId = sessionId, groupIds = untouchedGroupIds)
+        _items.value = items.mapNotNull { item ->
+            item.toLogItem(
+                pickedIds = pickedIds,
+                excludedIds = excludedIds,
+                autoPickId = item.groupIdOrNull()?.let(autoPicks::get),
+            )
+        } + extraItems
         _exercises.value = exerciseIds.map { exerciseId ->
             val routineExercise = planByExercise[exerciseId]
             val libraryExercise = exercisesById[exerciseId]
@@ -1670,6 +1692,30 @@ class WorkoutLogScreenModel(
             if (override == null) hint.copy(weightUnit = next) else hint
         }
     }
+
+    /**
+     * 每个动作组默认要置顶并选中的成员：组内「上次最后完成过一组」的那个动作。
+     *
+     * [groupIds] 非空时只算这些组（恢复训练时只给从没碰过的组套默认）；
+     * [excludeSessionId] 传本次训练的 id，避免把自己刚练的动作当成「上次」。
+     */
+    private suspend fun defaultPicksByGroup(
+        items: List<RoutineItem>,
+        excludeSessionId: Long?,
+        groupIds: Set<Long>? = null,
+    ): Map<Long, Long> = items.filterIsInstance<RoutineItem.Group>()
+        .filter { groupIds == null || it.value.id in groupIds }
+        .mapNotNull { group ->
+            val lastId = workoutRepository.getLastCompletedExerciseId(
+                exerciseIds = group.value.exercises.map { it.exerciseId },
+                excludeSessionId = excludeSessionId,
+            )
+            lastId?.let { group.value.id to it }
+        }
+        .toMap()
+
+    /** 这一项是动作组时返回组 id；单独动作返回 null。 */
+    private fun RoutineItem.groupIdOrNull(): Long? = (this as? RoutineItem.Group)?.value?.id
 
     private fun mutate(exerciseId: Long, transform: (LogExercise) -> LogExercise) {
         _exercises.value = _exercises.value.map { if (it.exerciseId == exerciseId) transform(it) else it }
@@ -1821,7 +1867,11 @@ private fun RoutineExercise.toLogExercise(globalUnit: WeightUnit): LogExercise {
  * [excludedIds] 是本次已经从训练里移除的动作：单项动作整项丢掉；动作组把移除掉的成员剔出去，
  * 一个成员都不剩时这个组也没得挑了，整组丢掉——这就是「解散整组」在重进后的样子。
  */
-private fun RoutineItem.toLogItem(pickedIds: Set<Long>, excludedIds: Set<Long> = emptySet()): LogItem? = when (this) {
+private fun RoutineItem.toLogItem(
+    pickedIds: Set<Long>,
+    excludedIds: Set<Long> = emptySet(),
+    autoPickId: Long? = null,
+): LogItem? = when (this) {
     is RoutineItem.Exercise -> if (value.exerciseId in excludedIds) null else LogItem.Exercise(value.exerciseId)
 
     is RoutineItem.Group -> {
@@ -1829,12 +1879,23 @@ private fun RoutineItem.toLogItem(pickedIds: Set<Long>, excludedIds: Set<Long> =
         if (memberIds.isEmpty()) {
             null
         } else {
+            // 上次最后练到的成员排到第一位；组里还没挑过任何成员时，把它一并选上（子卡随之展开）。
+            val ordered = autoPickId
+                ?.takeIf { it in memberIds }
+                ?.let { first -> listOf(first) + memberIds.filterNot { it == first } }
+                ?: memberIds
+            val groupPicked = pickedIds.filter { it in memberIds }
+            val chosen = if (groupPicked.isEmpty()) {
+                listOfNotNull(autoPickId?.takeIf { it in memberIds })
+            } else {
+                groupPicked
+            }
             LogItem.Group(
                 groupId = value.id,
                 maxPicks = value.maxPicks,
                 groupName = value.name,
-                memberIds = memberIds,
-                pickedIds = memberIds.filter { it in pickedIds },
+                memberIds = ordered,
+                pickedIds = ordered.filter { it in chosen },
             )
         }
     }

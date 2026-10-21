@@ -140,6 +140,18 @@ class WorkoutRepositoryImpl(
     override suspend fun getSetsOfExercise(sessionId: Long, exerciseId: Long): List<WorkoutSet> =
         setQueries.selectBySessionAndExercise(sessionId, exerciseId).awaitAsList().map { it.toDomain() }
 
+    override suspend fun getLastCompletedExerciseId(
+        exerciseIds: List<Long>,
+        excludeSessionId: Long?,
+    ): Long? {
+        if (exerciseIds.isEmpty()) return null
+        // 没有「本次训练」时（计划预览页还没建 session）随便传一个不存在的 id 即可；
+        // 主键自增从 1 开始，-1 永远不会命中。
+        return setQueries
+            .selectLastCompletedExerciseId(exerciseIds, excludeSessionId ?: NO_SESSION_ID)
+            .awaitAsOneOrNull()
+    }
+
     override suspend fun getExerciseStates(sessionId: Long): List<WorkoutExerciseState> =
         stateQueries.selectBySessionId(sessionId).awaitAsList().map { it.toDomain() }
 
@@ -222,3 +234,6 @@ class WorkoutRepositoryImpl(
         warmupQueries.insert(session_id = sessionId, muscle_group = muscle.toDbValue())
     }
 }
+
+/** `workout_session` ???? 1 ???-1 ????????????????? */
+private const val NO_SESSION_ID = -1L

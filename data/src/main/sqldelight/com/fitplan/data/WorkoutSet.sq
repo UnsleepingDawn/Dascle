@@ -29,6 +29,18 @@ SELECT *
 FROM workout_set
 WHERE id = ?;
 
+-- 动作组默认置顶谁：在这几个动作里找「最近一次完成过一组」的那一个。
+-- 训练开始时间倒序、组 id 倒序，第一行就是上次最后练到的动作；只排除本次训练自己。
+selectLastCompletedExerciseId:
+SELECT workout_set.exercise_id
+FROM workout_set
+JOIN workout_session ON workout_session.id = workout_set.session_id
+WHERE workout_set.completed = 1
+AND workout_set.exercise_id IN ?
+AND workout_set.session_id != ?
+ORDER BY workout_session.started_at DESC, workout_set.id DESC
+LIMIT 1;
+
 selectCompletedBySessionId:
 SELECT *
 FROM workout_set

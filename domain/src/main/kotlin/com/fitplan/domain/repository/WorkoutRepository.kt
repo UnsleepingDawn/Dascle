@@ -66,6 +66,17 @@ interface WorkoutRepository {
 
     suspend fun getSetsOfExercise(sessionId: Long, exerciseId: Long): List<WorkoutSet>
 
+    /**
+     * 在这几个动作里找出「上次最后完成过一组」的那个动作，供动作组默认置顶并替用户挑中。
+     *
+     * 按训练开始时间倒序、组 id 倒序取最近的一条已完成组；[excludeSessionId] 是本次训练，
+     * 不参与比较（重新进入一场训练时，不能把自己刚练的动作当成「上次」）。
+     */
+    suspend fun getLastCompletedExerciseId(
+        exerciseIds: List<Long>,
+        excludeSessionId: Long?,
+    ): Long?
+
     /** 这次训练里各动作的临时状态（跳过 / 组行数 / 组内挑选），只返回真正动过的那些动作。 */
     suspend fun getExerciseStates(sessionId: Long): List<WorkoutExerciseState>
 
